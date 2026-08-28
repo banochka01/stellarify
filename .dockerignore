@@ -1,0 +1,16 @@
+.git
+.analysis
+artifacts
+node_modules
+resonance
+apps/web/src
+apps/web/dist
+apps/web/src-tauri
+**/node_modules
+**/dist
+**/.dart_tool
+**/build
+**/.env
+**/.env.*
+!**/.env.example
+

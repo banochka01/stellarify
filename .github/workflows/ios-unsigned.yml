@@ -1,0 +1,67 @@
+name: iOS unsigned IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "resonance/**"
+      - ".github/workflows/ios-unsigned.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: iOS · unsigned IPA
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: resonance
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          cache-dependency-path: resonance/pubspec.lock
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Read app version
+        id: version
+        run: |
+          VERSION=$(awk '/^version:/{print $2}' pubspec.yaml | cut -d+ -f1)
+          test -n "$VERSION"
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build without code signing
+        run: >-
+          flutter build ios --release --no-codesign
+          --dart-define=RESONANCE_API_URL=https://music.webcordes.ru
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p build/ios/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/Runner.app
+          cd build/ios/ipa
+          zip -qry "Resonance-ios-unsigned-${{ steps.version.outputs.value }}.ipa" Payload
+          shasum -a 256 "Resonance-ios-unsigned-${{ steps.version.outputs.value }}.ipa" > "Resonance-ios-unsigned-${{ steps.version.outputs.value }}.ipa.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Resonance-iOS-unsigned-${{ steps.version.outputs.value }}
+          path: |
+            resonance/build/ios/ipa/Resonance-ios-unsigned-${{ steps.version.outputs.value }}.ipa
+            resonance/build/ios/ipa/Resonance-ios-unsigned-${{ steps.version.outputs.value }}.ipa.sha256
+          if-no-files-found: error
+          retention-days: 30

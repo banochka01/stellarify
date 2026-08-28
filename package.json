@@ -1,0 +1,27 @@
+{
+  "name": "stellarify",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n web,server -c cyan,magenta \"npm run dev -w @stellarify/web\" \"npm run dev -w @stellarify/server\"",
+    "dev:web": "npm run dev -w @stellarify/web",
+    "dev:server": "npm run dev -w @stellarify/server",
+    "build": "npm run build -w @stellarify/server && npm run build -w @stellarify/web",
+    "check": "npm run check -w @stellarify/server && npm run check -w @stellarify/web",
+    "test": "npm run test -w @stellarify/server",
+    "native:dev": "npm run tauri -w @stellarify/web -- dev",
+    "native:build": "npm run tauri -w @stellarify/web -- build",
+    "native:android:init": "npm run tauri -w @stellarify/web -- android init",
+    "native:ios:init": "npm run tauri -w @stellarify/web -- ios init"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
+

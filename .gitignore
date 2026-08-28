@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+target/
+gen/
+.DS_Store
+*.log
+*.tsbuildinfo
+artifacts/
+.analysis/
+resonance/.qa/
+resonance/test/failures/
+apps/landing/vite.config.js
+apps/landing/vite.config.d.ts

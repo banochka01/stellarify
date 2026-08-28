@@ -1,0 +1,467 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:resonance/app/providers.dart';
+import 'package:resonance/core/errors/app_exception.dart';
+import 'package:resonance/core/networking/backend_endpoint.dart';
+import 'package:resonance/domain/entities/music_enums.dart';
+import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/provider_badges.dart';
+
+class SettingsScreen extends ConsumerStatefulWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  final _yandexTokenController = TextEditingController();
+  final _soundCloudTokenController = TextEditingController();
+  final _youtubeTokenController = TextEditingController();
+  final _apiController = TextEditingController();
+  final _hasToken = <MusicProvider, bool>{
+    MusicProvider.yandex: false,
+    MusicProvider.soundcloud: false,
+    MusicProvider.youtube: false,
+  };
+  final _obscureToken = <MusicProvider, bool>{
+    MusicProvider.yandex: true,
+    MusicProvider.soundcloud: true,
+    MusicProvider.youtube: true,
+  };
+  final _tokenMessages = <MusicProvider, String>{};
+  final _serverCredential = <MusicProvider, bool>{};
+  MusicProvider? _savingProvider;
+  bool _proxyEnabled = false;
+  bool _savingProxy = false;
+  String? _proxyMessage;
+  String? _apiMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _apiController.text = BackendEndpoint.displayValue;
+    _loadStatus();
+  }
+
+  @override
+  void dispose() {
+    _yandexTokenController.dispose();
+    _soundCloudTokenController.dispose();
+    _youtubeTokenController.dispose();
+    _apiController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadStatus() async {
+    final repository = ref.read(secureTokenRepositoryProvider);
+    final tokens = await Future.wait<String?>([
+      repository.read(MusicProvider.yandex),
+      repository.read(MusicProvider.soundcloud),
+      repository.read(MusicProvider.youtube),
+    ]);
+    final proxyEnabled = await ref
+        .read(soundCloudProxyPreferenceProvider)
+        .read();
+    Map<MusicProvider, bool> serverCredentials = const {};
+    try {
+      serverCredentials = await ref
+          .read(resonanceBackendClientProvider)
+          .serverCredentialStatus();
+    } on AppException {
+      // Settings remain usable offline; status will show that no server key was detected.
+    }
+    if (!mounted) return;
+    setState(() {
+      _hasToken[MusicProvider.yandex] = tokens[0]?.isNotEmpty == true;
+      _hasToken[MusicProvider.soundcloud] = tokens[1]?.isNotEmpty == true;
+      _hasToken[MusicProvider.youtube] = tokens[2]?.isNotEmpty == true;
+      _serverCredential.addAll(serverCredentials);
+      _proxyEnabled = proxyEnabled;
+    });
+  }
+
+  Future<void> _saveToken(
+    MusicProvider provider,
+    TextEditingController controller,
+  ) async {
+    final value = controller.text.trim();
+    if (value.isEmpty) {
+      setState(() {
+        _tokenMessages[provider] = 'Вставьте ${_credentialName(provider)}.';
+      });
+      return;
+    }
+    setState(() {
+      _savingProvider = provider;
+      _tokenMessages.remove(provider);
+    });
+    try {
+      await ref
+          .read(resonanceBackendClientProvider)
+          .validateProvider(
+            provider: provider,
+            token: value,
+            useProxy: _proxyEnabled,
+          );
+      await ref.read(secureTokenRepositoryProvider).write(provider, value);
+      controller.clear();
+      if (!mounted) return;
+      setState(() {
+        _hasToken[provider] = true;
+        _tokenMessages[provider] =
+            '${_credentialName(provider)} проверен и подключён.';
+      });
+    } on AppException catch (error) {
+      if (!mounted) return;
+      setState(() => _tokenMessages[provider] = error.message);
+    } finally {
+      if (mounted) setState(() => _savingProvider = null);
+    }
+  }
+
+  Future<void> _setProxy(bool enabled) async {
+    setState(() {
+      _savingProxy = true;
+      _proxyMessage = null;
+    });
+    try {
+      await ref.read(soundCloudProxyPreferenceProvider).write(enabled);
+      if (!mounted) return;
+      setState(() {
+        _proxyEnabled = enabled;
+        _proxyMessage = enabled
+            ? 'Каталог и progressive-аудио SoundCloud пойдут через серверный прокси.'
+            : 'SoundCloud будет запрашиваться напрямую с сервера.';
+      });
+    } finally {
+      if (mounted) setState(() => _savingProxy = false);
+    }
+  }
+
+  Future<void> _removeToken(MusicProvider provider) async {
+    await ref.read(secureTokenRepositoryProvider).delete(provider);
+    if (!mounted) return;
+    setState(() {
+      _hasToken[provider] = false;
+      _tokenMessages[provider] = _serverCredential[provider] == true
+          ? 'Собственный ключ удалён. Используется серверный.'
+          : 'Собственный ключ удалён; серверный пока не настроен.';
+    });
+  }
+
+  String _providerName(MusicProvider provider) => switch (provider) {
+    MusicProvider.yandex => 'Яндекс Музыка',
+    MusicProvider.soundcloud => 'SoundCloud',
+    MusicProvider.youtube => 'YouTube Music',
+  };
+
+  String _credentialName(MusicProvider provider) => switch (provider) {
+    MusicProvider.yandex => 'OAuth-токен Яндекс Музыки',
+    MusicProvider.soundcloud => 'SoundCloud Client ID',
+    MusicProvider.youtube => 'YouTube Data API key',
+  };
+
+  Future<void> _saveApi() async {
+    try {
+      await BackendEndpoint.save(_apiController.text);
+      if (!mounted) return;
+      setState(() => _apiMessage = 'Адрес API сохранён.');
+    } on FormatException catch (error) {
+      setState(() => _apiMessage = error.message);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 650;
+    return ListView(
+      padding: EdgeInsets.fromLTRB(
+        compact ? 18 : 34,
+        26,
+        compact ? 18 : 34,
+        130,
+      ),
+      children: [
+        Text('Подключения', style: Theme.of(context).textTheme.displaySmall),
+        const SizedBox(height: 8),
+        const Text(
+          'Пользовательские credentials остаются в защищённом хранилище устройства.',
+          style: TextStyle(color: ResonanceColors.muted),
+        ),
+        const SizedBox(height: 26),
+        _buildTokenConnection(
+          provider: MusicProvider.yandex,
+          controller: _yandexTokenController,
+        ),
+        const SizedBox(height: 12),
+        _buildTokenConnection(
+          provider: MusicProvider.soundcloud,
+          controller: _soundCloudTokenController,
+        ),
+        const SizedBox(height: 12),
+        _buildTokenConnection(
+          provider: MusicProvider.youtube,
+          controller: _youtubeTokenController,
+        ),
+        const SizedBox(height: 12),
+        Card(
+          margin: EdgeInsets.zero,
+          child: Column(
+            children: [
+              SwitchListTile(
+                key: const ValueKey('soundcloud-proxy-switch'),
+                value: _proxyEnabled,
+                onChanged: _savingProxy ? null : _setProxy,
+                secondary: const Icon(Icons.route_rounded),
+                title: const Text('Серверный прокси SoundCloud'),
+                subtitle: const Text(
+                  'Адрес и логин прокси хранятся только на сервере. '
+                  'Приложение передаёт лишь переключатель; при включении '
+                  'сервер также ретранслирует progressive-аудио.',
+                ),
+              ),
+              if (_proxyMessage != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      _proxyMessage!,
+                      style: const TextStyle(color: ResonanceColors.muted),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 28),
+        Text('Система', style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 12),
+        Card(
+          margin: EdgeInsets.zero,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextField(
+                      controller: _apiController,
+                      keyboardType: TextInputType.url,
+                      decoration: const InputDecoration(
+                        labelText: 'Адрес Resonance API',
+                        hintText: 'https://api.example.com',
+                        prefixIcon: Icon(Icons.dns_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        onPressed: _saveApi,
+                        icon: const Icon(Icons.save_outlined),
+                        label: const Text('Сохранить адрес'),
+                      ),
+                    ),
+                    if (_apiMessage != null) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        _apiMessage!,
+                        style: const TextStyle(color: ResonanceColors.muted),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              const ListTile(
+                leading: Icon(Icons.shield_outlined),
+                title: Text('Приватность воспроизведения'),
+                subtitle: Text(
+                  'Stream URL и credentials не сохраняются в Drift',
+                ),
+                trailing: Icon(
+                  Icons.check_circle_rounded,
+                  color: ResonanceColors.success,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTokenConnection({
+    required MusicProvider provider,
+    required TextEditingController controller,
+  }) {
+    final connected = _hasToken[provider] ?? false;
+    final obscure = _obscureToken[provider] ?? true;
+    final saving = _savingProvider == provider;
+    final message = _tokenMessages[provider];
+    final soundCloud = provider == MusicProvider.soundcloud;
+    final serverConnected = _serverCredential[provider] == true;
+    return _ConnectionCard(
+      provider: provider,
+      title: _providerName(provider),
+      subtitle: connected
+          ? '${_credentialName(provider)} сохранён на устройстве'
+          : serverConnected
+          ? 'Серверный ключ используется по умолчанию; можно указать свой'
+          : 'Серверный ключ не настроен; укажите собственный',
+      connected: connected,
+      serverConnected: serverConnected,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            key: ValueKey('${provider.name}-token-field'),
+            controller: controller,
+            obscureText: obscure,
+            enableSuggestions: false,
+            autocorrect: false,
+            decoration: InputDecoration(
+              labelText: _credentialName(provider),
+              hintText: connected
+                  ? 'Сохранён — вставьте новый для замены'
+                  : soundCloud
+                  ? '32 символа из SoundCloud API'
+                  : provider == MusicProvider.youtube
+                  ? 'Вставьте API key'
+                  : 'Вставьте OAuth-токен',
+              prefixIcon: const Icon(Icons.key_rounded),
+              suffixIcon: IconButton(
+                tooltip: obscure ? 'Показать' : 'Скрыть',
+                onPressed: () => setState(() {
+                  _obscureToken[provider] = !obscure;
+                }),
+                icon: Icon(
+                  obscure
+                      ? Icons.visibility_off_rounded
+                      : Icons.visibility_rounded,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              FilledButton.icon(
+                onPressed: _savingProvider == null
+                    ? () => _saveToken(provider, controller)
+                    : null,
+                icon: saving
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.lock_rounded),
+                label: const Text('Сохранить безопасно'),
+              ),
+              if (connected)
+                OutlinedButton.icon(
+                  onPressed: () => _removeToken(provider),
+                  icon: const Icon(Icons.link_off_rounded),
+                  label: const Text('Отключить'),
+                ),
+            ],
+          ),
+          if (message != null) ...[
+            const SizedBox(height: 10),
+            Text(message, style: const TextStyle(color: ResonanceColors.muted)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ConnectionCard extends StatelessWidget {
+  const _ConnectionCard({
+    required this.provider,
+    required this.title,
+    required this.subtitle,
+    required this.connected,
+    required this.serverConnected,
+    this.child,
+  });
+
+  final MusicProvider provider;
+  final String title;
+  final String subtitle;
+  final bool connected;
+  final bool serverConnected;
+  final Widget? child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                ProviderBadge(provider: provider),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          color: ResonanceColors.muted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: connected || serverConnected
+                        ? ResonanceColors.success.withValues(alpha: 0.12)
+                        : ResonanceColors.surfaceHigh,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    connected
+                        ? 'Свой ключ'
+                        : serverConnected
+                        ? 'Сервер'
+                        : 'Не настроено',
+                    style: TextStyle(
+                      color: connected || serverConnected
+                          ? ResonanceColors.success
+                          : ResonanceColors.muted,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (child != null) ...[const SizedBox(height: 18), child!],
+          ],
+        ),
+      ),
+    );
+  }
+}
