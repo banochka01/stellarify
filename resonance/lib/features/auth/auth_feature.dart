@@ -1,4 +1,4 @@
-/// Authentication UI is implemented together with each provider's auth flow.
+/// Provider credentials are validated from onboarding and Settings.
 abstract final class AuthFeature {
-  static const implemented = false;
+  static const implemented = true;
 }

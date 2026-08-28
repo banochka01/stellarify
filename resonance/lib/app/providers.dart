@@ -15,6 +15,7 @@ import 'package:resonance/core/playback/resolved_source_cache.dart';
 import 'package:resonance/core/playback/resonance_audio_handler.dart';
 import 'package:resonance/core/playback/windows_media_controls.dart';
 import 'package:resonance/core/preferences/appearance_preferences.dart';
+import 'package:resonance/core/preferences/onboarding_preferences.dart';
 import 'package:resonance/core/security/flutter_secure_token_repository.dart';
 import 'package:resonance/core/update/app_update_service.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
@@ -49,6 +50,14 @@ final secureTokenRepositoryProvider = Provider<SecureTokenRepository>((ref) {
 
 final appearancePreferencesProvider = Provider<AppearancePreferences>((ref) {
   return AppearancePreferences(ref.watch(secureKeyValueStoreProvider));
+});
+
+final onboardingPreferencesProvider = Provider<OnboardingPreferences>((ref) {
+  return OnboardingPreferences(ref.watch(secureKeyValueStoreProvider));
+});
+
+final onboardingSettingsProvider = FutureProvider<OnboardingSettings>((ref) {
+  return ref.watch(onboardingPreferencesProvider).read();
 });
 
 final appearanceControllerProvider =
@@ -131,12 +140,14 @@ final playbackEngineProvider = Provider<PlaybackEngine>((ref) {
 });
 
 final playbackServiceProvider = FutureProvider<PlaybackService>((ref) async {
+  final onboarding = await ref.watch(onboardingPreferencesProvider).read();
   final service = PlaybackService(
     engine: ref.watch(playbackEngineProvider),
     providers: ref.watch(providerRegistryProvider),
     sourceSelectionPolicy: ref.watch(sourceSelectionPolicyProvider),
     persistence: ref.watch(playbackPersistenceProvider),
     sourceCache: ref.watch(resolvedSourceCacheProvider),
+    quality: onboarding.quality,
   );
   await service.initialize();
   AudioFocusCoordinator? focusCoordinator;

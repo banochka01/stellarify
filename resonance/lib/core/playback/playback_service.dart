@@ -69,7 +69,7 @@ final class PlaybackService {
   final SourceSelectionPolicy _sourceSelectionPolicy;
   final PlaybackPersistence? _persistence;
   final ResolvedSourceCache _sourceCache;
-  final AudioQuality _quality;
+  AudioQuality _quality;
   final Random _random;
   final _states = StreamController<ResonancePlaybackState>.broadcast();
   final _subscriptions = <StreamSubscription<Object?>>[];
@@ -81,6 +81,14 @@ final class PlaybackService {
 
   ResonancePlaybackState get state => _state;
   Stream<ResonancePlaybackState> get states => _states.stream;
+
+  AudioQuality get quality => _quality;
+
+  void setQuality(AudioQuality quality) {
+    if (_quality == quality) return;
+    _quality = quality;
+    _sourceCache.clear();
+  }
 
   Future<void> initialize() async {
     final persisted = await _persistence?.load();

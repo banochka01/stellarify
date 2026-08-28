@@ -61,9 +61,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "0.1.8",
+    version: process.env.CLIENT_VERSION || "0.2.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Темы и собственные фоны, системное управление воспроизведением, качественные обложки и стабильный адаптивный плеер.",
+      "Новый мастер первого запуска: подключение сервисов, безопасная проверка токенов, выбор темы и качества, быстрый импорт плейлиста.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       android: "https://music.webcordes.ru/downloads/android",

@@ -14,7 +14,7 @@ final class ResonanceHttpClient {
               responseType: ResponseType.json,
               headers: const {
                 'Accept': 'application/json',
-                'User-Agent': 'Resonance/0.1',
+                'User-Agent': 'Resonance/0.2',
               },
             ),
           );

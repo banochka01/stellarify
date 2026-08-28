@@ -1,5 +1,18 @@
 # Progress
 
+## Version 0.2.0 — first-run setup
+
+Status: release 0.2.0 prepared for production deployment.
+
+- [x] Four-step adaptive onboarding
+- [x] Provider selection and live credential validation
+- [x] Server-credential readiness states and offline-safe skipping
+- [x] Theme and playback-quality selection
+- [x] Optional Yandex Music / YouTube playlist import
+- [x] Secure persistence and playback quality wiring
+- [x] Mobile first-run widget coverage
+- [x] Resonance Wave architecture and staged delivery plan
+
 ## Stage 1 — foundation
 
 Status: implemented and validated.

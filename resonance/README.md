@@ -5,6 +5,11 @@ The current client targets Windows, Android, and iOS. It includes a bundled
 local diagnostic track plus server-backed SoundCloud and Yandex Music search
 and playback. YouTube Music remains a later provider.
 
+Version 0.2.0 adds a four-step first-run setup for provider selection,
+credential validation, appearance, playback quality, and optional playlist
+import. The proposed endless recommendation flow is documented in
+[WAVE_DESIGN.md](WAVE_DESIGN.md).
+
 ## Toolchain
 
 - Flutter 3.44.4 stable

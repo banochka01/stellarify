@@ -150,7 +150,7 @@ function App() {
                 <Apple size={18} /> Unsigned IPA
               </a>
             </div>
-            <p className="release-note">Resonance 0.1.8 · Windows · Android · iOS unsigned</p>
+            <p className="release-note">Resonance 0.2.0 · Windows · Android · iOS unsigned</p>
           </div>
           <div className="hero-visual" aria-hidden="true">
             <img className="hero-orbit" src="/assets/resonance-hero-orbit.png" alt="" />

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/app/router.dart';
+import 'package:resonance/features/onboarding/onboarding_feature.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/appearance_backdrop.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -73,7 +74,7 @@ class _ResonanceAppState extends ConsumerState<ResonanceApp> {
         fit: StackFit.expand,
         children: [
           AppearanceBackdrop(settings: appearance),
-          ?child,
+          OnboardingGate(child: child ?? const SizedBox.shrink()),
         ],
       ),
     );

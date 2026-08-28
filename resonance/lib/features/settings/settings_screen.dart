@@ -46,6 +46,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _installedVersion = '…';
   String _updateMessage = 'Проверяем версию…';
   bool _checkingUpdate = true;
+  AudioQuality _quality = AudioQuality.high;
+  bool _savingQuality = false;
 
   @override
   void initState() {
@@ -74,6 +76,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final proxyEnabled = await ref
         .read(soundCloudProxyPreferenceProvider)
         .read();
+    final onboarding = await ref.read(onboardingPreferencesProvider).read();
     Map<MusicProvider, bool> serverCredentials = const {};
     try {
       serverCredentials = await ref
@@ -89,6 +92,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _hasToken[MusicProvider.youtube] = tokens[2]?.isNotEmpty == true;
       _serverCredential.addAll(serverCredentials);
       _proxyEnabled = proxyEnabled;
+      _quality = onboarding.quality;
     });
   }
 
@@ -184,6 +188,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
   }
 
+  Future<void> _setQuality(AudioQuality quality) async {
+    if (_savingQuality) return;
+    setState(() {
+      _quality = quality;
+      _savingQuality = true;
+    });
+    try {
+      await ref.read(onboardingPreferencesProvider).setQuality(quality);
+      final playback = await ref.read(playbackServiceProvider.future);
+      playback.setQuality(quality);
+    } finally {
+      if (mounted) setState(() => _savingQuality = false);
+    }
+  }
+
   String _providerName(MusicProvider provider) => switch (provider) {
     MusicProvider.yandex => 'Яндекс Музыка',
     MusicProvider.soundcloud => 'SoundCloud',
@@ -194,6 +213,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     MusicProvider.yandex => 'OAuth-токен Яндекс Музыки',
     MusicProvider.soundcloud => 'SoundCloud Client ID',
     MusicProvider.youtube => 'YouTube Data API key',
+  };
+
+  String _qualityName(AudioQuality quality) => switch (quality) {
+    AudioQuality.low => 'Экономия · 128',
+    AudioQuality.medium => 'Баланс · 192',
+    AudioQuality.high => 'Высокое · 320',
+    AudioQuality.lossless => 'Лучшее доступное',
   };
 
   Future<void> _saveApi() async {
@@ -295,6 +321,51 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   onChangeEnd: (_) => unawaited(
                     ref.read(appearanceControllerProvider.notifier).persist(),
                   ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+        Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.high_quality_rounded),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Качество воспроизведения',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: AudioQuality.values
+                      .map((quality) {
+                        return ChoiceChip(
+                          label: Text(_qualityName(quality)),
+                          selected: _quality == quality,
+                          onSelected: _savingQuality
+                              ? null
+                              : (_) => _setQuality(quality),
+                        );
+                      })
+                      .toList(growable: false),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Применяется к следующему разрешению потока. Уже открытый трек не перезапускается.',
+                  style: TextStyle(color: ResonanceColors.muted, fontSize: 12),
                 ),
               ],
             ),
