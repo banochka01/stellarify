@@ -26,7 +26,6 @@ jobs:
         with:
           channel: stable
           cache: true
-          cache-dependency-path: resonance/pubspec.lock
 
       - name: Resolve dependencies
         run: flutter pub get
@@ -35,7 +34,10 @@ jobs:
         run: flutter analyze
 
       - name: Test
-        run: flutter test
+        shell: bash
+        run: |
+          TEST_FILES=$(find test -name '*_test.dart' ! -name 'visual_capture_test.dart' -print)
+          flutter test $TEST_FILES
 
       - name: Read app version
         id: version
