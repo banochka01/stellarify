@@ -19,6 +19,8 @@ class TrackArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final cacheSize = (size * pixelRatio).round().clamp(96, 1600);
     final fallback = SizedBox.square(
       dimension: size,
       child: ClipRRect(
@@ -46,12 +48,31 @@ class TrackArtwork extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: CachedNetworkImage(
-        imageUrl: artworkUrl.toString(),
+        imageUrl: highQualityArtworkUrl(artworkUrl, targetSize: cacheSize),
         width: size,
         height: size,
         fit: BoxFit.cover,
+        memCacheWidth: cacheSize,
+        maxWidthDiskCache: cacheSize,
+        fadeInDuration: const Duration(milliseconds: 180),
         errorWidget: (context, url, error) => fallback,
       ),
     );
   }
+}
+
+String highQualityArtworkUrl(Uri artworkUrl, {int targetSize = 1000}) {
+  var value = artworkUrl.toString();
+  if (artworkUrl.host.endsWith('sndcdn.com')) {
+    value = value.replaceFirstMapped(
+      RegExp(r'-(?:large|t\d+x\d+)\.(jpg|jpeg|png)(?=\?|$)'),
+      (match) => '-t500x500.${match.group(1)}',
+    );
+  } else if (artworkUrl.host.endsWith('yandex.net')) {
+    final size = targetSize.clamp(400, 1000);
+    value = value
+        .replaceAll('%%', '${size}x$size')
+        .replaceFirst(RegExp(r'/\d+x\d+(?=/|$)'), '/${size}x$size');
+  }
+  return value;
 }

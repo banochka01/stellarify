@@ -1,15 +1,22 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/core/database/app_database.dart';
 import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/core/networking/resonance_http_client.dart';
 import 'package:resonance/core/networking/soundcloud_proxy_preference.dart';
+import 'package:resonance/core/playback/audio_focus_coordinator.dart';
 import 'package:resonance/core/playback/demo_audio_source_resolver.dart';
 import 'package:resonance/core/playback/playback_engine.dart';
 import 'package:resonance/core/playback/playback_service.dart';
 import 'package:resonance/core/playback/resolved_source_cache.dart';
+import 'package:resonance/core/playback/resonance_audio_handler.dart';
+import 'package:resonance/core/playback/windows_media_controls.dart';
+import 'package:resonance/core/preferences/appearance_preferences.dart';
 import 'package:resonance/core/security/flutter_secure_token_repository.dart';
+import 'package:resonance/core/update/app_update_service.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/repositories/playback_persistence.dart';
 import 'package:resonance/domain/repositories/secure_token_repository.dart';
@@ -40,6 +47,15 @@ final secureTokenRepositoryProvider = Provider<SecureTokenRepository>((ref) {
   return FlutterSecureTokenRepository(ref.watch(secureKeyValueStoreProvider));
 });
 
+final appearancePreferencesProvider = Provider<AppearancePreferences>((ref) {
+  return AppearancePreferences(ref.watch(secureKeyValueStoreProvider));
+});
+
+final appearanceControllerProvider =
+    StateNotifierProvider<AppearanceController, AppearanceSettings>((ref) {
+      return AppearanceController(ref.watch(appearancePreferencesProvider));
+    });
+
 final soundCloudProxyPreferenceProvider = Provider<SoundCloudProxyPreference>((
   ref,
 ) {
@@ -56,6 +72,13 @@ final resonanceHttpClientProvider = Provider<ResonanceHttpClient>((ref) {
 
 final resonanceBackendClientProvider = Provider<ResonanceBackendClient>((ref) {
   return DioResonanceBackendClient(
+    ref.watch(resonanceHttpClientProvider).dio,
+    BackendEndpoint.requireCurrent,
+  );
+});
+
+final appUpdateServiceProvider = Provider<AppUpdateService>((ref) {
+  return AppUpdateService(
     ref.watch(resonanceHttpClientProvider).dio,
     BackendEndpoint.requireCurrent,
   );
@@ -115,10 +138,34 @@ final playbackServiceProvider = FutureProvider<PlaybackService>((ref) async {
     persistence: ref.watch(playbackPersistenceProvider),
     sourceCache: ref.watch(resolvedSourceCacheProvider),
   );
+  await service.initialize();
+  AudioFocusCoordinator? focusCoordinator;
+  ResonanceAudioHandler? audioHandler;
+  WindowsMediaControls? windowsMediaControls;
+  if (Platform.isAndroid || Platform.isIOS) {
+    focusCoordinator = AudioFocusCoordinator(service);
+    await focusCoordinator.initialize();
+    await AudioService.init(
+      builder: () => audioHandler = ResonanceAudioHandler(service),
+      config: const AudioServiceConfig(
+        androidNotificationChannelId: 'app.resonance.playback',
+        androidNotificationChannelName: 'Воспроизведение Resonance',
+        androidNotificationOngoing: false,
+        androidStopForegroundOnPause: false,
+      ),
+    );
+  } else if (Platform.isWindows) {
+    windowsMediaControls = WindowsMediaControls(service);
+  }
   ref.onDispose(() {
+    final coordinator = focusCoordinator;
+    final handler = audioHandler;
+    final windowsControls = windowsMediaControls;
+    if (coordinator != null) unawaited(coordinator.dispose());
+    if (handler != null) unawaited(handler.close());
+    if (windowsControls != null) unawaited(windowsControls.dispose());
     unawaited(service.dispose());
   });
-  await service.initialize();
   return service;
 });
 

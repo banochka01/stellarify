@@ -59,6 +59,19 @@ app.get("/api/health", (_request, response) => {
   });
 });
 
+app.get("/api/client-version", (_request, response) => {
+  response.json({
+    version: process.env.CLIENT_VERSION || "0.1.8",
+    notes: process.env.CLIENT_RELEASE_NOTES ||
+      "Темы и собственные фоны, системное управление воспроизведением, качественные обложки и стабильный адаптивный плеер.",
+    downloads: {
+      windows: "https://music.webcordes.ru/downloads/windows",
+      android: "https://music.webcordes.ru/downloads/android",
+      ios: "https://music.webcordes.ru/downloads/ios"
+    }
+  });
+});
+
 app.get("/api/providers", (_request, response) => {
   response.json({ providers: providerCapabilities });
 });

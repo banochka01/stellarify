@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:resonance/core/preferences/appearance_preferences.dart';
 
 abstract final class ResonanceColors {
   static const background = Color(0xFF060606);
@@ -17,27 +18,55 @@ abstract final class ResonanceColors {
 }
 
 abstract final class ResonanceTheme {
-  static ThemeData get dark {
+  static ThemeData forPreset(ResonanceThemePreset preset) {
+    final palette = switch (preset) {
+      ResonanceThemePreset.graphite => const _Palette(
+        background: Color(0xFF060606),
+        surface: Color(0xFF0D0D0D),
+        raised: Color(0xFF1B1A18),
+        border: Color(0xFF2A2927),
+        primary: Color(0xFFFF5A36),
+        secondary: Color(0xFFF1ECE2),
+      ),
+      ResonanceThemePreset.midnight => const _Palette(
+        background: Color(0xFF070712),
+        surface: Color(0xFF101020),
+        raised: Color(0xFF1B1B35),
+        border: Color(0xFF32325A),
+        primary: Color(0xFF8B7CFF),
+        secondary: Color(0xFFDCD8FF),
+      ),
+      ResonanceThemePreset.ember => const _Palette(
+        background: Color(0xFF100706),
+        surface: Color(0xFF190D0B),
+        raised: Color(0xFF2A1612),
+        border: Color(0xFF4B2922),
+        primary: Color(0xFFFF704D),
+        secondary: Color(0xFFFFE1D8),
+      ),
+    };
     final colorScheme =
         ColorScheme.fromSeed(
-          seedColor: ResonanceColors.primary,
+          seedColor: palette.primary,
           brightness: Brightness.dark,
-          surface: ResonanceColors.surface,
+          surface: palette.surface,
         ).copyWith(
-          primary: ResonanceColors.primary,
-          secondary: ResonanceColors.secondary,
-          surface: ResonanceColors.surface,
-          outline: ResonanceColors.border,
+          primary: palette.primary,
+          secondary: palette.secondary,
+          surface: palette.surface,
+          surfaceContainerLowest: palette.background,
+          surfaceContainerHigh: palette.raised,
+          outline: palette.border,
         );
 
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: ResonanceColors.background,
+      scaffoldBackgroundColor: Colors.transparent,
       fontFamily: 'Inter',
-      dividerColor: ResonanceColors.border,
-      cardColor: ResonanceColors.surface,
+      dividerColor: palette.border,
+      cardColor: palette.surface,
       splashFactory: InkSparkle.splashFactory,
       textTheme: const TextTheme(
         displaySmall: TextStyle(
@@ -57,11 +86,11 @@ abstract final class ResonanceTheme {
         labelLarge: TextStyle(fontWeight: FontWeight.w700),
       ),
       cardTheme: CardThemeData(
-        color: const Color(0xE6101010),
+        color: palette.surface.withValues(alpha: .92),
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: ResonanceColors.border),
+          side: BorderSide(color: palette.border),
         ),
       ),
       navigationBarTheme: const NavigationBarThemeData(
@@ -88,7 +117,7 @@ abstract final class ResonanceTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: ResonanceColors.primary,
+          backgroundColor: palette.primary,
           foregroundColor: Color(0xFF090706),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -99,7 +128,7 @@ abstract final class ResonanceTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: ResonanceColors.text,
-          side: const BorderSide(color: ResonanceColors.border),
+          side: BorderSide(color: palette.border),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -108,7 +137,7 @@ abstract final class ResonanceTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: ResonanceColors.surfaceHigh,
-        selectedColor: ResonanceColors.primary,
+        selectedColor: palette.primary,
         disabledColor: ResonanceColors.surfaceHigh,
         labelStyle: const TextStyle(
           fontFamily: 'Inter',
@@ -121,26 +150,43 @@ abstract final class ResonanceTheme {
         ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
-          side: const BorderSide(color: ResonanceColors.border),
+          side: BorderSide(color: palette.border),
         ),
         showCheckmark: false,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: ResonanceColors.surfaceHigh,
+        fillColor: palette.raised,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: ResonanceColors.border),
+          borderSide: BorderSide(color: palette.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: ResonanceColors.border),
+          borderSide: BorderSide(color: palette.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: ResonanceColors.primary),
+          borderSide: BorderSide(color: palette.primary),
         ),
       ),
     );
   }
+}
+
+final class _Palette {
+  const _Palette({
+    required this.background,
+    required this.surface,
+    required this.raised,
+    required this.border,
+    required this.primary,
+    required this.secondary,
+  });
+  final Color background;
+  final Color surface;
+  final Color raised;
+  final Color border;
+  final Color primary;
+  final Color secondary;
 }

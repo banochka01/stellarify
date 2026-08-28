@@ -333,9 +333,14 @@ function mapTrack(track: z.infer<typeof trackSchema>): ProviderTrack {
     title: track.title,
     artist: track.user.username,
     durationMs: track.duration,
-    artworkUrl: track.artwork_url ?? undefined,
+    artworkUrl: highResolutionArtwork(track.artwork_url),
     externalUrl: track.permalink_url
   };
+}
+
+function highResolutionArtwork(value?: string | null) {
+  if (!value) return undefined;
+  return value.replace(/-(?:large|t\d+x\d+)\.(jpg|jpeg|png)(\?.*)?$/i, "-t500x500.$1$2");
 }
 
 export function normalizeProxyUrl(value?: string) {

@@ -20,7 +20,7 @@ function publicTrack() {
     id: 42,
     title: "Awake",
     duration: 123000,
-    artwork_url: "https://i1.sndcdn.com/artwork.jpg",
+    artwork_url: "https://i1.sndcdn.com/artwork-large.jpg",
     permalink_url: "https://soundcloud.com/tycho/awake",
     track_authorization: "track-auth",
     user: { username: "Tycho" },
@@ -76,7 +76,7 @@ test("uses a server Client ID for public API v2 search", async () => {
       title: "Awake",
       artist: "Tycho",
       durationMs: 123000,
-      artworkUrl: "https://i1.sndcdn.com/artwork.jpg",
+      artworkUrl: "https://i1.sndcdn.com/artwork-t500x500.jpg",
       externalUrl: "https://soundcloud.com/tycho/awake"
     }
   ]);

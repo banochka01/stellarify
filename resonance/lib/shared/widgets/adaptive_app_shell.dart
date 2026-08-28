@@ -222,15 +222,15 @@ class _BrandMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    return Row(
       children: [
         Icon(
           Icons.graphic_eq_rounded,
           size: 25,
-          color: ResonanceColors.primary,
+          color: Theme.of(context).colorScheme.primary,
         ),
-        SizedBox(width: 10),
-        Expanded(
+        const SizedBox(width: 10),
+        const Expanded(
           child: Text(
             'RESONANCE',
             style: TextStyle(
@@ -280,7 +280,7 @@ class _SidebarItem extends StatelessWidget {
                     height: selected ? 24 : 8,
                     decoration: BoxDecoration(
                       color: selected
-                          ? ResonanceColors.primary
+                          ? Theme.of(context).colorScheme.primary
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(99),
                     ),
@@ -290,7 +290,7 @@ class _SidebarItem extends StatelessWidget {
                     icon,
                     size: 20,
                     color: selected
-                        ? ResonanceColors.primary
+                        ? Theme.of(context).colorScheme.primary
                         : ResonanceColors.muted,
                   ),
                   const SizedBox(width: 11),

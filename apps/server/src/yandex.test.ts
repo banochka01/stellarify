@@ -53,7 +53,7 @@ test("maps Yandex search results using the request token", async () => {
       artist: "Кино",
       album: "Звезда по имени Солнце",
       durationMs: 275000,
-      artworkUrl: "https://avatars.yandex.net/get-music-content/cover/400x400",
+      artworkUrl: "https://avatars.yandex.net/get-music-content/cover/1000x1000",
       externalUrl: "https://music.yandex.ru/track/42"
     }
   ]);

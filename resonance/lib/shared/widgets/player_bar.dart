@@ -6,8 +6,10 @@ import 'package:go_router/go_router.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/playback/demo_track.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
+import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/seek_timeline.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 
 class PlayerBar extends ConsumerWidget {
@@ -36,11 +38,18 @@ class PlayerBar extends ConsumerWidget {
         ),
         child: Column(
           children: [
-            LinearProgressIndicator(
+            SeekTimeline(
               value: progress,
-              minHeight: 3,
-              backgroundColor: ResonanceColors.border,
-              color: ResonanceColors.primary,
+              height: 14,
+              onSeek: (value) => unawaited(
+                ref
+                    .read(playbackServiceProvider.future)
+                    .then(
+                      (service) => service.seek(
+                        Duration(milliseconds: (durationMs * value).round()),
+                      ),
+                    ),
+              ),
             ),
             Expanded(
               child: InkWell(
@@ -57,32 +66,10 @@ class PlayerBar extends ConsumerWidget {
                             'assets/images/resonance_fallback_cover.png',
                       ),
                       const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              track.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              track.artist,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: ResonanceColors.muted,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      if (compact)
+                        Expanded(child: _TrackInfo(track: track))
+                      else
+                        SizedBox(width: 250, child: _TrackInfo(track: track)),
                       if (!compact) ...[
                         IconButton(
                           tooltip: favorite
@@ -98,42 +85,64 @@ class PlayerBar extends ConsumerWidget {
                                 ? Icons.favorite_rounded
                                 : Icons.favorite_border_rounded,
                             color: favorite
-                                ? ResonanceColors.primary
+                                ? Theme.of(context).colorScheme.primary
                                 : ResonanceColors.text,
                           ),
                         ),
-                        const Spacer(),
-                        IconButton(
-                          onPressed: () => unawaited(
-                            ref
-                                .read(playbackServiceProvider.future)
-                                .then((service) => service.previous()),
-                          ),
-                          icon: const Icon(Icons.skip_previous_rounded),
-                        ),
+                        const SizedBox(width: 8),
                       ],
-                      _PlayButton(state: state),
-                      if (!compact) ...[
-                        IconButton(
-                          onPressed: () => unawaited(
-                            ref
-                                .read(playbackServiceProvider.future)
-                                .then((service) => service.next()),
+                      if (!compact)
+                        Expanded(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              IconButton(
+                                tooltip: 'Предыдущий',
+                                onPressed: () => unawaited(
+                                  ref
+                                      .read(playbackServiceProvider.future)
+                                      .then((service) => service.previous()),
+                                ),
+                                icon: const Icon(Icons.skip_previous_rounded),
+                              ),
+                              const SizedBox(width: 8),
+                              _PlayButton(state: state),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                tooltip: 'Следующий',
+                                onPressed: () => unawaited(
+                                  ref
+                                      .read(playbackServiceProvider.future)
+                                      .then((service) => service.next()),
+                                ),
+                                icon: const Icon(Icons.skip_next_rounded),
+                              ),
+                            ],
                           ),
-                          icon: const Icon(Icons.skip_next_rounded),
-                        ),
-                        const Spacer(),
-                        const SizedBox(width: 12),
+                        )
+                      else
+                        _PlayButton(state: state),
+                      if (!compact) ...[
+                        const SizedBox(width: 8),
                         SizedBox(
-                          width: 130,
-                          child: Slider(
-                            value: state.volume.clamp(0, 100),
-                            max: 100,
-                            onChanged: (value) => unawaited(
-                              ref
-                                  .read(playbackServiceProvider.future)
-                                  .then((service) => service.setVolume(value)),
-                            ),
+                          width: 174,
+                          child: Row(
+                            children: [
+                              const Icon(Icons.volume_up_rounded, size: 19),
+                              Expanded(
+                                child: Slider(
+                                  value: state.volume.clamp(0, 100),
+                                  max: 100,
+                                  onChanged: (value) => unawaited(
+                                    ref
+                                        .read(playbackServiceProvider.future)
+                                        .then(
+                                          (service) => service.setVolume(value),
+                                        ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -145,6 +154,35 @@ class PlayerBar extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TrackInfo extends StatelessWidget {
+  const _TrackInfo({required this.track});
+
+  final UnifiedTrack track;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          track.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          track.artist,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: ResonanceColors.muted, fontSize: 12),
+        ),
+      ],
     );
   }
 }

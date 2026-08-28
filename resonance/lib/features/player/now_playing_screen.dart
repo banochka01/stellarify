@@ -24,7 +24,7 @@ class NowPlayingScreen extends ConsumerWidget {
     final next = _nextTrack(state);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF070706),
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Column(
           children: [
@@ -196,7 +196,7 @@ class _Details extends ConsumerWidget {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: const Color(0xFFF3EFE7),
-            fontSize: desktop ? 72 : 46,
+            fontSize: desktop ? 64 : 40,
             height: 0.94,
             letterSpacing: desktop ? -3.6 : -2.2,
             fontWeight: FontWeight.w300,
@@ -216,6 +216,7 @@ class _Details extends ConsumerWidget {
         SizedBox(height: desktop ? 58 : 38),
         _Waveform(
           value: positionMs / maxMs,
+          activeColor: Theme.of(context).colorScheme.primary,
           onSeek: (value) => unawaited(
             ref
                 .read(playbackServiceProvider.future)
@@ -278,7 +279,7 @@ class _Controls extends ConsumerWidget {
           iconSize: desktop ? 38 : 34,
           padding: EdgeInsets.all(desktop ? 18 : 15),
           style: IconButton.styleFrom(
-            backgroundColor: const Color(0xFFFF5146),
+            backgroundColor: Theme.of(context).colorScheme.primary,
             foregroundColor: const Color(0xFF080706),
           ),
           onPressed: () => unawaited(
@@ -353,16 +354,23 @@ class _Control extends StatelessWidget {
       tooltip: tooltip,
       onPressed: onPressed,
       iconSize: size,
-      color: active ? const Color(0xFFFF5146) : const Color(0xFFD4D0C9),
+      color: active
+          ? Theme.of(context).colorScheme.primary
+          : const Color(0xFFD4D0C9),
       icon: Icon(icon),
     );
   }
 }
 
 class _Waveform extends StatelessWidget {
-  const _Waveform({required this.value, required this.onSeek});
+  const _Waveform({
+    required this.value,
+    required this.activeColor,
+    required this.onSeek,
+  });
 
   final double value;
+  final Color activeColor;
   final ValueChanged<double> onSeek;
 
   @override
@@ -382,7 +390,7 @@ class _Waveform extends StatelessWidget {
             child: SizedBox(
               height: 72,
               width: double.infinity,
-              child: CustomPaint(painter: _WaveformPainter(value)),
+              child: CustomPaint(painter: _WaveformPainter(value, activeColor)),
             ),
           ),
         );
@@ -392,16 +400,17 @@ class _Waveform extends StatelessWidget {
 }
 
 class _WaveformPainter extends CustomPainter {
-  const _WaveformPainter(this.value);
+  const _WaveformPainter(this.value, this.activeColor);
 
   final double value;
+  final Color activeColor;
 
   @override
   void paint(Canvas canvas, Size size) {
     const bars = 74;
     const gap = 3.0;
     final width = (size.width - gap * (bars - 1)) / bars;
-    final played = Paint()..color = const Color(0xFFFF5146);
+    final played = Paint()..color = activeColor;
     final remaining = Paint()..color = const Color(0xFF3A3733);
 
     for (var index = 0; index < bars; index++) {
@@ -426,5 +435,5 @@ class _WaveformPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _WaveformPainter oldDelegate) =>
-      oldDelegate.value != value;
+      oldDelegate.value != value || oldDelegate.activeColor != activeColor;
 }

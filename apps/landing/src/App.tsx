@@ -150,7 +150,7 @@ function App() {
                 <Apple size={18} /> Unsigned IPA
               </a>
             </div>
-            <p className="release-note">Windows · Android · iOS unsigned</p>
+            <p className="release-note">Resonance 0.1.8 · Windows · Android · iOS unsigned</p>
           </div>
           <div className="hero-visual" aria-hidden="true">
             <img className="hero-orbit" src="/assets/resonance-hero-orbit.png" alt="" />
@@ -202,8 +202,8 @@ function App() {
             <p className="eyebrow">Один выразительный плеер</p>
             <h2>Не ещё один<br />клон стриминга.</h2>
             <p>
-              Чёрный editorial-интерфейс держит музыку в центре: крупная
-              обложка, ясный поиск и компактная строка следующего трека.
+              Три темы, собственные фоны с размытием и затемнением, качественные
+              обложки и стабильный адаптивный плеер на каждом экране.
             </p>
             <a href={downloads.windows}>Попробовать Resonance <ArrowRight size={17} /></a>
           </div>

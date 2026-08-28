@@ -13,6 +13,7 @@ import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/player/track_action.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
+import 'package:resonance/shared/widgets/seek_timeline.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -221,13 +222,13 @@ class _SearchLauncher extends StatelessWidget {
   }
 }
 
-class _HeroProgress extends StatelessWidget {
+class _HeroProgress extends ConsumerWidget {
   const _HeroProgress({required this.state});
 
   final ResonancePlaybackState state;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final total = state.duration.inMilliseconds;
     final value = total <= 0
         ? 0.18
@@ -236,13 +237,17 @@ class _HeroProgress extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 500),
       child: Column(
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              value: value,
-              minHeight: 4,
-              backgroundColor: const Color(0xFF5E5A54),
-              color: ResonanceColors.primary,
+          SeekTimeline(
+            value: value,
+            height: 22,
+            onSeek: (fraction) => unawaited(
+              ref
+                  .read(playbackServiceProvider.future)
+                  .then(
+                    (service) => service.seek(
+                      Duration(milliseconds: (total * fraction).round()),
+                    ),
+                  ),
             ),
           ),
           const SizedBox(height: 9),
@@ -494,7 +499,7 @@ class _CompactHome extends StatelessWidget {
                     fit: BoxFit.cover,
                   )
                 : CachedNetworkImage(
-                    imageUrl: track.artworkUrl.toString(),
+                    imageUrl: highQualityArtworkUrl(track.artworkUrl!),
                     fit: BoxFit.cover,
                     errorWidget: (_, _, _) => Image.asset(
                       'assets/images/resonance_fallback_cover.png',
@@ -544,12 +549,15 @@ class _CompactHome extends StatelessWidget {
   }
 }
 
-class _TrackBackdrop extends StatelessWidget {
+class _TrackBackdrop extends ConsumerWidget {
   const _TrackBackdrop({required this.track});
   final UnifiedTrack track;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(appearanceControllerProvider).backgroundPath != null) {
+      return const SizedBox.expand();
+    }
     final artwork = track.artworkUrl;
     if (artwork == null) {
       return Image.asset(
@@ -559,7 +567,9 @@ class _TrackBackdrop extends StatelessWidget {
       );
     }
     return CachedNetworkImage(
-      imageUrl: artwork.toString(),
+      imageUrl: highQualityArtworkUrl(artwork),
+      memCacheWidth: 1400,
+      maxWidthDiskCache: 1400,
       fit: BoxFit.cover,
       alignment: Alignment.centerRight,
       errorWidget: (_, _, _) => Image.asset(

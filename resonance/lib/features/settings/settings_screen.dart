@@ -1,11 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/errors/app_exception.dart';
 import 'package:resonance/core/networking/backend_endpoint.dart';
+import 'package:resonance/core/preferences/appearance_preferences.dart';
+import 'package:resonance/core/update/app_update_service.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -36,12 +42,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _savingProxy = false;
   String? _proxyMessage;
   String? _apiMessage;
+  AppUpdate? _availableUpdate;
+  String _installedVersion = '…';
+  String _updateMessage = 'Проверяем версию…';
+  bool _checkingUpdate = true;
 
   @override
   void initState() {
     super.initState();
     _apiController.text = BackendEndpoint.displayValue;
     _loadStatus();
+    _checkUpdate();
   }
 
   @override
@@ -79,6 +90,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _serverCredential.addAll(serverCredentials);
       _proxyEnabled = proxyEnabled;
     });
+  }
+
+  Future<void> _checkUpdate() async {
+    if (mounted) setState(() => _checkingUpdate = true);
+    try {
+      final package = await PackageInfo.fromPlatform();
+      final update = await ref.read(appUpdateServiceProvider).check();
+      if (!mounted) return;
+      setState(() {
+        _installedVersion = package.version;
+        _availableUpdate = update;
+        _updateMessage = update == null
+            ? 'У вас установлена последняя версия'
+            : 'Доступна версия ${update.latestVersion}';
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _updateMessage = 'Не удалось проверить обновления';
+      });
+    } finally {
+      if (mounted) setState(() => _checkingUpdate = false);
+    }
   }
 
   Future<void> _saveToken(
@@ -175,6 +209,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 650;
+    final appearance = ref.watch(appearanceControllerProvider);
     return ListView(
       padding: EdgeInsets.fromLTRB(
         compact ? 18 : 34,
@@ -183,6 +218,89 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         130,
       ),
       children: [
+        Text('Оформление', style: Theme.of(context).textTheme.displaySmall),
+        const SizedBox(height: 8),
+        const Text(
+          'Выберите тему и настройте собственный фон без потери читаемости.',
+          style: TextStyle(color: ResonanceColors.muted),
+        ),
+        const SizedBox(height: 18),
+        Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _ThemeSelector(
+                  compact: compact,
+                  selected: appearance.theme,
+                  onSelected: (theme) => unawaited(
+                    ref
+                        .read(appearanceControllerProvider.notifier)
+                        .setTheme(theme),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: () => unawaited(
+                        ref
+                            .read(appearanceControllerProvider.notifier)
+                            .chooseBackground(),
+                      ),
+                      icon: const Icon(Icons.add_photo_alternate_outlined),
+                      label: Text(
+                        appearance.backgroundPath == null
+                            ? 'Выбрать фон'
+                            : 'Заменить фон',
+                      ),
+                    ),
+                    if (appearance.backgroundPath != null)
+                      OutlinedButton.icon(
+                        onPressed: () => unawaited(
+                          ref
+                              .read(appearanceControllerProvider.notifier)
+                              .clearBackground(),
+                        ),
+                        icon: const Icon(Icons.hide_image_outlined),
+                        label: const Text('Убрать фон'),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                _AppearanceSlider(
+                  label: 'Размытие',
+                  value: appearance.blur,
+                  max: 30,
+                  valueLabel: '${appearance.blur.round()} px',
+                  onChanged: ref
+                      .read(appearanceControllerProvider.notifier)
+                      .previewBlur,
+                  onChangeEnd: (_) => unawaited(
+                    ref.read(appearanceControllerProvider.notifier).persist(),
+                  ),
+                ),
+                _AppearanceSlider(
+                  label: 'Затемнение',
+                  value: appearance.dim,
+                  max: .9,
+                  valueLabel: '${(appearance.dim * 100).round()}%',
+                  onChanged: ref
+                      .read(appearanceControllerProvider.notifier)
+                      .previewDim,
+                  onChangeEnd: (_) => unawaited(
+                    ref.read(appearanceControllerProvider.notifier).persist(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 34),
         Text('Подключения', style: Theme.of(context).textTheme.displaySmall),
         const SizedBox(height: 8),
         const Text(
@@ -274,6 +392,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ],
                   ],
                 ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.system_update_alt_rounded),
+                title: Text(_updateMessage),
+                subtitle: Text('Установлено: $_installedVersion'),
+                trailing: _checkingUpdate
+                    ? const Icon(Icons.sync_rounded)
+                    : _availableUpdate == null
+                    ? IconButton(
+                        tooltip: 'Проверить снова',
+                        onPressed: _checkUpdate,
+                        icon: const Icon(
+                          Icons.check_circle_rounded,
+                          color: ResonanceColors.success,
+                        ),
+                      )
+                    : FilledButton(
+                        onPressed: () =>
+                            unawaited(launchUrl(_availableUpdate!.downloadUrl)),
+                        child: const Text('Обновить'),
+                      ),
               ),
               const Divider(height: 1),
               const ListTile(
@@ -377,6 +517,95 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _AppearanceSlider extends StatelessWidget {
+  const _AppearanceSlider({
+    required this.label,
+    required this.value,
+    required this.max,
+    required this.valueLabel,
+    required this.onChanged,
+    required this.onChangeEnd,
+  });
+
+  final String label;
+  final double value;
+  final double max;
+  final String valueLabel;
+  final ValueChanged<double> onChanged;
+  final ValueChanged<double> onChangeEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(width: 92, child: Text(label)),
+        Expanded(
+          child: Slider(
+            value: value,
+            max: max,
+            onChanged: onChanged,
+            onChangeEnd: onChangeEnd,
+          ),
+        ),
+        SizedBox(width: 48, child: Text(valueLabel, textAlign: TextAlign.end)),
+      ],
+    );
+  }
+}
+
+class _ThemeSelector extends StatelessWidget {
+  const _ThemeSelector({
+    required this.compact,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final bool compact;
+  final ResonanceThemePreset selected;
+  final ValueChanged<ResonanceThemePreset> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    const entries = [
+      (ResonanceThemePreset.graphite, 'Графит', Icons.contrast_rounded),
+      (ResonanceThemePreset.midnight, 'Полночь', Icons.nightlight_round),
+      (
+        ResonanceThemePreset.ember,
+        'Эмбер',
+        Icons.local_fire_department_outlined,
+      ),
+    ];
+    if (compact) {
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final entry in entries)
+            ChoiceChip(
+              selected: selected == entry.$1,
+              onSelected: (_) => onSelected(entry.$1),
+              avatar: Icon(entry.$3, size: 18),
+              label: Text(entry.$2),
+            ),
+        ],
+      );
+    }
+    return SegmentedButton<ResonanceThemePreset>(
+      segments: [
+        for (final entry in entries)
+          ButtonSegment(
+            value: entry.$1,
+            icon: Icon(entry.$3),
+            label: Text(entry.$2),
+          ),
+      ],
+      selected: {selected},
+      showSelectedIcon: false,
+      onSelectionChanged: (selection) => onSelected(selection.first),
     );
   }
 }

@@ -164,7 +164,7 @@ export class YandexAdapter implements MusicProviderAdapter {
         provider: "yandex",
         externalId,
         title: playlist.title?.trim() || "Плейлист Яндекс Музыки",
-        artworkUrl: cover ? `https://${cover.replace(/^https?:\/\//, "").replace("%%", "400x400")}` : undefined,
+        artworkUrl: cover ? `https://${cover.replace(/^https?:\/\//, "").replace("%%", "1000x1000")}` : undefined,
         tracks
       };
     } catch (error) {
@@ -212,7 +212,7 @@ function mapTrack(track: YandexTrackLike & { id: string | number; title: string 
       ?.map((item) => item.name)
       .filter((name): name is string => Boolean(name))
       .join(", ") || "Unknown artist";
-  const cover = track.coverUri?.replace("%%", "400x400");
+  const cover = track.coverUri?.replace("%%", "1000x1000");
   return {
     id,
     title: track.title,
