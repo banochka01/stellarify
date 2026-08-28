@@ -42,4 +42,12 @@ jobs:
           df -Pk "$ROOT"
           printf '%s\n' 'docker:'
           docker compose -f "$APP/deploy/docker-compose.music.yml" ps || true
+          printf '%s\n' 'root-usage:'
+          du -x -h --max-depth=2 "$ROOT" 2>/dev/null | sort -h | tail -30
+          printf '%s\n' 'docker-disk:'
+          docker system df
+          printf '%s\n' 'app-top-level:'
+          find "$APP" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort
+          printf '%s\n' 'temporary-payloads:'
+          find /tmp -maxdepth 1 -type d -name 'resonance-*' -printf '%f\n' 2>/dev/null | sort
           REMOTE
