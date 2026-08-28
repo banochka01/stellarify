@@ -5,7 +5,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.server
-    image: resonance-api:20260828-server-credentials-0.1.6
+    image: resonance-api:20260828-personalization-0.1.8
     container_name: resonance-api
     restart: unless-stopped
     env_file:
