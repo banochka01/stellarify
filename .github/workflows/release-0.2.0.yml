@@ -2,9 +2,15 @@ name: Resonance 0.2.0 production release
 
 on:
   workflow_dispatch:
+    inputs:
+      artifact_run_id:
+        description: Existing successful client-build run ID (leave empty to rebuild)
+        required: false
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
 env:
   RELEASE_VERSION: 0.2.0
@@ -12,6 +18,7 @@ env:
 
 jobs:
   windows:
+    if: inputs.artifact_run_id == ''
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +39,7 @@ jobs:
           if-no-files-found: error
 
   android:
+    if: inputs.artifact_run_id == ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,6 +63,7 @@ jobs:
           if-no-files-found: error
 
   ios:
+    if: inputs.artifact_run_id == ''
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -80,6 +89,10 @@ jobs:
 
   deploy:
     needs: [windows, android, ios]
+    if: >-
+      always() &&
+      (inputs.artifact_run_id != '' ||
+       (needs.windows.result == 'success' && needs.android.result == 'success' && needs.ios.result == 'success'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -89,6 +102,8 @@ jobs:
           cache: npm
       - uses: actions/download-artifact@v4
         with:
+          run-id: ${{ inputs.artifact_run_id || github.run_id }}
+          github-token: ${{ github.token }}
           path: release
           merge-multiple: true
       - name: Build landing and source bundles
@@ -108,7 +123,7 @@ jobs:
           printf '%s\n' '104.128.140.14 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB1dmCvPxjtmb2Z/+fPm97xX5AhFTxBAMiXoZJ0eyNXb' > ~/.ssh/known_hosts
       - name: Upload release payload
         run: |
-          ssh -i ~/.ssh/release_key root@104.128.140.14 "install -d -m 700 /tmp/resonance-${GITHUB_SHA}"
+          ssh -i ~/.ssh/release_key root@104.128.140.14 "find /tmp -mindepth 1 -maxdepth 1 -type d -name 'resonance-*' ! -name 'resonance-${GITHUB_SHA}' -exec rm -rf -- {} +; install -d -m 700 /tmp/resonance-${GITHUB_SHA}"
           scp -i ~/.ssh/release_key release/* root@104.128.140.14:/tmp/resonance-${GITHUB_SHA}/
           scp -i ~/.ssh/release_key deploy/music.webcordes.ru.nginx.conf root@104.128.140.14:/tmp/resonance-${GITHUB_SHA}/nginx.conf
       - name: Deploy atomically with rollback
@@ -122,25 +137,35 @@ jobs:
           BACKUP=$ROOT/backups/release-$STAMP
           NGINX_SITE=/etc/nginx/sites-available/music.webcordes.ru
           COMPOSE='docker compose -f deploy/docker-compose.music.yml'
+          APP_SWAPPED=0
 
-          test -d "$APP/.git"
+          test -d "$APP"
+          test -f "$APP/deploy/docker-compose.music.yml"
           test -f "$ROOT/.env"
           test -d "$ROOT/downloads"
-          test -z "$(git -C "$APP" status --porcelain)"
+
+          docker image prune -af
+          docker builder prune -af
           AVAILABLE_KB=$(df -Pk "$ROOT" | awk 'NR==2 {print $4}')
-          test "$AVAILABLE_KB" -gt 1500000
+          test "$AVAILABLE_KB" -gt 2000000
 
           install -d -m 700 "$BACKUP"
-          git -C "$APP" rev-parse HEAD > "$BACKUP/previous-commit"
+          printf '%s\n' "$RELEASE_SHA" > "$BACKUP/release-attempt"
           cp "$ROOT/.env" "$BACKUP/env"
           cp "$NGINX_SITE" "$BACKUP/nginx.conf"
+          tar -czf "$BACKUP/app.tar.gz" -C "$APP" .
           tar -czf "$BACKUP/landing.tar.gz" -C "$ROOT/landing" .
           cp -al "$ROOT/downloads" "$BACKUP/downloads"
 
           rollback() {
             trap - ERR
-            PREVIOUS=$(cat "$BACKUP/previous-commit")
-            git -C "$APP" reset --hard "$PREVIOUS"
+            cd /
+            if test "$APP_SWAPPED" -eq 1; then
+              rm -rf "$APP"
+              mv "$ROOT/app.previous" "$APP"
+            else
+              rm -rf "$ROOT/app.next"
+            fi
             cp "$BACKUP/env" "$ROOT/.env"
             rm -rf "$ROOT/landing.rollback"
             mv "$ROOT/landing" "$ROOT/landing.rollback" || true
@@ -149,13 +174,19 @@ jobs:
             cp "$BACKUP/nginx.conf" "$NGINX_SITE"
             (cd "$APP" && $COMPOSE up -d --build)
             nginx -t && systemctl reload nginx
-            echo "Rollback restored $PREVIOUS" >&2
+            echo "Rollback restored the previous application snapshot from $BACKUP" >&2
           }
           trap rollback ERR
 
-          git -C "$APP" fetch origin main
-          git -C "$APP" checkout main
-          git -C "$APP" merge --ff-only "$RELEASE_SHA"
+          rm -rf "$ROOT/app.next" "$ROOT/app.previous"
+          install -d "$ROOT/app.next"
+          tar -xzf "$PAYLOAD/source.tar.gz" -C "$ROOT/app.next"
+          test -f "$ROOT/app.next/deploy/docker-compose.music.yml"
+          test -f "$ROOT/app.next/apps/server/package.json"
+          printf '%s\n' "$RELEASE_SHA" > "$ROOT/app.next/.release-sha"
+          mv "$APP" "$ROOT/app.previous"
+          mv "$ROOT/app.next" "$APP"
+          APP_SWAPPED=1
 
           sed -i '/^CLIENT_VERSION=/d;/^CLIENT_RELEASE_NOTES=/d' "$ROOT/.env"
           printf '%s\n' "CLIENT_VERSION=$RELEASE_VERSION" >> "$ROOT/.env"
@@ -201,6 +232,6 @@ jobs:
           docker inspect --format '{{json .State.Health}}' resonance-api
           df -h "$ROOT"
           trap - ERR
-          rm -rf "$PAYLOAD" "$ROOT/landing.previous"
+          rm -rf "$PAYLOAD" "$ROOT/app.previous" "$ROOT/landing.previous"
           echo "Production release complete; backup: $BACKUP"
           REMOTE
