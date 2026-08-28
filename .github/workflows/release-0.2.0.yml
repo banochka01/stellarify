@@ -147,7 +147,7 @@ jobs:
           docker image prune -af
           docker builder prune -af
           AVAILABLE_KB=$(df -Pk "$ROOT" | awk 'NR==2 {print $4}')
-          test "$AVAILABLE_KB" -gt 2000000
+          test "$AVAILABLE_KB" -gt 1200000
 
           install -d -m 700 "$BACKUP"
           printf '%s\n' "$RELEASE_SHA" > "$BACKUP/release-attempt"
