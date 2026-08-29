@@ -2,7 +2,7 @@
 
 ## Version 0.3.0 — accounts and library synchronization
 
-Status: implementation in progress.
+Status: release 0.3.0 deployed to production and publicly verified on 2026-08-29.
 
 - [x] Email/password account registration and login
 - [x] Scrypt password hashing and revocable rotating sessions
@@ -10,7 +10,9 @@ Status: implementation in progress.
 - [x] Idempotent operation-based library synchronization
 - [x] Offline local outbox and first-account library migration
 - [x] Account UI and manual synchronization action
-- [ ] Production client builds and deployment
+- [x] Production Windows, Android, and unsigned iOS client builds
+- [x] Atomic VPS deployment with rollback and public account-sync smoke test
+- [x] Public download, checksum, API health, and container health verification
 
 ## Version 0.2.0 — first-run setup
 
