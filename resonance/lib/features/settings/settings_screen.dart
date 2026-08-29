@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/errors/app_exception.dart';
@@ -9,6 +10,7 @@ import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/core/preferences/appearance_preferences.dart';
 import 'package:resonance/core/update/app_update_service.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
+import 'package:resonance/features/auth/account_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -236,6 +238,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 650;
     final appearance = ref.watch(appearanceControllerProvider);
+    final account = ref.watch(accountControllerProvider);
     return ListView(
       padding: EdgeInsets.fromLTRB(
         compact ? 18 : 34,
@@ -244,6 +247,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         130,
       ),
       children: [
+        Text('Аккаунт', style: Theme.of(context).textTheme.displaySmall),
+        const SizedBox(height: 8),
+        const Text(
+          'Синхронизация избранного и плейлистов между устройствами.',
+          style: TextStyle(color: ResonanceColors.muted),
+        ),
+        const SizedBox(height: 18),
+        Card(
+          margin: EdgeInsets.zero,
+          child: ListTile(
+            leading: Icon(
+              account.valueOrNull == null
+                  ? Icons.cloud_off_rounded
+                  : Icons.cloud_done_rounded,
+            ),
+            title: Text(account.valueOrNull?.email ?? 'Войти в Resonance'),
+            subtitle: Text(
+              account.valueOrNull == null
+                  ? 'Локальная медиатека работает без аккаунта'
+                  : 'Избранное и плейлисты синхронизируются',
+            ),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => context.go('/account'),
+          ),
+        ),
+        const SizedBox(height: 34),
         Text('Оформление', style: Theme.of(context).textTheme.displaySmall),
         const SizedBox(height: 8),
         const Text(

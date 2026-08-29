@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:resonance/features/auth/account_screen.dart';
 import 'package:resonance/features/home/home_screen.dart';
 import 'package:resonance/features/library/library_screen.dart';
 import 'package:resonance/features/player/now_playing_screen.dart';
@@ -15,6 +16,11 @@ final resonanceRouter = GoRouter(
       builder: (context, state, child) =>
           AdaptiveAppShell(location: state.uri.path, child: child),
       routes: [
+        GoRoute(
+          path: '/account',
+          name: 'account',
+          builder: (context, state) => const AccountScreen(),
+        ),
         GoRoute(
           path: '/rooms',
           name: 'rooms',

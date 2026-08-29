@@ -1,5 +1,17 @@
 # Progress
 
+## Version 0.3.0 — accounts and library synchronization
+
+Status: implementation in progress.
+
+- [x] Email/password account registration and login
+- [x] Scrypt password hashing and revocable rotating sessions
+- [x] User-scoped favorites and playlist storage
+- [x] Idempotent operation-based library synchronization
+- [x] Offline local outbox and first-account library migration
+- [x] Account UI and manual synchronization action
+- [ ] Production client builds and deployment
+
 ## Version 0.2.0 — first-run setup
 
 Status: release 0.2.0 deployed to production and publicly verified on 2026-08-29.

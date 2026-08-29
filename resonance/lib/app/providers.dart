@@ -22,6 +22,9 @@ import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/repositories/playback_persistence.dart';
 import 'package:resonance/domain/repositories/secure_token_repository.dart';
 import 'package:resonance/domain/services/source_selection_policy.dart';
+import 'package:resonance/features/auth/account_api.dart';
+import 'package:resonance/features/auth/account_session_repository.dart';
+import 'package:resonance/features/auth/library_sync_service.dart';
 import 'package:resonance/features/library/playlist_import_service.dart';
 import 'package:resonance/providers/common/provider_registry.dart';
 import 'package:resonance/providers/soundcloud/backend_soundcloud_provider.dart';
@@ -46,6 +49,12 @@ final secureKeyValueStoreProvider = Provider<SecureKeyValueStore>((ref) {
 
 final secureTokenRepositoryProvider = Provider<SecureTokenRepository>((ref) {
   return FlutterSecureTokenRepository(ref.watch(secureKeyValueStoreProvider));
+});
+
+final accountSessionRepositoryProvider = Provider<AccountSessionRepository>((
+  ref,
+) {
+  return AccountSessionRepository(ref.watch(secureKeyValueStoreProvider));
 });
 
 final appearancePreferencesProvider = Provider<AppearancePreferences>((ref) {
@@ -77,6 +86,22 @@ final resonanceHttpClientProvider = Provider<ResonanceHttpClient>((ref) {
   final client = ResonanceHttpClient();
   ref.onDispose(client.close);
   return client;
+});
+
+final accountApiProvider = Provider<AccountApi>((ref) {
+  return AccountApi(
+    ref.watch(resonanceHttpClientProvider).dio,
+    BackendEndpoint.requireCurrent,
+    ref.watch(accountSessionRepositoryProvider),
+  );
+});
+
+final librarySyncServiceProvider = Provider<LibrarySyncService>((ref) {
+  return LibrarySyncService(
+    ref.watch(appDatabaseProvider),
+    ref.watch(accountApiProvider),
+    ref.watch(accountSessionRepositoryProvider),
+  );
 });
 
 final resonanceBackendClientProvider = Provider<ResonanceBackendClient>((ref) {

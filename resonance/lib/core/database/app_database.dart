@@ -119,6 +119,16 @@ class CachedMetadataEntries extends Table {
   Set<Column<Object>> get primaryKey => {cacheKey};
 }
 
+class SyncOutboxEntries extends Table {
+  TextColumn get id => text()();
+  TextColumn get userId => text().nullable()();
+  TextColumn get operationJson => text()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 @DriftDatabase(
   tables: [
     StoredTracks,
@@ -131,6 +141,7 @@ class CachedMetadataEntries extends Table {
     ProviderPreferences,
     PlaybackQueueEntries,
     CachedMetadataEntries,
+    SyncOutboxEntries,
   ],
 )
 final class AppDatabase extends _$AppDatabase {
@@ -138,7 +149,7 @@ final class AppDatabase extends _$AppDatabase {
     : super(executor ?? driftDatabase(name: 'resonance'));
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -149,6 +160,9 @@ final class AppDatabase extends _$AppDatabase {
     onUpgrade: (migrator, from, to) async {
       if (from < 1) {
         await migrator.createAll();
+      }
+      if (from < 2) {
+        await migrator.createTable(syncOutboxEntries);
       }
       await _createIndexes();
     },
@@ -327,6 +341,7 @@ final class AppDatabase extends _$AppDatabase {
           name: playlist.name,
           trackCount: row.read(count) ?? 0,
           updatedAt: playlist.updatedAt,
+          createdAt: playlist.createdAt,
         ),
       );
     }
@@ -391,6 +406,104 @@ final class AppDatabase extends _$AppDatabase {
     await (delete(
       localPlaylists,
     )..where((table) => table.id.equals(playlistId))).go();
+  }
+
+  Future<void> enqueueSyncOperation({
+    required String id,
+    required String? userId,
+    required Map<String, dynamic> operation,
+  }) {
+    return into(syncOutboxEntries).insert(
+      SyncOutboxEntriesCompanion.insert(
+        id: id,
+        userId: Value(userId),
+        operationJson: jsonEncode(operation),
+      ),
+      mode: InsertMode.insertOrIgnore,
+    );
+  }
+
+  Future<void> claimUnscopedSyncOperations(String userId) {
+    return (update(syncOutboxEntries)..where((table) => table.userId.isNull()))
+        .write(SyncOutboxEntriesCompanion(userId: Value(userId)));
+  }
+
+  Future<List<Map<String, dynamic>>> loadSyncOperations(
+    String userId, {
+    int limit = 100,
+  }) async {
+    final rows =
+        await (select(syncOutboxEntries)
+              ..where((table) => table.userId.equals(userId))
+              ..orderBy([(table) => OrderingTerm.asc(table.createdAt)])
+              ..limit(limit))
+            .get();
+    return rows
+        .map((row) => _decodeJsonMap(row.operationJson))
+        .where((operation) => operation.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  Future<void> deleteSyncOperations(Iterable<String> ids) async {
+    final values = ids.toList(growable: false);
+    if (values.isEmpty) return;
+    await (delete(
+      syncOutboxEntries,
+    )..where((table) => table.id.isIn(values))).go();
+  }
+
+  Future<LocalLibrarySnapshot> loadLocalLibrarySnapshot() async {
+    final summaries = await loadLocalPlaylistSummaries();
+    final playlists = <LocalPlaylistSnapshot>[];
+    for (final summary in summaries) {
+      playlists.add(
+        LocalPlaylistSnapshot(
+          id: summary.id,
+          name: summary.name,
+          createdAt: summary.createdAt,
+          tracks: await loadLocalPlaylistTracks(summary.id),
+        ),
+      );
+    }
+    return LocalLibrarySnapshot(
+      favorites: await loadFavoriteTracks(),
+      playlists: playlists,
+    );
+  }
+
+  Future<void> replaceLocalLibrary(LocalLibrarySnapshot snapshot) async {
+    await transaction(() async {
+      await delete(favoriteTracks).go();
+      await delete(localPlaylists).go();
+      for (final track in snapshot.favorites) {
+        await upsertUnifiedTrack(track);
+        await into(favoriteTracks).insert(
+          FavoriteTracksCompanion.insert(trackId: track.id),
+          mode: InsertMode.insertOrIgnore,
+        );
+      }
+      for (final playlist in snapshot.playlists) {
+        await into(localPlaylists).insert(
+          LocalPlaylistsCompanion.insert(
+            id: playlist.id,
+            name: playlist.name,
+            createdAt: Value(playlist.createdAt),
+            updatedAt: Value(playlist.updatedAt ?? playlist.createdAt),
+          ),
+        );
+        for (var position = 0; position < playlist.tracks.length; position++) {
+          final track = playlist.tracks[position];
+          await upsertUnifiedTrack(track);
+          await into(localPlaylistTracks).insert(
+            LocalPlaylistTracksCompanion.insert(
+              playlistId: playlist.id,
+              trackId: track.id,
+              position: position,
+            ),
+          );
+        }
+      }
+    });
   }
 
   Future<void> replacePlaybackQueue(PlaybackSession session) async {
@@ -470,12 +583,40 @@ final class LocalPlaylistSummary {
     required this.name,
     required this.trackCount,
     required this.updatedAt,
+    required this.createdAt,
   });
 
   final String id;
   final String name;
   final int trackCount;
   final DateTime updatedAt;
+  final DateTime createdAt;
+}
+
+final class LocalLibrarySnapshot {
+  const LocalLibrarySnapshot({
+    required this.favorites,
+    required this.playlists,
+  });
+
+  final List<UnifiedTrack> favorites;
+  final List<LocalPlaylistSnapshot> playlists;
+}
+
+final class LocalPlaylistSnapshot {
+  const LocalPlaylistSnapshot({
+    required this.id,
+    required this.name,
+    required this.createdAt,
+    required this.tracks,
+    this.updatedAt,
+  });
+
+  final String id;
+  final String name;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
+  final List<UnifiedTrack> tracks;
 }
 
 Map<String, dynamic> _decodeJsonMap(String value) {

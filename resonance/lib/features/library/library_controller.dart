@@ -35,26 +35,49 @@ final class LibraryController extends AsyncNotifier<LibraryState> {
         state.valueOrNull?.favoriteIds.contains(track.id) ??
         await _database.isFavorite(track.id);
     await _database.setFavorite(track, !current);
+    await ref.read(librarySyncServiceProvider).recordFavorite(track, !current);
     state = AsyncData(await _load());
   }
 
   Future<String> createPlaylist(String name) async {
     final id = const Uuid().v4();
     await _database.createLocalPlaylist(id, name);
-    state = AsyncData(await _load());
+    final updated = await _load();
+    await ref
+        .read(librarySyncServiceProvider)
+        .recordPlaylistUpsert(
+          updated.playlists.firstWhere((playlist) => playlist.id == id),
+        );
+    state = AsyncData(updated);
     return id;
   }
 
   Future<void> addToPlaylist(String playlistId, UnifiedTrack track) async {
     await _database.addTrackToLocalPlaylist(playlistId, track);
+    final tracks = await _database.loadLocalPlaylistTracks(playlistId);
+    await ref
+        .read(librarySyncServiceProvider)
+        .recordPlaylistTrack(
+          playlistId,
+          track,
+          tracks.indexWhere((item) => item.id == track.id),
+        );
     state = AsyncData(await _load());
   }
 
   Future<String> importPlaylist(ImportedPlaylist imported) async {
     final id = const Uuid().v4();
     await _database.createLocalPlaylist(id, imported.name);
-    for (final track in imported.tracks) {
+    final summary = (await _database.loadLocalPlaylistSummaries()).firstWhere(
+      (playlist) => playlist.id == id,
+    );
+    await ref.read(librarySyncServiceProvider).recordPlaylistUpsert(summary);
+    for (var position = 0; position < imported.tracks.length; position++) {
+      final track = imported.tracks[position];
       await _database.addTrackToLocalPlaylist(id, track);
+      await ref
+          .read(librarySyncServiceProvider)
+          .recordPlaylistTrack(id, track, position);
     }
     state = AsyncData(await _load());
     return id;
@@ -62,6 +85,7 @@ final class LibraryController extends AsyncNotifier<LibraryState> {
 
   Future<void> deletePlaylist(String playlistId) async {
     await _database.deleteLocalPlaylist(playlistId);
+    await ref.read(librarySyncServiceProvider).recordPlaylistDelete(playlistId);
     state = AsyncData(await _load());
   }
 

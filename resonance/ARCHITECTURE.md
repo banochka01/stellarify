@@ -112,7 +112,7 @@ and tested together.
 
 ## Database
 
-Schema version: 1.
+Schema version: 2.
 
 Tables:
 
@@ -126,6 +126,7 @@ Tables:
 - `provider_preferences`;
 - `playback_queue_entries`;
 - `cached_metadata_entries`.
+- `sync_outbox_entries` (schema v2; user-scoped idempotent operations only).
 
 Indexes cover normalized title/artist matching, source joins, playlist
 positions, listening/search recency, and metadata expiry. Foreign keys are
@@ -145,6 +146,25 @@ session settings. It may not store resolved stream URLs or credentials.
 - Public and stream URLs must be parsed as `Uri` and validated against
   provider-specific domain allowlists before network use.
 - Dio has bounded connect/send/receive timeouts and redirect limits.
+
+## Resonance account and synchronization
+
+Account passwords are never stored by the Flutter client. The server hashes
+them with scrypt and a random per-user salt. Opaque access and refresh tokens
+are stored server-side only as SHA-256 hashes; refresh rotates the complete
+session and logout revokes it.
+
+The client keeps session tokens in `flutter_secure_storage`. Favorites and
+playlists remain available in local Drift storage, while schema v2 adds a
+user-scoped outbox. Every mutation has a UUID idempotency key. On reconnect the
+client flushes queued operations and replaces its local library with the
+user-owned server snapshot. The first account imports the existing local
+library; changing or leaving an account clears the visible synchronized
+library so another user cannot see it.
+
+Provider credentials are deliberately excluded from account synchronization.
+Synced track sources have their metadata removed at the server boundary so a
+provider token, cookie, or temporary stream capability cannot cross devices.
 
 ## Platform strategy
 

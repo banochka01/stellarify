@@ -21,6 +21,7 @@ class AdaptiveAppShell extends StatelessWidget {
     '/library' => 2,
     '/rooms' => 3,
     '/settings' => 4,
+    '/account' => 4,
     _ => 0,
   };
 

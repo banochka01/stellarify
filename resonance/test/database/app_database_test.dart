@@ -75,6 +75,50 @@ void main() {
       expect(tracks.map((track) => track.id), ['one', 'two']);
     },
   );
+
+  test('keeps sync operations scoped and replaces the local library', () async {
+    await database.enqueueSyncOperation(
+      id: 'operation-1',
+      userId: null,
+      operation: const {
+        'id': 'operation-1',
+        'type': 'favoriteDelete',
+        'trackId': 'one',
+      },
+    );
+    await database.claimUnscopedSyncOperations('user-1');
+
+    final operations = await database.loadSyncOperations('user-1');
+    expect(operations.single['id'], 'operation-1');
+
+    final createdAt = DateTime.utc(2026, 8, 29);
+    await database.replaceLocalLibrary(
+      LocalLibrarySnapshot(
+        favorites: [_track('remote-favorite')],
+        playlists: [
+          LocalPlaylistSnapshot(
+            id: 'remote-playlist',
+            name: 'С сервера',
+            createdAt: createdAt,
+            tracks: [_track('remote-track')],
+          ),
+        ],
+      ),
+    );
+
+    expect((await database.loadFavoriteTracks()).single.id, 'remote-favorite');
+    expect(
+      (await database.loadLocalPlaylistSummaries()).single.name,
+      'С сервера',
+    );
+    expect(
+      (await database.loadLocalPlaylistTracks('remote-playlist')).single.id,
+      'remote-track',
+    );
+
+    await database.deleteSyncOperations(['operation-1']);
+    expect(await database.loadSyncOperations('user-1'), isEmpty);
+  });
 }
 
 UnifiedTrack _track(String id) => UnifiedTrack(

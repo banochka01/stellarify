@@ -5,7 +5,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.server
-    image: resonance-api:20260829-onboarding-0.2.0
+    image: resonance-api:20260829-account-sync-0.3.0
     container_name: resonance-api
     restart: unless-stopped
     env_file:
@@ -14,8 +14,11 @@ services:
       PORT: "8787"
       NODE_ENV: production
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://music.webcordes.ru}
+      AUTH_DB_PATH: /data/resonance.sqlite
     ports:
       - "127.0.0.1:8788:8787"
+    volumes:
+      - ../../data:/data
     healthcheck:
       test:
         - CMD

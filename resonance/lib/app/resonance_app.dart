@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/app/router.dart';
+import 'package:resonance/features/auth/account_controller.dart';
 import 'package:resonance/features/onboarding/onboarding_feature.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/appearance_backdrop.dart';
@@ -65,6 +66,7 @@ class _ResonanceAppState extends ConsumerState<ResonanceApp> {
   @override
   Widget build(BuildContext context) {
     final appearance = ref.watch(appearanceControllerProvider);
+    ref.watch(accountControllerProvider);
     return MaterialApp.router(
       title: 'Resonance',
       debugShowCheckedModeBanner: false,

@@ -6,6 +6,8 @@ import cors from "cors";
 import express from "express";
 import { Server } from "socket.io";
 import { z } from "zod";
+import { createAccountRouter } from "./account-api.js";
+import { AccountStore } from "./account-store.js";
 import { parseImportPayload } from "./importer.js";
 import { PlaylistImportService } from "./playlist-import.js";
 import { ProviderGateway, ProviderGatewayError } from "./provider-gateway.js";
@@ -23,7 +25,7 @@ const port = Number(process.env.PORT || 8787);
 const webOrigin = process.env.WEB_ORIGIN || "http://localhost:5173";
 const publicBaseUrl = parsePublicBaseUrl(process.env.PUBLIC_BASE_URL);
 const app = express();
-app.set("trust proxy", "loopback");
+app.set("trust proxy", 1);
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
@@ -46,10 +48,15 @@ const gateway = new ProviderGateway([
   youtube
 ]);
 const playlistImports = new PlaylistImportService(yandex, youtube);
+const accountStore = new AccountStore(
+  process.env.AUTH_DB_PATH || "./data/resonance.sqlite",
+  process.env.AUTH_PASSWORD_PEPPER || ""
+);
 
 app.disable("x-powered-by");
 app.use(cors({ origin: webOrigin }));
-app.use(express.json({ limit: "32kb" }));
+app.use(express.json({ limit: "512kb" }));
+app.use("/api/v1/account", createAccountRouter(accountStore));
 
 app.get("/api/health", (_request, response) => {
   response.json({
@@ -61,9 +68,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "0.2.0",
+    version: process.env.CLIENT_VERSION || "0.3.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Новый мастер первого запуска: подключение сервисов, безопасная проверка токенов, выбор темы и качества, быстрый импорт плейлиста.",
+      "Аккаунт Resonance и синхронизация избранного и плейлистов между устройствами.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       android: "https://music.webcordes.ru/downloads/android",
