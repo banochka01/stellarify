@@ -137,6 +137,13 @@ jobs:
           APP_SWAPPED=0
           HAD_DATA=0
 
+          if ! test -d "$APP"; then
+            RECOVERY_BACKUP=$ROOT/backups/release-20260829-010644/app.tar.gz
+            test -s "$RECOVERY_BACKUP"
+            install -d "$APP"
+            tar -xzf "$RECOVERY_BACKUP" -C "$APP"
+            echo "Recovered missing application directory from $RECOVERY_BACKUP"
+          fi
           test -d "$APP"
           test -f "$APP/deploy/docker-compose.music.yml"
           test -f "$ROOT/.env"
