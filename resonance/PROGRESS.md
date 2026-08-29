@@ -2,7 +2,7 @@
 
 ## Version 0.2.0 — first-run setup
 
-Status: release 0.2.0 prepared for production deployment.
+Status: release 0.2.0 deployed to production and publicly verified on 2026-08-29.
 
 - [x] Four-step adaptive onboarding
 - [x] Provider selection and live credential validation
