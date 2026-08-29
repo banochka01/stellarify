@@ -78,6 +78,7 @@ export function createAccountRouter(store: AccountStore) {
   const router = express.Router();
   const identityLimiter = new SlidingWindowLimiter(10, 15 * 60 * 1_000);
   const ipLimiter = new SlidingWindowLimiter(30, 15 * 60 * 1_000);
+  const syncLimiter = new SlidingWindowLimiter(60, 60 * 1_000);
 
   router.use((_request, response, next) => {
     response.setHeader("cache-control", "private, no-store");
@@ -150,12 +151,12 @@ export function createAccountRouter(store: AccountStore) {
     const input = operationsSchema.safeParse(request.body);
     if (!input.success) return invalid(response, "Некорректная операция синхронизации");
     const user = response.locals.accountUser as AccountUser;
+    if (!syncLimiter.allow(user.id)) return limited(response, 60);
     try {
       const library = store.applyOperations(user.id, input.data.operations as LibraryOperation[]);
       response.json({ library });
     } catch (error) {
-      console.error("Account library synchronization failed", error);
-      response.status(500).json({ error: { code: "SYNC_FAILED", message: "Не удалось синхронизировать медиатеку" } });
+      accountError(response, error);
     }
   });
 
@@ -175,8 +176,8 @@ function invalid(response: express.Response, message: string) {
   response.status(400).json({ error: { code: "INVALID_REQUEST", message } });
 }
 
-function limited(response: express.Response) {
-  response.setHeader("retry-after", "900");
+function limited(response: express.Response, retryAfterSeconds = 900) {
+  response.setHeader("retry-after", String(retryAfterSeconds));
   response.status(429).json({ error: { code: "RATE_LIMITED", message: "Слишком много попыток. Попробуйте позже" } });
 }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:resonance/core/security/flutter_secure_token_repository.dart';
@@ -7,6 +8,7 @@ final class AccountSessionRepository {
   AccountSessionRepository(this._store);
 
   final SecureKeyValueStore _store;
+  final StreamController<void> _invalidations = StreamController.broadcast();
 
   static const _accessKey = 'resonance.account.access';
   static const _refreshKey = 'resonance.account.refresh';
@@ -55,6 +57,15 @@ final class AccountSessionRepository {
     _store.delete(_accessExpiryKey),
     _store.delete(_refreshExpiryKey),
   ]);
+
+  Stream<void> get invalidations => _invalidations.stream;
+
+  Future<void> invalidate() async {
+    await clear();
+    _invalidations.add(null);
+  }
+
+  Future<void> dispose() => _invalidations.close();
 
   Future<String?> readBoundUserId() => _store.read(_boundUserKey);
 

@@ -68,9 +68,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "0.3.0",
+    version: process.env.CLIENT_VERSION || "0.3.1",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Аккаунт Resonance и синхронизация избранного и плейлистов между устройствами.",
+      "Безопасная синхронизация аккаунта и выбор устройства вывода звука.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       android: "https://music.webcordes.ru/downloads/android",

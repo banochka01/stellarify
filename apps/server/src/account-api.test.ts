@@ -142,11 +142,32 @@ test("library operations are idempotent, sanitized and user scoped", async () =>
   assert.deepEqual(removed.body.library, { favorites: [], playlists: [] });
 });
 
+test("library quotas reject oversized accounts without partial writes", async () => {
+  const account = await createUser("quota@example.com");
+  const operations = Array.from({ length: 201 }, (_, index) => ({
+    id: `quota-${index}`,
+    type: "playlistUpsert" as const,
+    playlistId: `playlist-${index}`,
+    name: `Playlist ${index}`,
+    createdAt: "2026-08-29T00:00:00.000Z"
+  }));
+  assert.throws(
+    () => store.applyOperations(account.user.id, operations),
+    (error: unknown) => error instanceof Error && "code" in error && error.code === "LIBRARY_LIMIT"
+  );
+  const library = store.getLibrary(account.user.id);
+  assert.equal(library.playlists.length, 0);
+});
+
 async function createUser(email: string) {
   const result = await request("/register", {
     method: "POST",
     body: JSON.stringify({ email, password: "a sufficiently long password", deviceName: "Tests" })
   });
   assert.equal(result.response.status, 201);
-  return result.body as { accessToken: string; refreshToken: string };
+  return result.body as {
+    user: { id: string };
+    accessToken: string;
+    refreshToken: string;
+  };
 }

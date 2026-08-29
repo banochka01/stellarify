@@ -36,7 +36,7 @@ export type LibraryOperation =
 
 export class AccountError extends Error {
   constructor(
-    readonly code: "EMAIL_TAKEN" | "INVALID_CREDENTIALS" | "INVALID_SESSION",
+    readonly code: "EMAIL_TAKEN" | "INVALID_CREDENTIALS" | "INVALID_SESSION" | "LIBRARY_LIMIT",
     message: string,
     readonly status: number
   ) {
@@ -119,17 +119,19 @@ export class AccountStore {
     const salt = randomBytes(16).toString("base64url");
     const passwordHash = await this.#hashPassword(password, salt);
     try {
-      this.#database.prepare(`
-        INSERT INTO account_users (id, email, password_hash, password_salt, created_at)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(id, email, passwordHash, salt, now);
+      return this.#transaction(() => {
+        this.#database.prepare(`
+          INSERT INTO account_users (id, email, password_hash, password_salt, created_at)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(id, email, passwordHash, salt, now);
+        return this.#issueSession({ id, email, created_at: now }, deviceName);
+      });
     } catch (error) {
       if (String(error).includes("UNIQUE constraint failed")) {
         throw new AccountError("EMAIL_TAKEN", "Аккаунт с такой почтой уже существует", 409);
       }
       throw error;
     }
-    return this.#issueSession({ id, email, created_at: now }, deviceName);
   }
 
   async login(email: string, password: string, deviceName: string) {
@@ -167,8 +169,10 @@ export class AccountStore {
       WHERE s.refresh_hash = ? AND s.refresh_expires_at > ?
     `).get(tokenHash(refreshToken), now) as RefreshRow | undefined;
     if (!row) throw new AccountError("INVALID_SESSION", "Сессия истекла", 401);
-    this.#database.prepare("DELETE FROM account_sessions WHERE id = ?").run(row.session_id);
-    return this.#issueSession(row, deviceName);
+    return this.#transaction(() => {
+      this.#database.prepare("DELETE FROM account_sessions WHERE id = ?").run(row.session_id);
+      return this.#issueSession(row, deviceName);
+    });
   }
 
   logout(refreshToken: string) {
@@ -215,6 +219,14 @@ export class AccountStore {
         this.#applyOperation(userId, operation);
         remember.run(userId, operation.id, Date.now());
       }
+      this.#assertLibraryQuota(userId);
+      this.#database.prepare(`
+        DELETE FROM account_sync_operations
+        WHERE user_id = ? AND operation_id NOT IN (
+          SELECT operation_id FROM account_sync_operations
+          WHERE user_id = ? ORDER BY created_at DESC LIMIT 10000
+        )
+      `).run(userId, userId);
       this.#database.exec("COMMIT");
     } catch (error) {
       this.#database.exec("ROLLBACK");
@@ -282,6 +294,46 @@ export class AccountStore {
           UPDATE account_playlists SET updated_at = ? WHERE user_id = ? AND id = ?
         `).run(now, userId, operation.playlistId);
         break;
+    }
+  }
+
+  #assertLibraryQuota(userId: string) {
+    const counts = this.#database.prepare(`
+      SELECT
+        (SELECT COUNT(*) FROM account_favorites WHERE user_id = ?) AS favorites,
+        (SELECT COUNT(*) FROM account_playlists WHERE user_id = ?) AS playlists,
+        (SELECT COUNT(*) FROM account_playlist_tracks WHERE user_id = ?) AS playlist_tracks,
+        (SELECT COALESCE(SUM(LENGTH(track_json)), 0) FROM account_favorites WHERE user_id = ?) +
+        (SELECT COALESCE(SUM(LENGTH(track_json)), 0) FROM account_playlist_tracks WHERE user_id = ?) AS track_bytes
+    `).get(userId, userId, userId, userId, userId) as {
+      favorites: number;
+      playlists: number;
+      playlist_tracks: number;
+      track_bytes: number;
+    };
+    if (
+      counts.favorites > 2_000 ||
+      counts.playlists > 200 ||
+      counts.playlist_tracks > 10_000 ||
+      counts.track_bytes > 20 * 1024 * 1024
+    ) {
+      throw new AccountError(
+        "LIBRARY_LIMIT",
+        "Достигнут лимит облачной медиатеки",
+        413
+      );
+    }
+  }
+
+  #transaction<T>(callback: () => T): T {
+    this.#database.exec("BEGIN IMMEDIATE");
+    try {
+      const result = callback();
+      this.#database.exec("COMMIT");
+      return result;
+    } catch (error) {
+      this.#database.exec("ROLLBACK");
+      throw error;
     }
   }
 

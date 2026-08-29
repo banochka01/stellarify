@@ -2,6 +2,25 @@ import 'package:media_kit/media_kit.dart' as media_kit;
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/resolved_audio_source.dart';
 
+final class AudioOutputDevice {
+  const AudioOutputDevice({required this.id, required this.label});
+
+  static const automatic = AudioOutputDevice(
+    id: 'auto',
+    label: 'Системное устройство',
+  );
+
+  final String id;
+  final String label;
+
+  @override
+  bool operator ==(Object other) =>
+      other is AudioOutputDevice && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
+}
+
 abstract interface class PlaybackEngine {
   Stream<bool> get playing;
   Stream<bool> get buffering;
@@ -10,6 +29,10 @@ abstract interface class PlaybackEngine {
   Stream<Duration> get duration;
   Stream<double> get volume;
   Stream<String> get errors;
+  Stream<AudioOutputDevice> get audioOutput;
+  Stream<List<AudioOutputDevice>> get audioOutputs;
+  AudioOutputDevice get currentAudioOutput;
+  List<AudioOutputDevice> get availableAudioOutputs;
 
   Future<void> open(
     ResolvedAudioSource source, {
@@ -23,6 +46,7 @@ abstract interface class PlaybackEngine {
   Future<void> setVolume(double volume);
   Future<void> setShuffle(bool enabled);
   Future<void> setRepeatMode(PlaybackRepeatMode mode);
+  Future<void> setAudioOutput(AudioOutputDevice device);
   Future<void> dispose();
 }
 
@@ -52,6 +76,22 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
 
   @override
   Stream<String> get errors => player.stream.error;
+
+  @override
+  Stream<AudioOutputDevice> get audioOutput =>
+      player.stream.audioDevice.map(_mapDevice);
+
+  @override
+  Stream<List<AudioOutputDevice>> get audioOutputs =>
+      player.stream.audioDevices.map(_mapDevices);
+
+  @override
+  AudioOutputDevice get currentAudioOutput =>
+      _mapDevice(player.state.audioDevice);
+
+  @override
+  List<AudioOutputDevice> get availableAudioOutputs =>
+      _mapDevices(player.state.audioDevices);
 
   @override
   Future<void> open(
@@ -93,5 +133,31 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
   }
 
   @override
+  Future<void> setAudioOutput(AudioOutputDevice device) =>
+      player.setAudioDevice(media_kit.AudioDevice(device.id, device.label));
+
+  @override
   Future<void> dispose() => player.dispose();
+
+  static AudioOutputDevice _mapDevice(media_kit.AudioDevice device) =>
+      AudioOutputDevice(
+        id: device.name,
+        label: device.name == 'auto' || device.description.trim().isEmpty
+            ? (device.name == 'auto'
+                  ? AudioOutputDevice.automatic.label
+                  : device.name)
+            : device.description.trim(),
+      );
+
+  static List<AudioOutputDevice> _mapDevices(
+    List<media_kit.AudioDevice> devices,
+  ) {
+    final mapped = <AudioOutputDevice>[
+      AudioOutputDevice.automatic,
+      ...devices.where((device) => device.name != 'auto').map(_mapDevice),
+    ];
+    return {
+      for (final device in mapped) device.id: device,
+    }.values.toList(growable: false);
+  }
 }

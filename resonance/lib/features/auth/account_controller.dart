@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/database/app_database.dart';
@@ -12,7 +14,12 @@ final accountControllerProvider =
 class AccountController extends AsyncNotifier<AccountUser?> {
   @override
   Future<AccountUser?> build() async {
-    final session = await ref.read(accountSessionRepositoryProvider).read();
+    final sessions = ref.read(accountSessionRepositoryProvider);
+    final subscription = sessions.invalidations.listen((_) {
+      unawaited(_completeLocalSignOut());
+    });
+    ref.onDispose(subscription.cancel);
+    final session = await sessions.read();
     if (session == null) return null;
     try {
       final user = await ref.read(accountApiProvider).me();
@@ -25,7 +32,7 @@ class AccountController extends AsyncNotifier<AccountUser?> {
       return user;
     } on AccountApiException catch (error) {
       if (error.code == 'INVALID_SESSION' || error.code == 'AUTH_REQUIRED') {
-        await ref.read(accountSessionRepositoryProvider).clear();
+        await ref.read(accountSessionRepositoryProvider).invalidate();
         return null;
       }
       rethrow;
@@ -70,6 +77,11 @@ class AccountController extends AsyncNotifier<AccountUser?> {
     state = const AsyncLoading();
     await ref.read(accountApiProvider).logout();
     await ref.read(accountSessionRepositoryProvider).clear();
+    await _completeLocalSignOut();
+    if (user != null) ref.invalidate(libraryControllerProvider);
+  }
+
+  Future<void> _completeLocalSignOut() async {
     await ref.read(accountSessionRepositoryProvider).clearBoundUserId();
     await ref
         .read(appDatabaseProvider)
@@ -77,6 +89,6 @@ class AccountController extends AsyncNotifier<AccountUser?> {
           const LocalLibrarySnapshot(favorites: [], playlists: []),
         );
     state = const AsyncData(null);
-    if (user != null) ref.invalidate(libraryControllerProvider);
+    ref.invalidate(libraryControllerProvider);
   }
 }

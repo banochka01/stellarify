@@ -8,6 +8,7 @@ import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/core/networking/resonance_http_client.dart';
 import 'package:resonance/core/networking/soundcloud_proxy_preference.dart';
 import 'package:resonance/core/playback/audio_focus_coordinator.dart';
+import 'package:resonance/core/playback/audio_output_controller.dart';
 import 'package:resonance/core/playback/demo_audio_source_resolver.dart';
 import 'package:resonance/core/playback/playback_engine.dart';
 import 'package:resonance/core/playback/playback_service.dart';
@@ -54,7 +55,11 @@ final secureTokenRepositoryProvider = Provider<SecureTokenRepository>((ref) {
 final accountSessionRepositoryProvider = Provider<AccountSessionRepository>((
   ref,
 ) {
-  return AccountSessionRepository(ref.watch(secureKeyValueStoreProvider));
+  final repository = AccountSessionRepository(
+    ref.watch(secureKeyValueStoreProvider),
+  );
+  ref.onDispose(repository.dispose);
+  return repository;
 });
 
 final appearancePreferencesProvider = Provider<AppearancePreferences>((ref) {
@@ -164,7 +169,16 @@ final playbackEngineProvider = Provider<PlaybackEngine>((ref) {
   return MediaKitPlaybackEngine();
 });
 
+final audioOutputControllerProvider =
+    StateNotifierProvider<AudioOutputController, AudioOutputState>((ref) {
+      return AudioOutputController(
+        ref.watch(playbackEngineProvider),
+        ref.watch(onboardingPreferencesProvider),
+      );
+    });
+
 final playbackServiceProvider = FutureProvider<PlaybackService>((ref) async {
+  ref.watch(audioOutputControllerProvider);
   final onboarding = await ref.watch(onboardingPreferencesProvider).read();
   final service = PlaybackService(
     engine: ref.watch(playbackEngineProvider),

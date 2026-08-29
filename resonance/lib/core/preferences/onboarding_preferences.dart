@@ -23,6 +23,7 @@ final class OnboardingPreferences {
   static const _completedKey = 'resonance.onboarding.completed';
   static const _providersKey = 'resonance.onboarding.providers';
   static const _qualityKey = 'resonance.playback.quality';
+  static const _audioOutputKey = 'resonance.playback.audio_output';
 
   final SecureKeyValueStore _store;
 
@@ -81,4 +82,8 @@ final class OnboardingPreferences {
 
   Future<void> setQuality(AudioQuality quality) =>
       _store.write(_qualityKey, quality.name);
+
+  Future<String?> readAudioOutputId() => _store.read(_audioOutputKey);
+
+  Future<void> setAudioOutputId(String id) => _store.write(_audioOutputKey, id);
 }

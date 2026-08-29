@@ -7,6 +7,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/errors/app_exception.dart';
 import 'package:resonance/core/networking/backend_endpoint.dart';
+import 'package:resonance/core/playback/audio_output_controller.dart';
+import 'package:resonance/core/playback/playback_engine.dart';
 import 'package:resonance/core/preferences/appearance_preferences.dart';
 import 'package:resonance/core/update/app_update_service.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
@@ -239,6 +241,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final compact = MediaQuery.sizeOf(context).width < 650;
     final appearance = ref.watch(appearanceControllerProvider);
     final account = ref.watch(accountControllerProvider);
+    final audioOutput = ref.watch(audioOutputControllerProvider);
     return ListView(
       padding: EdgeInsets.fromLTRB(
         compact ? 18 : 34,
@@ -270,6 +273,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => context.go('/account'),
+          ),
+        ),
+        const SizedBox(height: 34),
+        Text(
+          'Воспроизведение',
+          style: Theme.of(context).textTheme.displaySmall,
+        ),
+        const SizedBox(height: 18),
+        _AudioOutputCard(
+          audioOutput: audioOutput,
+          onSelected: (device) => unawaited(
+            ref.read(audioOutputControllerProvider.notifier).select(device),
           ),
         ),
         const SizedBox(height: 34),
@@ -619,6 +634,80 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     );
   }
+}
+
+final class _AudioOutputCard extends StatelessWidget {
+  const _AudioOutputCard({required this.audioOutput, required this.onSelected});
+
+  final AudioOutputState audioOutput;
+  final ValueChanged<AudioOutputDevice> onSelected;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: EdgeInsets.zero,
+    child: Padding(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.speaker_group_rounded),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Устройство вывода',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          KeyedSubtree(
+            key: const ValueKey('audio-output-picker'),
+            child: DropdownButtonFormField<AudioOutputDevice>(
+              key: ValueKey(audioOutput.selected.id),
+              isExpanded: true,
+              initialValue: audioOutput.devices.firstWhere(
+                (device) => device.id == audioOutput.selected.id,
+                orElse: () => AudioOutputDevice.automatic,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Куда воспроизводить звук',
+                prefixIcon: Icon(Icons.headphones_rounded),
+              ),
+              items: audioOutput.devices
+                  .map(
+                    (device) => DropdownMenuItem(
+                      value: device,
+                      child: Text(device.label),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: audioOutput.changing
+                  ? null
+                  : (device) {
+                      if (device != null) onSelected(device);
+                    },
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            audioOutput.error ??
+                (audioOutput.devices.length == 1
+                    ? 'Сейчас система сообщает только устройство по умолчанию. Подключённые выходы появятся здесь автоматически.'
+                    : 'Можно переключать звук между наушниками, колонками и другими системными выходами без перезапуска трека.'),
+            style: TextStyle(
+              color: audioOutput.error == null
+                  ? ResonanceColors.muted
+                  : Theme.of(context).colorScheme.error,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _AppearanceSlider extends StatelessWidget {

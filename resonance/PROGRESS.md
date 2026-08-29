@@ -1,5 +1,19 @@
 # Progress
 
+## Version 0.3.1 — safe synchronization and audio output routing
+
+Status: validated locally; production release in progress.
+
+- [x] Account-bound requests and stale-session rejection
+- [x] Serialized local mutations and guaranteed outbox follow-up passes
+- [x] Unified invalid-session cleanup
+- [x] Per-user sync rate limiting and cloud-library quotas
+- [x] Atomic account registration and refresh rotation
+- [x] Concurrent account-switch and in-flight mutation regression tests
+- [x] Live audio output enumeration and Settings device selector
+- [x] Persisted headphones, speakers, and system-default routing
+- [ ] Production client builds and deployment
+
 ## Version 0.3.0 — accounts and library synchronization
 
 Status: release 0.3.0 deployed to production and publicly verified on 2026-08-29.

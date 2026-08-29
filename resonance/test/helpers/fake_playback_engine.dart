@@ -12,6 +12,8 @@ final class FakePlaybackEngine implements PlaybackEngine {
   final _duration = StreamController<Duration>.broadcast();
   final _volume = StreamController<double>.broadcast();
   final _errors = StreamController<String>.broadcast();
+  final _audioOutput = StreamController<AudioOutputDevice>.broadcast();
+  final _audioOutputs = StreamController<List<AudioOutputDevice>>.broadcast();
 
   final openedSources = <ResolvedAudioSource>[];
   final openedPositions = <Duration>[];
@@ -20,6 +22,12 @@ final class FakePlaybackEngine implements PlaybackEngine {
   var isPlaying = false;
   var shuffle = false;
   var repeatMode = PlaybackRepeatMode.off;
+  var selectedAudioOutput = AudioOutputDevice.automatic;
+  var outputDevices = const [
+    AudioOutputDevice.automatic,
+    AudioOutputDevice(id: 'speakers', label: 'Колонки'),
+    AudioOutputDevice(id: 'headphones', label: 'Наушники'),
+  ];
 
   @override
   Stream<bool> get playing => _playing.stream;
@@ -41,6 +49,18 @@ final class FakePlaybackEngine implements PlaybackEngine {
 
   @override
   Stream<String> get errors => _errors.stream;
+
+  @override
+  Stream<AudioOutputDevice> get audioOutput => _audioOutput.stream;
+
+  @override
+  Stream<List<AudioOutputDevice>> get audioOutputs => _audioOutputs.stream;
+
+  @override
+  AudioOutputDevice get currentAudioOutput => selectedAudioOutput;
+
+  @override
+  List<AudioOutputDevice> get availableAudioOutputs => outputDevices;
 
   @override
   Future<void> open(
@@ -90,6 +110,12 @@ final class FakePlaybackEngine implements PlaybackEngine {
     repeatMode = mode;
   }
 
+  @override
+  Future<void> setAudioOutput(AudioOutputDevice device) async {
+    selectedAudioOutput = device;
+    _audioOutput.add(device);
+  }
+
   void emitDuration(Duration value) => _duration.add(value);
 
   void emitCompleted() => _completed.add(true);
@@ -106,6 +132,8 @@ final class FakePlaybackEngine implements PlaybackEngine {
       _duration.close(),
       _volume.close(),
       _errors.close(),
+      _audioOutput.close(),
+      _audioOutputs.close(),
     ]);
   }
 }

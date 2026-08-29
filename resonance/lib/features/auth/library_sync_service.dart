@@ -11,19 +11,39 @@ final class LibrarySyncService {
   LibrarySyncService(this._database, this._api, this._sessions);
 
   final AppDatabase _database;
-  final AccountApi _api;
+  final AccountLibraryApi _api;
   final AccountSessionRepository _sessions;
   Future<void>? _activeSync;
+  String? _activeSyncUserId;
+  bool _syncRequested = false;
+  Future<void> _localMutationTail = Future.value();
+
+  Future<T> runLocalMutation<T>(Future<T> Function() mutation) async {
+    final previous = _localMutationTail;
+    final completed = Completer<void>();
+    _localMutationTail = completed.future;
+    await previous;
+    try {
+      return await mutation();
+    } finally {
+      completed.complete();
+    }
+  }
 
   Future<void> connect(String userId) async {
     final boundUserId = await _sessions.readBoundUserId();
     if (boundUserId != null && boundUserId != userId) {
-      await _database.replaceLocalLibrary(
-        const LocalLibrarySnapshot(favorites: [], playlists: []),
+      await runLocalMutation(
+        () => _database.replaceLocalLibrary(
+          const LocalLibrarySnapshot(favorites: [], playlists: []),
+        ),
       );
       await _sessions.writeBoundUserId(userId);
-      final remote = await _api.library();
-      await _database.replaceLocalLibrary(remote.toLocal());
+      final remote = await _api.library(userId);
+      await _requireCurrentUser(userId);
+      await runLocalMutation(
+        () => _database.replaceLocalLibrary(remote.toLocal()),
+      );
       return;
     }
     await _database.claimUnscopedSyncOperations(userId);
@@ -34,9 +54,29 @@ final class LibrarySyncService {
     await sync();
   }
 
-  Future<void> sync() {
-    return _activeSync ??= _performSync().whenComplete(() {
-      _activeSync = null;
+  Future<void> sync() async {
+    final session = await _sessions.read();
+    if (session == null) return;
+    final active = _activeSync;
+    if (active != null) {
+      if (_activeSyncUserId == session.user.id) return active;
+      try {
+        await active;
+      } on AccountApiException {
+        // A superseded account sync must finish before the new one starts.
+      }
+      return sync();
+    }
+    final userId = session.user.id;
+    _activeSyncUserId = userId;
+    final future = _performSync(userId);
+    _activeSync = future;
+    return future.whenComplete(() {
+      if (identical(_activeSync, future)) {
+        _activeSync = null;
+        _activeSyncUserId = null;
+        if (_syncRequested) unawaited(_syncSilently());
+      }
     });
   }
 
@@ -86,6 +126,7 @@ final class LibrarySyncService {
       userId: userId,
       operation: {'id': id, ...payload},
     );
+    _syncRequested = true;
     if (session != null) unawaited(_syncSilently());
   }
 
@@ -124,25 +165,48 @@ final class LibrarySyncService {
     );
   }
 
-  Future<void> _performSync() async {
-    final session = await _sessions.read();
-    if (session == null) return;
-    var remote = await _api.library();
-    while (true) {
-      final operations = await _database.loadSyncOperations(session.user.id);
-      if (operations.isEmpty) break;
-      remote = await _api.applyOperations(operations);
-      await _database.deleteSyncOperations(
-        operations.map((operation) => operation['id'] as String),
+  Future<void> _performSync(String userId) async {
+    do {
+      _syncRequested = false;
+      await _requireCurrentUser(userId);
+      var remote = await _api.library(userId);
+      while (true) {
+        await _requireCurrentUser(userId);
+        final operations = await _database.loadSyncOperations(userId);
+        if (operations.isEmpty) break;
+        remote = await _api.applyOperations(userId, operations);
+        await _requireCurrentUser(userId);
+        await _database.deleteSyncOperations(
+          operations.map((operation) => operation['id'] as String),
+        );
+      }
+      await _requireCurrentUser(userId);
+      await runLocalMutation(() async {
+        await _requireCurrentUser(userId);
+        await _database.replaceLocalLibrary(remote.toLocal());
+      });
+      if ((await _database.loadSyncOperations(userId, limit: 1)).isNotEmpty) {
+        _syncRequested = true;
+      }
+    } while (_syncRequested);
+  }
+
+  Future<void> _requireCurrentUser(String userId) async {
+    if ((await _sessions.read())?.user.id != userId) {
+      throw const AccountApiException(
+        'Аккаунт изменился во время синхронизации',
+        code: 'SESSION_CHANGED',
       );
     }
-    await _database.replaceLocalLibrary(remote.toLocal());
   }
 
   Future<void> _syncSilently() async {
     try {
       await sync();
-    } on AccountApiException {
+    } on AccountApiException catch (error) {
+      if (error.code == 'INVALID_SESSION' || error.code == 'AUTH_REQUIRED') {
+        await _sessions.invalidate();
+      }
       // The outbox remains intact and will retry on the next account sync.
     }
   }

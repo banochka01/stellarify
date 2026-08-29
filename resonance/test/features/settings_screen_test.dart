@@ -5,6 +5,7 @@ import 'package:resonance/app/providers.dart';
 import 'package:resonance/app/resonance_app.dart';
 import 'package:resonance/app/router.dart';
 import 'package:resonance/core/networking/soundcloud_proxy_preference.dart';
+import 'package:resonance/core/security/flutter_secure_token_repository.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/repositories/secure_token_repository.dart';
 import 'package:resonance/providers/soundcloud/backend_soundcloud_provider.dart';
@@ -21,6 +22,8 @@ void main() {
     final tokens = _MemoryTokens();
     final proxy = _MemoryProxyPreference();
     final backend = _FakeBackendClient();
+    final secureStore = _MemorySecureStore();
+    final playbackEngine = FakePlaybackEngine();
     resonanceRouter.go('/settings');
     await tester.pumpWidget(
       ProviderScope(
@@ -28,13 +31,26 @@ void main() {
           secureTokenRepositoryProvider.overrideWithValue(tokens),
           soundCloudProxyPreferenceProvider.overrideWithValue(proxy),
           resonanceBackendClientProvider.overrideWithValue(backend),
-          playbackEngineProvider.overrideWithValue(FakePlaybackEngine()),
+          secureKeyValueStoreProvider.overrideWithValue(secureStore),
+          playbackEngineProvider.overrideWithValue(playbackEngine),
           playbackPersistenceProvider.overrideWithValue(null),
         ],
         child: const ResonanceApp(),
       ),
     );
     await tester.pumpAndSettle();
+
+    final outputPicker = find.byKey(const ValueKey('audio-output-picker'));
+    await tester.scrollUntilVisible(
+      outputPicker,
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(outputPicker);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Наушники').last);
+    await tester.pumpAndSettle();
+    expect(playbackEngine.selectedAudioOutput.id, 'headphones');
 
     final field = find.byKey(const ValueKey('soundcloud-token-field'));
     await tester.scrollUntilVisible(
@@ -77,6 +93,19 @@ void main() {
     expect(proxy.enabled, isTrue);
     resonanceRouter.go('/');
   });
+}
+
+final class _MemorySecureStore implements SecureKeyValueStore {
+  final values = <String, String>{};
+
+  @override
+  Future<void> delete(String key) async => values.remove(key);
+
+  @override
+  Future<String?> read(String key) async => values[key];
+
+  @override
+  Future<void> write(String key, String value) async => values[key] = value;
 }
 
 final class _MemoryProxyPreference implements SoundCloudProxyPreference {
