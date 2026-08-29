@@ -2,9 +2,15 @@ name: Resonance 0.3.0 production release
 
 on:
   workflow_dispatch:
+    inputs:
+      artifact_run_id:
+        description: Successful workflow run whose client artifacts should be reused
+        required: false
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
 env:
   RELEASE_VERSION: 0.3.0
@@ -12,6 +18,7 @@ env:
 
 jobs:
   windows:
+    if: ${{ inputs.artifact_run_id == '' }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +39,7 @@ jobs:
           if-no-files-found: error
 
   android:
+    if: ${{ inputs.artifact_run_id == '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,6 +63,7 @@ jobs:
           if-no-files-found: error
 
   ios:
+    if: ${{ inputs.artifact_run_id == '' }}
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -80,6 +89,7 @@ jobs:
 
   deploy:
     needs: [windows, android, ios]
+    if: ${{ always() && (inputs.artifact_run_id != '' || (needs.windows.result == 'success' && needs.android.result == 'success' && needs.ios.result == 'success')) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -91,6 +101,8 @@ jobs:
         with:
           path: release
           merge-multiple: true
+          run-id: ${{ inputs.artifact_run_id || github.run_id }}
+          github-token: ${{ github.token }}
       - name: Build landing and source bundles
         run: |
           npm ci
@@ -147,6 +159,7 @@ jobs:
 
           rollback() {
             trap - ERR
+            set +e
             cd /
             if test "$APP_SWAPPED" -eq 1; then
               rm -rf "$APP"
@@ -169,6 +182,7 @@ jobs:
             (cd "$APP" && $COMPOSE up -d --build)
             nginx -t && systemctl reload nginx
             echo "Rollback restored the previous application snapshot from $BACKUP" >&2
+            exit 1
           }
           trap rollback ERR
 
@@ -225,13 +239,13 @@ jobs:
           curl -fsS -H 'content-type: application/json' \
             -d "{\"email\":\"$SMOKE_EMAIL\",\"password\":\"release smoke password 0.3.0\",\"deviceName\":\"release-smoke\"}" \
             https://music.webcordes.ru/api/v1/account/register > "$REGISTER_FILE"
-          ACCESS=$(node -e "const fs=require('fs');process.stdout.write(JSON.parse(fs.readFileSync(process.argv[1],'utf8')).accessToken)" "$REGISTER_FILE")
-          REFRESH=$(node -e "const fs=require('fs');process.stdout.write(JSON.parse(fs.readFileSync(process.argv[1],'utf8')).refreshToken)" "$REGISTER_FILE")
-          OPERATION_ID=$(node -e "process.stdout.write(require('crypto').randomUUID())")
+          ACCESS=$(docker exec -i resonance-api node -e "const fs=require('fs');process.stdout.write(JSON.parse(fs.readFileSync(0,'utf8')).accessToken)" < "$REGISTER_FILE")
+          REFRESH=$(docker exec -i resonance-api node -e "const fs=require('fs');process.stdout.write(JSON.parse(fs.readFileSync(0,'utf8')).refreshToken)" < "$REGISTER_FILE")
+          OPERATION_ID=$(cat /proc/sys/kernel/random/uuid)
           curl -fsS -H 'content-type: application/json' -H "authorization: Bearer $ACCESS" \
             -d "{\"operations\":[{\"id\":\"$OPERATION_ID\",\"type\":\"favoriteUpsert\",\"track\":{\"id\":\"release-smoke\",\"title\":\"Release smoke\",\"normalizedTitle\":\"release smoke\",\"artist\":\"Resonance\",\"normalizedArtist\":\"resonance\",\"album\":null,\"duration\":1000,\"artworkUrl\":null,\"sources\":[{\"provider\":\"soundcloud\",\"externalId\":\"release-smoke\",\"externalUrl\":\"https://soundcloud.com/example/release-smoke\",\"metadata\":{\"token\":\"must-not-sync\"}}],\"preferredProvider\":\"soundcloud\"}}]}" \
             https://music.webcordes.ru/api/v1/account/library/operations > "$SYNC_FILE"
-          node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));if(x.library.favorites.length!==1||Object.keys(x.library.favorites[0].sources[0].metadata).length!==0)process.exit(1)" "$SYNC_FILE"
+          docker exec -i resonance-api node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync(0,'utf8'));if(x.library.favorites.length!==1||Object.keys(x.library.favorites[0].sources[0].metadata).length!==0)process.exit(1)" < "$SYNC_FILE"
           curl -fsS -o /dev/null -H 'content-type: application/json' \
             -d "{\"refreshToken\":\"$REFRESH\"}" \
             https://music.webcordes.ru/api/v1/account/logout
