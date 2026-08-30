@@ -121,9 +121,13 @@ export class WaveService {
       }
     }
 
-    const seeds = session.request.seedQueries.length
-      ? session.request.seedQueries.slice(0, 5)
+    const configuredSeeds = session.request.seedQueries.length
+      ? session.request.seedQueries
       : ["новинки музыки"];
+    const continuationSeeds = session.recentTracks.length
+      ? [...new Set([...session.recentArtists].reverse())]
+      : [];
+    const seeds = [...new Set([...continuationSeeds, ...configuredSeeds])].slice(0, 5);
     const providers = session.request.enabledProviders;
     const searches = providers.flatMap((provider) => seeds.slice(0, 3).map(async (query, index) => {
       try {
