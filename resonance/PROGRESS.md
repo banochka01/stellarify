@@ -2,7 +2,7 @@
 
 ## Version 0.3.1 — safe synchronization and audio output routing
 
-Status: validated locally; production release in progress.
+Status: released to production and publicly verified on 2026-08-29.
 
 - [x] Account-bound requests and stale-session rejection
 - [x] Serialized local mutations and guaranteed outbox follow-up passes
@@ -12,7 +12,9 @@ Status: validated locally; production release in progress.
 - [x] Concurrent account-switch and in-flight mutation regression tests
 - [x] Live audio output enumeration and Settings device selector
 - [x] Persisted headphones, speakers, and system-default routing
-- [ ] Production client builds and deployment
+- [x] Windows, Android, and unsigned iOS production client builds
+- [x] Atomic VPS deployment with rollback backup and public health/version/download verification
+- [x] GitHub Actions release run `33241976126`
 
 ## Version 0.3.0 — accounts and library synchronization
 
