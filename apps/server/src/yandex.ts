@@ -39,6 +39,32 @@ interface YandexClientLike {
   usersPlaylists?(kind: string | number, userId?: string | number): Promise<YandexPlaylistLike | YandexPlaylistLike[] | null>;
   playlist?(playlistUuid: string): Promise<YandexPlaylistLike | null>;
   tracks?(trackIds: Array<string | number> | string | number): Promise<YandexTrackLike[]>;
+  rotorWaveSettings?(): Promise<{ defaultStation?: { stationId?: string } } | null>;
+  rotorStationSettings2?(
+    station: string,
+    moodEnergy: "fun" | "active" | "calm" | "sad" | "all",
+    diversity: "favorite" | "popular" | "discover" | "default",
+    language: "not-russian" | "russian" | "any"
+  ): Promise<boolean>;
+  rotorStationTracks?(
+    station: string,
+    settings2?: boolean,
+    queue?: string | number
+  ): Promise<{
+    id?: { type?: string; tag?: string };
+    batchId?: string;
+    sequence?: Array<{ track?: YandexTrackLike }>;
+  } | null>;
+  rotorStationFeedback?(
+    station: string,
+    type: "radioStarted" | "trackStarted" | "trackFinished" | "skip",
+    options?: {
+      trackId?: string | number;
+      batchId?: string;
+      totalPlayedSeconds?: number;
+      from?: string;
+    }
+  ): Promise<boolean>;
 }
 
 interface YandexPlaylistLike {
@@ -136,6 +162,73 @@ export class YandexAdapter implements MusicProviderAdapter {
       };
     } catch (error) {
       if (error instanceof ProviderGatewayError) throw error;
+      throw mapYandexError(error);
+    }
+  }
+
+  async waveBatch(
+    options: {
+      mood: "fun" | "active" | "calm" | "sad" | "all";
+      diversity: "favorite" | "popular" | "discover" | "default";
+      language: "not-russian" | "russian" | "any";
+      station?: string;
+      queue?: string;
+    },
+    access?: ProviderAccess
+  ) {
+    const client = this.client(access);
+    if (!client.rotorStationTracks) {
+      throw new ProviderGatewayError("UPSTREAM_ERROR", "Yandex Wave is unavailable", 503);
+    }
+    try {
+      const settings = options.station
+        ? null
+        : await client.rotorWaveSettings?.();
+      const station = options.station || settings?.defaultStation?.stationId;
+      if (!station) {
+        throw new ProviderGatewayError("UPSTREAM_ERROR", "Yandex Wave station is unavailable", 503);
+      }
+      if (!options.queue && client.rotorStationSettings2) {
+        await client.rotorStationSettings2(
+          station,
+          options.mood,
+          options.diversity,
+          options.language
+        );
+      }
+      const batch = await client.rotorStationTracks(station, true, options.queue);
+      if (!batch) {
+        throw new ProviderGatewayError("UPSTREAM_ERROR", "Yandex Wave returned no tracks", 503);
+      }
+      const tracks = (batch.sequence ?? [])
+        .map((item) => item.track)
+        .filter((track): track is YandexTrackLike & { id: string | number; title: string } =>
+          track !== undefined && isPlayableTrack(track)
+        )
+        .map(mapTrack);
+      return { station, batchId: batch.batchId, tracks };
+    } catch (error) {
+      if (error instanceof ProviderGatewayError) throw error;
+      throw mapYandexError(error);
+    }
+  }
+
+  async waveFeedback(
+    station: string,
+    type: "radioStarted" | "trackStarted" | "trackFinished" | "skip",
+    options: {
+      trackId?: string;
+      batchId?: string;
+      totalPlayedSeconds?: number;
+      from?: string;
+    },
+    access?: ProviderAccess
+  ) {
+    const client = this.client(access);
+    if (!client.rotorStationFeedback) return false;
+    try {
+      return await client.rotorStationFeedback(station, type, options);
+    } catch (error) {
       throw mapYandexError(error);
     }
   }

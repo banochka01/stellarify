@@ -11,6 +11,7 @@ import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/player/track_action.dart';
+import 'package:resonance/features/wave/wave_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/seek_timeline.dart';
@@ -105,6 +106,8 @@ class _CinematicPlayer extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _SearchLauncher(onTap: () => context.go('/search')),
+              const SizedBox(height: 12),
+              const _WaveButton(),
               const Spacer(flex: 2),
               const Row(
                 children: [
@@ -488,6 +491,8 @@ class _CompactHome extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(18, 20, 18, 28),
       children: [
         _SearchLauncher(onTap: () => context.go('/search')),
+        const SizedBox(height: 12),
+        const _WaveButton(),
         const SizedBox(height: 22),
         ClipRRect(
           borderRadius: BorderRadius.circular(18),
@@ -545,6 +550,46 @@ class _CompactHome extends StatelessWidget {
           ],
         ],
       ],
+    );
+  }
+}
+
+class _WaveButton extends ConsumerWidget {
+  const _WaveButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final wave = ref.watch(waveControllerProvider);
+    final favorites = ref
+        .watch(libraryControllerProvider)
+        .valueOrNull
+        ?.favorites;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: FilledButton.icon(
+        onPressed: wave.loading
+            ? null
+            : () => wave.active
+                  ? unawaited(ref.read(waveControllerProvider.notifier).stop())
+                  : unawaited(
+                      ref
+                          .read(waveControllerProvider.notifier)
+                          .start(taste: favorites ?? const []),
+                    ),
+        icon: wave.loading
+            ? const SizedBox.square(
+                dimension: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(wave.active ? Icons.stop_rounded : Icons.graphic_eq_rounded),
+        label: Text(
+          wave.loading
+              ? 'Подбираем…'
+              : wave.active
+              ? 'Остановить волну'
+              : 'Моя волна',
+        ),
+      ),
     );
   }
 }

@@ -10,7 +10,7 @@ import { createAccountRouter } from "./account-api.js";
 import { AccountStore } from "./account-store.js";
 import { parseImportPayload } from "./importer.js";
 import { PlaylistImportService } from "./playlist-import.js";
-import { ProviderGateway, ProviderGatewayError } from "./provider-gateway.js";
+import { ProviderGateway, ProviderGatewayError, type ProviderAccess } from "./provider-gateway.js";
 import { providerCapabilities } from "./providers.js";
 import { registerRoomHandlers } from "./rooms.js";
 import { SoundCloudAdapter } from "./soundcloud.js";
@@ -20,6 +20,7 @@ import {
 } from "./soundcloud-audio-relay.js";
 import { YandexAdapter } from "./yandex.js";
 import { YouTubeAdapter } from "./youtube.js";
+import { WaveService, WaveSessionError } from "./wave.js";
 
 const port = Number(process.env.PORT || 8787);
 const webOrigin = process.env.WEB_ORIGIN || "http://localhost:5173";
@@ -47,6 +48,7 @@ const gateway = new ProviderGateway([
   yandex,
   youtube
 ]);
+const wave = new WaveService(gateway, yandex);
 const playlistImports = new PlaylistImportService(yandex, youtube);
 const accountStore = new AccountStore(
   process.env.AUTH_DB_PATH || "./data/resonance.sqlite",
@@ -68,9 +70,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "0.3.1",
+    version: process.env.CLIENT_VERSION || "0.3.2",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Безопасная синхронизация аккаунта и выбор устройства вывода звука.",
+      "Моя волна: Яндекс Rotor, SoundCloud и YouTube discovery, автопополнение и feedback.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       android: "https://music.webcordes.ru/downloads/android",
@@ -168,6 +170,48 @@ app.post("/api/v1/playback/resolve", async (request, response) => {
   } catch (error) {
     sendGatewayError(response, error);
   }
+});
+
+const waveRequestSchema = z.object({
+  seedQueries: z.array(z.string().trim().min(1).max(200)).max(20).default([]),
+  enabledProviders: z.array(z.enum(["soundcloud", "yandex", "youtube"])).min(1).max(3).default(["soundcloud", "yandex", "youtube"]),
+  discovery: z.number().min(0).max(1).default(.3),
+  mood: z.enum(["fun", "active", "calm", "sad", "all"]).default("all"),
+  language: z.enum(["not-russian", "russian", "any"]).default("any")
+});
+const waveFeedbackSchema = z.object({
+  eventId: z.string().uuid(),
+  type: z.enum(["started", "finished", "skipped", "liked", "disliked"]),
+  trackId: z.string().trim().min(1).max(200),
+  provider: z.enum(["soundcloud", "yandex", "youtube"]),
+  batchId: z.string().trim().min(1).max(200).optional(),
+  playedDurationMs: z.number().int().min(0).max(24 * 60 * 60 * 1000).default(0)
+});
+
+app.post("/api/v1/wave/sessions", async (request, response) => {
+  const input = waveRequestSchema.safeParse(request.body);
+  if (!input.success) return void response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Invalid wave request" } });
+  try {
+    response.status(201).json(await wave.start(input.data, waveAccess(request)));
+  } catch (error) { sendGatewayError(response, error); }
+});
+
+app.post("/api/v1/wave/sessions/:id/next", async (request, response) => {
+  try {
+    response.json(await wave.next(request.params.id, waveAccess(request)));
+  } catch (error) { sendWaveError(response, error); }
+});
+
+app.post("/api/v1/wave/sessions/:id/feedback", async (request, response) => {
+  const input = waveFeedbackSchema.safeParse(request.body);
+  if (!input.success) return void response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Invalid wave feedback" } });
+  try {
+    response.json(await wave.feedback(request.params.id, input.data, waveAccess(request)));
+  } catch (error) { sendWaveError(response, error); }
+});
+
+app.delete("/api/v1/wave/sessions/:id", (request, response) => {
+  response.status(wave.stop(request.params.id) ? 204 : 404).end();
 });
 
 app.all(
@@ -297,6 +341,14 @@ function sendGatewayError(response: express.Response, error: unknown) {
   });
 }
 
+function sendWaveError(response: express.Response, error: unknown) {
+  if (error instanceof WaveSessionError) {
+    response.status(404).json({ error: { code: "WAVE_SESSION_NOT_FOUND", message: "Wave session expired or was not found" } });
+    return;
+  }
+  sendGatewayError(response, error);
+}
+
 function providerAccess(request: express.Request) {
   const header = request.header("x-provider-token")?.trim();
   const useProxy = request.header("x-soundcloud-proxy")?.trim().toLowerCase() === "enabled";
@@ -306,6 +358,20 @@ function providerAccess(request: express.Request) {
     useProxy,
     cacheScope: `${header ? createHash("sha256").update(header).digest("hex") : "server"}:${useProxy ? "proxy" : "direct"}`
   };
+}
+
+function waveAccess(request: express.Request) {
+  const result: Partial<Record<"soundcloud" | "yandex" | "youtube", ProviderAccess>> = {};
+  for (const provider of ["soundcloud", "yandex", "youtube"] as const) {
+    const token = request.header(`x-${provider}-token`)?.trim();
+    if (token && token.length <= 4096 && !/[\r\n]/.test(token)) {
+      result[provider] = {
+        token,
+        cacheScope: createHash("sha256").update(token).digest("hex")
+      };
+    }
+  }
+  return result;
 }
 
 function absoluteRelayUrl(request: express.Request, path: string) {

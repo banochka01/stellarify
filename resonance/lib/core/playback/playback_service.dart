@@ -195,6 +195,15 @@ final class PlaybackService {
     await _persist();
   }
 
+  Future<void> appendToQueue(Iterable<UnifiedTrack> tracks) async {
+    final additions = tracks
+        .where((track) => !_state.queue.any((item) => item.id == track.id))
+        .toList(growable: false);
+    if (additions.isEmpty) return;
+    _emit(_state.copyWith(queue: [..._state.queue, ...additions]));
+    await _persist();
+  }
+
   Future<void> playNext(UnifiedTrack track) async {
     final insertAt = (_state.currentIndex + 1).clamp(0, _state.queue.length);
     final queue = [..._state.queue]..insert(insertAt, track);
