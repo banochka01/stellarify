@@ -45,3 +45,20 @@ test("discovery raises wild candidates without making ordering random", () => {
   assert.equal(rerank([safe, wild], { recentTracks: [], recentArtists: [], recentAlbums: [] }, 2, 0)[0]?.id, "safe");
   assert.equal(rerank([safe, wild], { recentTracks: [], recentArtists: [], recentAlbums: [] }, 2, 1)[0]?.id, "wild");
 });
+
+test("personalized artist weights influence ranking without bypassing repeat rules", () => {
+  const preferred = item("preferred", "Loved Artist", "Fresh", .75);
+  const generic = item("generic", "Other Artist", "Other", .8);
+  const result = rerank([generic, preferred], {
+    recentTracks: [],
+    recentArtists: [],
+    recentAlbums: [],
+    personalization: {
+      seedQueries: [],
+      artistWeights: { "loved artist": 1 },
+      discoveryDelta: 0,
+      source: "agentrouter"
+    }
+  }, 2, .3);
+  assert.equal(result[0]?.id, "preferred");
+});

@@ -24,6 +24,7 @@ import {
 import { YandexAdapter } from "./yandex.js";
 import { YouTubeAdapter } from "./youtube.js";
 import { WaveService, WaveSessionError } from "./wave.js";
+import { WavePersonalizer } from "./wave-personalizer.js";
 
 const port = Number(process.env.PORT || 8787);
 const webOrigin = process.env.WEB_ORIGIN || "http://localhost:5173";
@@ -51,12 +52,19 @@ const gateway = new ProviderGateway([
   yandex,
   youtube
 ]);
-const wave = new WaveService(gateway, yandex);
 const playlistImports = new PlaylistImportService(yandex, youtube);
 const accountStore = new AccountStore(
   process.env.AUTH_DB_PATH || "./data/resonance.sqlite",
   process.env.AUTH_PASSWORD_PEPPER || ""
 );
+const wavePersonalizer = new WavePersonalizer(accountStore, {
+  apiKey: process.env.AGENTROUTER_API_KEY,
+  baseUrl: process.env.AGENTROUTER_BASE_URL,
+  model: process.env.AGENTROUTER_MODEL,
+  timeoutMs: optionalNumber(process.env.AGENTROUTER_TIMEOUT_MS),
+  cacheMs: optionalNumber(process.env.AGENTROUTER_CACHE_MS)
+});
+const wave = new WaveService(gateway, yandex, wavePersonalizer);
 const subscriptionStore = new SubscriptionStore(process.env.AUTH_DB_PATH || "./data/resonance.sqlite");
 const accessControl = new AccessControl(accountStore, subscriptionStore);
 
@@ -83,6 +91,8 @@ app.get("/api/health", (_request, response) => {
   response.json({
     ok: true,
     service: "stellarify-server",
+    wavePersonalization: wavePersonalizer.enabled ? "agentrouter" : "deterministic",
+    ...(wavePersonalizer.enabled ? { waveModel: wavePersonalizer.model } : {}),
     now: new Date().toISOString()
   });
 });
@@ -218,12 +228,13 @@ app.post("/api/v1/wave/sessions", async (request, response) => {
     const identity = accessControl.fromRequest(request);
     const entitlement = subscriptionStore.snapshot(identity.userId, identity.guestToken);
     subscriptionStore.consumeGuestWave(identity.userId, identity.guestToken);
+    const personalized = entitlement.capabilities["wave.personalized"];
     response.status(201).json(await wave.start({
       ...input.data,
       enabledProviders: input.data.enabledProviders.filter(p => entitlement.providers.includes(p)),
-      seedQueries: entitlement.capabilities["wave.personalized"] ? input.data.seedQueries : [],
-      discovery: entitlement.capabilities["wave.personalized"] ? input.data.discovery : .3,
-    }, waveAccess(request), waveOwner(request)));
+      seedQueries: personalized ? input.data.seedQueries : [],
+      discovery: personalized ? input.data.discovery : .3,
+    }, waveAccess(request), waveOwner(request), personalized ? identity.userId : undefined));
   } catch (error) { sendGatewayError(response, error); }
 });
 
@@ -456,6 +467,12 @@ function parsePublicBaseUrl(value?: string) {
     throw new Error("PUBLIC_BASE_URL must be an absolute HTTPS URL without credentials");
   }
   return url;
+}
+
+function optionalNumber(value?: string) {
+  if (!value?.trim()) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 httpServer.listen(port, () => {

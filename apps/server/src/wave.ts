@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { ProviderAccess, ProviderTrack } from "./provider-gateway.js";
 import { ProviderGateway } from "./provider-gateway.js";
 import { YandexAdapter } from "./yandex.js";
+import { WavePersonalizer, type WavePersonalization } from "./wave-personalizer.js";
 
 export type WaveProviderName = "soundcloud" | "yandex";
 export type WaveAccess = Partial<Record<WaveProviderName, ProviderAccess>>;
@@ -25,7 +26,9 @@ export interface WaveItem extends ProviderTrack {
 interface WaveSession {
   id: string;
   owner: string;
+  userId?: string;
   request: WaveRequest;
+  personalization?: WavePersonalization;
   station?: string;
   batchId?: string;
   queue?: string;
@@ -33,6 +36,7 @@ interface WaveSession {
   recentArtists: string[];
   recentAlbums: string[];
   feedbackIds: Set<string>;
+  tracks: Map<string, WaveItem>;
   expiresAt: number;
 }
 
@@ -42,20 +46,32 @@ export class WaveService {
   constructor(
     private readonly gateway: ProviderGateway,
     private readonly yandex: YandexAdapter,
+    private readonly personalizer?: WavePersonalizer,
     private readonly now: () => number = Date.now
   ) {}
 
-  async start(request: WaveRequest, access: WaveAccess = {}, owner = "") {
+  async start(request: WaveRequest, access: WaveAccess = {}, owner = "", userId?: string) {
     this.sweep();
     if (this.sessions.size >= 2000) throw new WaveSessionError();
+    const personalization = userId && this.personalizer
+      ? await this.personalizer.personalize(userId)
+      : undefined;
+    const personalizedRequest = personalization ? {
+      ...request,
+      seedQueries: [...new Set([...request.seedQueries, ...personalization.seedQueries])].slice(0, 10),
+      discovery: clamp(request.discovery + personalization.discoveryDelta, 0, 1)
+    } : request;
     const session: WaveSession = {
       id: randomUUID(),
       owner,
-      request,
+      ...(userId ? { userId } : {}),
+      request: personalizedRequest,
+      ...(personalization ? { personalization } : {}),
       recentTracks: [],
       recentArtists: [],
       recentAlbums: [],
       feedbackIds: new Set(),
+      tracks: new Map(),
       expiresAt: this.now() + 30 * 60_000
     };
     this.sessions.set(session.id, session);
@@ -90,6 +106,14 @@ export class WaveService {
       if (first) session.feedbackIds.delete(first);
     }
     session.expiresAt = this.now() + 30 * 60_000;
+    const track = session.tracks.get(`${event.provider}:${event.trackId}`);
+    if (session.userId && track && this.personalizer) {
+      this.personalizer.recordFeedback(session.userId, event, {
+        title: track.title,
+        artist: track.artist,
+        ...(track.album ? { album: track.album } : {})
+      });
+    }
     if (event.provider === "yandex" && session.station && ["started", "finished", "skipped"].includes(event.type)) {
       const rotorType = event.type === "started" ? "trackStarted" : event.type === "finished" ? "trackFinished" : "skip";
       await this.yandex.waveFeedback(session.station, rotorType, {
@@ -151,6 +175,7 @@ export class WaveService {
     for (const result of await Promise.all(searches)) candidates.push(...result);
     const items = rerank(candidates, session, 20, session.request.discovery);
     for (const item of items) {
+      session.tracks.set(`${item.provider}:${item.id}`, item);
       session.recentTracks.push(trackKey(item));
       session.recentArtists.push(normalize(item.artist));
       if (item.album) session.recentAlbums.push(normalize(item.album));
@@ -158,6 +183,7 @@ export class WaveService {
     session.recentTracks = session.recentTracks.slice(-100);
     session.recentArtists = session.recentArtists.slice(-10);
     session.recentAlbums = session.recentAlbums.slice(-5);
+    while (session.tracks.size > 100) session.tracks.delete(session.tracks.keys().next().value!);
     const lastYandex = [...items].reverse().find((item) => item.provider === "yandex");
     if (lastYandex) session.queue = lastYandex.id;
     return items;
@@ -169,7 +195,12 @@ export class WaveService {
 
   private response(session: WaveSession, items: WaveItem[]) {
     session.expiresAt = this.now() + 30 * 60_000;
-    return { sessionId: session.id, items, expiresAt: new Date(session.expiresAt).toISOString() };
+    return {
+      sessionId: session.id,
+      items,
+      expiresAt: new Date(session.expiresAt).toISOString(),
+      personalization: session.personalization?.source ?? "none"
+    };
   }
 
   private requireSession(id: string, owner: string) {
@@ -187,14 +218,20 @@ export class WaveService {
 
 export class WaveSessionError extends Error {}
 
-export function rerank(candidates: WaveItem[], history: Pick<WaveSession, "recentTracks" | "recentArtists" | "recentAlbums">, limit: number, discovery: number) {
+export function rerank(
+  candidates: WaveItem[],
+  history: Pick<WaveSession, "recentTracks" | "recentArtists" | "recentAlbums"> & Partial<Pick<WaveSession, "personalization">>,
+  limit: number,
+  discovery: number
+) {
   const unique = new Map<string, WaveItem>();
   for (const candidate of candidates) {
     const key = trackKey(candidate);
     const old = unique.get(key);
     const providerBonus = candidate.provider === "soundcloud" ? .02 : 0;
     const discoveryBonus = candidate.lane === "wild" ? discovery * .12 : candidate.lane === "safe" ? (1 - discovery) * .12 : .06;
-    const scored = { ...candidate, score: candidate.score + providerBonus + discoveryBonus };
+    const tasteBonus = (history.personalization?.artistWeights[normalize(candidate.artist)] ?? 0) * .12;
+    const scored = { ...candidate, score: candidate.score + providerBonus + discoveryBonus + tasteBonus };
     if (!old || scored.score > old.score) unique.set(key, scored);
   }
   const pending = [...unique.values()].sort((a, b) => b.score - a.score);
@@ -229,4 +266,8 @@ function trackKey(track: ProviderTrack) {
 
 function normalize(value: string) {
   return value.toLocaleLowerCase("ru").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
 }

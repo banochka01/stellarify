@@ -34,6 +34,29 @@ export type LibraryOperation =
   | { id: string; type: "playlistTrackUpsert"; playlistId: string; track: Record<string, unknown>; position: number }
   | { id: string; type: "playlistTrackDelete"; playlistId: string; trackId: string };
 
+export type WaveListeningSignal = {
+  type: "started" | "finished" | "skipped" | "liked" | "disliked";
+  provider: "soundcloud" | "yandex";
+  trackId: string;
+  title: string;
+  artist: string;
+  album?: string;
+  playedDurationMs: number;
+  createdAt: string;
+};
+
+export type WaveTrackSignal = {
+  title: string;
+  artist: string;
+  album?: string;
+};
+
+export type WaveTasteSignals = {
+  listening: WaveListeningSignal[];
+  favorites: WaveTrackSignal[];
+  playlistTracks: WaveTrackSignal[];
+};
+
 export class AccountError extends Error {
   constructor(
     readonly code: "EMAIL_TAKEN" | "INVALID_CREDENTIALS" | "INVALID_SESSION" | "LIBRARY_LIMIT",
@@ -106,6 +129,21 @@ export class AccountStore {
         created_at INTEGER NOT NULL,
         PRIMARY KEY (user_id, operation_id)
       );
+      CREATE TABLE IF NOT EXISTS account_wave_feedback (
+        user_id TEXT NOT NULL REFERENCES account_users(id) ON DELETE CASCADE,
+        event_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        track_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        artist TEXT NOT NULL,
+        album TEXT,
+        played_duration_ms INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (user_id, event_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_account_wave_feedback_recent
+        ON account_wave_feedback(user_id, created_at DESC);
     `);
   }
 
@@ -205,6 +243,67 @@ export class AccountStore {
     return { favorites, playlists };
   }
 
+  getWaveTasteSignals(userId: string): WaveTasteSignals {
+    const library = this.getLibrary(userId);
+    const favorites = library.favorites
+      .map(waveTrackSignal)
+      .filter((track): track is WaveTrackSignal => track !== undefined)
+      .slice(0, 100);
+    const playlistTracks = library.playlists
+      .flatMap((playlist) => playlist.tracks.map((entry) => waveTrackSignal(entry.track)))
+      .filter((track): track is WaveTrackSignal => track !== undefined)
+      .slice(0, 200);
+    const listening = this.#database.prepare(`
+      SELECT type, provider, track_id, title, artist, album, played_duration_ms, created_at
+      FROM account_wave_feedback WHERE user_id = ?
+      ORDER BY created_at DESC LIMIT 200
+    `).all(userId).map((raw) => {
+      const row = raw as WaveFeedbackRow;
+      return {
+        type: row.type,
+        provider: row.provider,
+        trackId: row.track_id,
+        title: row.title,
+        artist: row.artist,
+        ...(row.album ? { album: row.album } : {}),
+        playedDurationMs: row.played_duration_ms,
+        createdAt: new Date(row.created_at).toISOString()
+      };
+    });
+    return { listening, favorites, playlistTracks };
+  }
+
+  recordWaveFeedback(
+    userId: string,
+    event: Omit<WaveListeningSignal, "title" | "artist" | "album" | "createdAt"> & { eventId: string },
+    track: WaveTrackSignal
+  ) {
+    const now = Date.now();
+    this.#database.prepare(`
+      INSERT OR IGNORE INTO account_wave_feedback (
+        user_id, event_id, type, provider, track_id, title, artist, album, played_duration_ms, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      userId,
+      event.eventId,
+      event.type,
+      event.provider,
+      event.trackId,
+      track.title,
+      track.artist,
+      track.album ?? null,
+      Math.max(0, Math.trunc(event.playedDurationMs)),
+      now
+    );
+    this.#database.prepare(`
+      DELETE FROM account_wave_feedback
+      WHERE user_id = ? AND event_id NOT IN (
+        SELECT event_id FROM account_wave_feedback
+        WHERE user_id = ? ORDER BY created_at DESC LIMIT 2000
+      )
+    `).run(userId, userId);
+  }
+
   applyOperations(userId: string, operations: LibraryOperation[]) {
     const seen = this.#database.prepare(`
       SELECT 1 FROM account_sync_operations WHERE user_id = ? AND operation_id = ?
@@ -241,6 +340,8 @@ export class AccountStore {
     this.#database.prepare(`
       DELETE FROM account_sync_operations WHERE created_at < ?
     `).run(now - 90 * 24 * 60 * 60 * 1_000);
+    this.#database.prepare("DELETE FROM account_wave_feedback WHERE created_at < ?")
+      .run(now - 180 * 24 * 60 * 60 * 1_000);
   }
 
   #applyOperation(userId: string, operation: LibraryOperation) {
@@ -394,6 +495,16 @@ type UserRow = { id: string; email: string; created_at: number };
 type UserPasswordRow = UserRow & { password_hash: string; password_salt: string };
 type RefreshRow = UserRow & { session_id: string };
 type PlaylistRow = { id: string; name: string; created_at: number; updated_at: number };
+type WaveFeedbackRow = {
+  type: WaveListeningSignal["type"];
+  provider: WaveListeningSignal["provider"];
+  track_id: string;
+  title: string;
+  artist: string;
+  album: string | null;
+  played_duration_ms: number;
+  created_at: number;
+};
 
 const publicUser = (row: UserRow): AccountUser => ({
   id: row.id,
@@ -410,3 +521,11 @@ const safeEqual = (left: string, right: string) => {
 };
 
 const parseTrack = (value: string) => JSON.parse(value) as Record<string, unknown>;
+
+const waveTrackSignal = (track: Record<string, unknown>): WaveTrackSignal | undefined => {
+  const title = typeof track.title === "string" ? track.title.trim() : "";
+  const artist = typeof track.artist === "string" ? track.artist.trim() : "";
+  if (!title || !artist) return undefined;
+  const album = typeof track.album === "string" ? track.album.trim() : "";
+  return { title, artist, ...(album ? { album } : {}) };
+};

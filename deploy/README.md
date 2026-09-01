@@ -27,6 +27,16 @@ relay ticket with byte-range support. When the proxy is requested but
 unavailable, the server fails closed instead of silently falling back to a
 direct request.
 
+Plus/Family Wave can use AgentRouter to turn recent listening feedback, likes,
+and playlist tracks into bounded search and ranking parameters. Configure
+`AGENTROUTER_API_KEY` in `/opt/resonance/.env`; the defaults use the
+OpenAI-compatible `https://co.agentrouter.org/v1` endpoint and `glm-5.2` model.
+`AGENTROUTER_MODEL`, `AGENTROUTER_TIMEOUT_MS`, and `AGENTROUTER_CACHE_MS` are
+optional overrides. If AgentRouter is unavailable or unconfigured, Wave keeps
+working with the same account signals through its deterministic local ranker.
+Only track metadata and outcomes are sent for personalization; account IDs,
+provider credentials, stream URLs, and playlist names are not sent.
+
 Validate a release with:
 
 ```sh

@@ -6,7 +6,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.server
-    image: resonance-api:20260830-subscriptions-0.4.0
+    image: resonance-api:20260901-agentrouter-wave
     container_name: resonance-promo-bot
     command: [node, dist/promo-bot-main.js]
     restart: unless-stopped
@@ -33,7 +33,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.server
-    image: resonance-api:20260830-subscriptions-0.4.0
+    image: resonance-api:20260901-agentrouter-wave
     container_name: resonance-api
     restart: unless-stopped
     env_file:
