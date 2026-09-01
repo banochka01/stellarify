@@ -246,6 +246,14 @@ test("rejects malformed compact proxy values", () => {
     () => normalizeProxyUrl("203.0.113.8:8080:user"),
     /ip:port:login:password/
   );
+  assert.throws(
+    () => normalizeProxyUrl("http://user:pass@proxy.example.com:8080"),
+    /literal IPv4/
+  );
+  assert.throws(
+    () => normalizeProxyUrl("http://user:pass@[2001:db8::1]:8080"),
+    /literal IPv4/
+  );
 });
 
 test("attaches the proxy dispatcher only when the toggle is enabled", async () => {

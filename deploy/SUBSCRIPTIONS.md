@@ -34,12 +34,13 @@ Use a dedicated bot. In `/opt/resonance/.env` set (not in source control):
 PROMO_BOT_TOKEN=<BotFather token>
 PROMO_CODE_SECRET=<stable random secret, at least 32 characters>
 PROMO_BOT_ADMIN_IDS=<comma-separated numeric Telegram user IDs>
-PROMO_BOT_PROXY_URL=http://<username>:<URL-encoded-password>@<host>:<port>
+PROMO_BOT_PROXY_URL=http://<username>:<URL-encoded-password>@<IPv4>:<port>
 ```
 
-Only HTTP and HTTPS CONNECT proxies are supported. SOCKS proxy configuration is
-rejected; it never falls back to direct. The exact dispatcher is used for every
-Telegram call, redirects are rejected, proxy/TLS validation is never disabled.
+Only HTTP and HTTPS CONNECT proxies with a literal IPv4 host are supported.
+Hostnames, IPv6 and SOCKS proxy configuration are rejected; it never falls back
+to direct. The exact dispatcher is used for every Telegram call, redirects are
+rejected, proxy/TLS validation is never disabled.
 Only private messages from an allowlisted human account can issue codes. No
 HTTP endpoint creates promo codes. Do not reuse a bot already running a webhook
 or a second long-polling process. Stop the old poller first through its normal

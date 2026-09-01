@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
 import { writeFileSync } from "node:fs";
+import { isIP } from "node:net";
 import { ProxyAgent, fetch } from "undici";
 import { z } from "zod";
 import { SubscriptionError, SubscriptionStore, plans, type Plan } from "./subscriptions.js";
@@ -44,7 +45,7 @@ export function botConfiguration(env: NodeJS.ProcessEnv) {
   if (!token || !/^\d+:[A-Za-z0-9_-]{20,}$/.test(token) || !codeSecret || codeSecret.length < 32 || !rawProxy || !admins.size || [...admins].some(x => !/^[1-9]\d{0,15}$/.test(x))) throw new Error("Configure PROMO_BOT_TOKEN, PROMO_CODE_SECRET, PROMO_BOT_ADMIN_IDS and PROMO_BOT_PROXY_URL; bot cannot start without them");
   let proxy: URL;
   try { proxy = new URL(rawProxy); } catch { throw new Error("PROMO_BOT_PROXY_URL must be an absolute HTTP(S) CONNECT proxy URL"); }
-  if (!["http:", "https:"].includes(proxy.protocol) || !proxy.hostname || proxy.hash || proxy.search) throw new Error("PROMO_BOT_PROXY_URL must be an HTTP(S) CONNECT proxy URL");
+  if (!["http:", "https:"].includes(proxy.protocol) || isIP(proxy.hostname) !== 4 || proxy.hash || proxy.search) throw new Error("PROMO_BOT_PROXY_URL must be an HTTP(S) CONNECT proxy URL with a literal IPv4 address");
   return { token, codeSecret, admins, proxy: proxy.toString() };
 }
 

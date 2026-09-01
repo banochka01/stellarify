@@ -18,7 +18,8 @@ Resonance Settings. Yandex continues to use a per-user OAuth token.
 
 `SOUNDCLOUD_PROXY_URL` is optional and server-only. The preferred compact form
 is `IPv4:port:login:password`; absolute `http://` and `https://` URLs are also
-accepted.
+accepted only when their host is a literal IPv4 address. Hostnames, IPv6 and
+SOCKS proxy URLs are rejected.
 Clients never receive that URL: they can only request the configured route with
 the SoundCloud proxy toggle. When enabled, SoundCloud API calls and progressive
 MP3 playback use the proxy; audio is exposed only through a short-lived opaque

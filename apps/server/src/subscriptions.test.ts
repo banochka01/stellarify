@@ -135,7 +135,7 @@ test("bot only issues to allowlisted admin in private chat and retries generate 
   assert.throws(() => store.redeem("bob", code), fails("PROMO_UNAVAILABLE"));
 });
 
-test("bot fails closed without proxy or administrator; accepts only supported proxy protocol", async t => {
+test("bot fails closed without an IPv4 proxy or administrator", async t => {
   const env = { PROMO_BOT_TOKEN: '123:' + 'a'.repeat(32), PROMO_CODE_SECRET: 's'.repeat(32), PROMO_BOT_ADMIN_IDS: '123', PROMO_BOT_PROXY_URL: 'http://login:secret@127.0.0.1:8080' };
   assert.equal(botConfiguration(env).admins.has('123'), true);
   assert.equal(botConfiguration(env).codeSecret, env.PROMO_CODE_SECRET);
@@ -144,6 +144,8 @@ test("bot fails closed without proxy or administrator; accepts only supported pr
   assert.throws(() => botConfiguration({ ...env, PROMO_CODE_SECRET: '' }));
   assert.throws(() => botConfiguration({ ...env, PROMO_CODE_SECRET: 'too-short' }));
   assert.throws(() => botConfiguration({ ...env, PROMO_BOT_PROXY_URL: 'file:///tmp/proxy' }));
+  assert.throws(() => botConfiguration({ ...env, PROMO_BOT_PROXY_URL: 'http://login:secret@proxy.example.com:8080' }));
+  assert.throws(() => botConfiguration({ ...env, PROMO_BOT_PROXY_URL: 'http://login:secret@[2001:db8::1]:8080' }));
   const { store } = fixture(t);
   const controller = new AbortController(); controller.abort();
   let dispatcher: unknown;

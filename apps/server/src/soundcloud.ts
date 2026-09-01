@@ -385,8 +385,8 @@ export function normalizeProxyUrl(value?: string) {
   if (!["http:", "https:"].includes(url.protocol)) {
     throw new Error("SOUNDCLOUD_PROXY_URL must use http or https");
   }
-  if (!url.hostname || url.hash) {
-    throw new Error("SOUNDCLOUD_PROXY_URL is invalid");
+  if (isIP(url.hostname) !== 4 || url.hash || url.search) {
+    throw new Error("SOUNDCLOUD_PROXY_URL must use a literal IPv4 address");
   }
   return url.toString();
 }
