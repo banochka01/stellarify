@@ -1,5 +1,16 @@
 # Progress
 
+## Version 0.4.0 — subscriptions and native-player access (candidate, not deployed)
+
+- [x] Server-owned 24-hour SoundCloud guest access
+- [x] Base, Plus and Family entitlements with server-side enforcement
+- [x] One-time, hashed promo codes and idempotent activation
+- [x] Private Telegram admin bot with required proxy-only transport
+- [x] Subscription, device and family-management UI
+- [x] Own-player-only catalog and Wave boundaries
+- [x] Server and Flutter automated validation
+- [ ] Production credentials, bot/proxy smoke test and atomic release
+
 ## Version 0.3.1 — safe synchronization and audio output routing
 
 Status: released to production and publicly verified on 2026-08-29.

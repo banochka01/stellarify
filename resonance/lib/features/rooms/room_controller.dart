@@ -68,22 +68,37 @@ class RoomController extends StateNotifier<ListeningRoomState> {
       io.OptionBuilder()
           .setTransports(['websocket'])
           .disableAutoConnect()
+          .disableReconnection()
           .build(),
     );
     _socket.onConnect((_) {
+      _connecting = false;
+      _reconnectTimer?.cancel();
       state = state.copyWith(connected: true, clearError: true);
+      if (state.inRoom) unawaited(_resumeRoom());
     });
     _socket.onDisconnect((_) {
+      _connecting = false;
       state = state.copyWith(connected: false);
+      _scheduleReconnect();
     });
     _socket.onConnectError((_) {
+      _connecting = false;
       state = state.copyWith(
         connected: false,
         error: 'Не удалось подключиться к серверу комнат.',
       );
+      _scheduleReconnect();
     });
     _socket.on('room:state', _applyRoom);
-    _socket.connect();
+    _socket.on('room:access-denied', (_) {
+      state = state.copyWith(
+        busy: false,
+        error:
+            'Создание комнат доступно в Plus и Family. Откройте раздел «Подписка».',
+      );
+    });
+    unawaited(_connectAuthorized());
     unawaited(_watchPlayback());
   }
 
@@ -95,8 +110,66 @@ class RoomController extends StateNotifier<ListeningRoomState> {
   String? _lastTrackId;
   bool? _lastPlaying;
   int _appliedVersion = -1;
+  Timer? _reconnectTimer;
+  bool _connecting = false;
+  bool _disposed = false;
+  String _participantName = 'Слушатель';
 
   bool get isHost => state.inRoom && state.hostId == _socket.id;
+
+  Future<void> _connectAuthorized() async {
+    if (_disposed || _connecting || _socket.connected) return;
+    _connecting = true;
+    try {
+      final service = _ref.read(subscriptionServiceProvider);
+      final headers = await service.headers();
+      final authorization = headers['Authorization'];
+      if (authorization == null) {
+        throw StateError('Account authorization is required');
+      }
+      _socket.auth = {
+        'authorization': authorization,
+        'deviceId': headers['X-Device-Id'],
+      };
+      if (_disposed) return;
+      _socket.connect();
+    } on Object {
+      _connecting = false;
+      state = state.copyWith(
+        error: 'Войдите в аккаунт с действующей подпиской.',
+      );
+    }
+  }
+
+  void _scheduleReconnect() {
+    if (_disposed || _reconnectTimer?.isActive == true) return;
+    _reconnectTimer = Timer(
+      const Duration(seconds: 3),
+      () => unawaited(_connectAuthorized()),
+    );
+  }
+
+  Future<void> _resumeRoom() async {
+    final code = state.code;
+    if (code == null || !_socket.connected || _disposed) return;
+    _socket.emitWithAck(
+      'room:join',
+      {'code': code, 'name': _participantName},
+      ack: (raw) {
+        if (_disposed) return;
+        final response = _stringMap(raw);
+        if (response['ok'] == true) {
+          _applyRoom(response['room']);
+          return;
+        }
+        _appliedVersion = -1;
+        state = state.copyWith(
+          clearRoom: true,
+          error: response['error']?.toString() ?? 'Комната больше недоступна.',
+        );
+      },
+    );
+  }
 
   Future<void> _watchPlayback() async {
     final service = await _ref.read(playbackServiceProvider.future);
@@ -105,24 +178,28 @@ class RoomController extends StateNotifier<ListeningRoomState> {
   }
 
   void create(String name) {
-    _perform('room:create', {'name': name.trim()});
+    _participantName = name.trim().isEmpty ? 'Слушатель' : name.trim();
+    _perform('room:create', {'name': _participantName});
   }
 
   void join(String code, String name) {
+    _participantName = name.trim().isEmpty ? 'Слушатель' : name.trim();
     _perform('room:join', {
       'code': code.trim().toUpperCase(),
-      'name': name.trim(),
+      'name': _participantName,
     });
   }
 
   void leave() {
     _socket.emitWithAck('room:leave', const {}, ack: (_) {});
     _appliedVersion = -1;
+    _participantName = 'Слушатель';
     state = state.copyWith(clearRoom: true, clearError: true, busy: false);
   }
 
   void _perform(String event, Map<String, dynamic> payload) {
     if (!_socket.connected) {
+      unawaited(_connectAuthorized());
       state = state.copyWith(
         error: 'Сервер ещё подключается. Попробуйте снова.',
       );
@@ -235,6 +312,8 @@ class RoomController extends StateNotifier<ListeningRoomState> {
 
   @override
   void dispose() {
+    _disposed = true;
+    _reconnectTimer?.cancel();
     unawaited(_playbackSubscription?.cancel());
     _socket.dispose();
     super.dispose();

@@ -8,6 +8,9 @@ import { Server } from "socket.io";
 import { z } from "zod";
 import { createAccountRouter } from "./account-api.js";
 import { AccountStore } from "./account-store.js";
+import { AccountError } from "./account-store.js";
+import { AccessControl, accessError, createSubscriptionRouter } from "./subscription-api.js";
+import { SubscriptionStore, SubscriptionError, hashSecret } from "./subscriptions.js";
 import { parseImportPayload } from "./importer.js";
 import { PlaylistImportService } from "./playlist-import.js";
 import { ProviderGateway, ProviderGatewayError, type ProviderAccess } from "./provider-gateway.js";
@@ -54,11 +57,27 @@ const accountStore = new AccountStore(
   process.env.AUTH_DB_PATH || "./data/resonance.sqlite",
   process.env.AUTH_PASSWORD_PEPPER || ""
 );
+const subscriptionStore = new SubscriptionStore(process.env.AUTH_DB_PATH || "./data/resonance.sqlite");
+const accessControl = new AccessControl(accountStore, subscriptionStore);
 
 app.disable("x-powered-by");
 app.use(cors({ origin: webOrigin }));
 app.use(express.json({ limit: "512kb" }));
+app.use("/api/v1/subscription", createSubscriptionRouter(accessControl));
+app.use("/api/v1/account/library", accessControl.middleware("library.cloudSync"));
 app.use("/api/v1/account", createAccountRouter(accountStore));
+
+// Enforce before any provider traffic, including legacy clients and alternate import paths.
+app.use(["/api/v1/catalog/search", "/api/v1/playback/resolve", "/api/v1/auth/validate"], (request, response, next) => {
+  const provider = request.method === "GET" ? request.query.provider : request.body?.provider;
+  try {
+    if (provider !== "soundcloud" && provider !== "yandex") throw new SubscriptionError("NATIVE_SOURCE_REQUIRED", "Источник не поддерживает собственный плеер Resonance", 400);
+    accessControl.require(request, provider === "soundcloud" ? "playback.soundcloud" : "playback.yandex");
+    next();
+  } catch (error) { accessError(response, error); }
+});
+app.use(["/api/v1/playlists/import", "/api/import/preview"], accessControl.middleware("library.import"));
+app.use("/api/v1/wave", accessControl.middleware("wave.standard"));
 
 app.get("/api/health", (_request, response) => {
   response.json({
@@ -70,9 +89,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "0.3.2",
+    version: process.env.CLIENT_VERSION || "0.4.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Моя волна: Яндекс Rotor, SoundCloud и YouTube discovery, автопополнение и feedback.",
+      "Подписки Resonance: 24 часа SoundCloud для гостей, Base, Plus и Family; активация оплаченных промокодов.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       android: "https://music.webcordes.ru/downloads/android",
@@ -158,6 +177,10 @@ app.post("/api/v1/playback/resolve", async (request, response) => {
       input.data.quality,
       access
     );
+    const identity = accessControl.fromRequest(request);
+    const entitlement = subscriptionStore.require(input.data.provider === "soundcloud" ? "playback.soundcloud" : "playback.yandex", identity.userId, identity.guestToken);
+    const expiry = Math.min(Date.parse(entitlement.expiresAt!), source.expiresAt ? Date.parse(source.expiresAt) : Infinity);
+    source = { ...source, expiresAt: new Date(expiry).toISOString() };
     if (input.data.provider === "soundcloud" && access?.useProxy) {
       const relay = soundCloudAudioRelay.issue(source);
       source = {
@@ -174,7 +197,7 @@ app.post("/api/v1/playback/resolve", async (request, response) => {
 
 const waveRequestSchema = z.object({
   seedQueries: z.array(z.string().trim().min(1).max(200)).max(20).default([]),
-  enabledProviders: z.array(z.enum(["soundcloud", "yandex", "youtube"])).min(1).max(3).default(["soundcloud", "yandex", "youtube"]),
+  enabledProviders: z.array(z.enum(["soundcloud", "yandex"])).min(1).max(2).default(["soundcloud", "yandex"]),
   discovery: z.number().min(0).max(1).default(.3),
   mood: z.enum(["fun", "active", "calm", "sad", "all"]).default("all"),
   language: z.enum(["not-russian", "russian", "any"]).default("any")
@@ -183,7 +206,7 @@ const waveFeedbackSchema = z.object({
   eventId: z.string().uuid(),
   type: z.enum(["started", "finished", "skipped", "liked", "disliked"]),
   trackId: z.string().trim().min(1).max(200),
-  provider: z.enum(["soundcloud", "yandex", "youtube"]),
+  provider: z.enum(["soundcloud", "yandex"]),
   batchId: z.string().trim().min(1).max(200).optional(),
   playedDurationMs: z.number().int().min(0).max(24 * 60 * 60 * 1000).default(0)
 });
@@ -192,13 +215,23 @@ app.post("/api/v1/wave/sessions", async (request, response) => {
   const input = waveRequestSchema.safeParse(request.body);
   if (!input.success) return void response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Invalid wave request" } });
   try {
-    response.status(201).json(await wave.start(input.data, waveAccess(request)));
+    const identity = accessControl.fromRequest(request);
+    const entitlement = subscriptionStore.snapshot(identity.userId, identity.guestToken);
+    subscriptionStore.consumeGuestWave(identity.userId, identity.guestToken);
+    response.status(201).json(await wave.start({
+      ...input.data,
+      enabledProviders: input.data.enabledProviders.filter(p => entitlement.providers.includes(p)),
+      seedQueries: entitlement.capabilities["wave.personalized"] ? input.data.seedQueries : [],
+      discovery: entitlement.capabilities["wave.personalized"] ? input.data.discovery : .3,
+    }, waveAccess(request), waveOwner(request)));
   } catch (error) { sendGatewayError(response, error); }
 });
 
 app.post("/api/v1/wave/sessions/:id/next", async (request, response) => {
   try {
-    response.json(await wave.next(request.params.id, waveAccess(request)));
+    const identity = accessControl.fromRequest(request);
+    subscriptionStore.consumeGuestWave(identity.userId, identity.guestToken);
+    response.json(await wave.next(request.params.id, waveAccess(request), waveOwner(request)));
   } catch (error) { sendWaveError(response, error); }
 });
 
@@ -206,12 +239,13 @@ app.post("/api/v1/wave/sessions/:id/feedback", async (request, response) => {
   const input = waveFeedbackSchema.safeParse(request.body);
   if (!input.success) return void response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Invalid wave feedback" } });
   try {
-    response.json(await wave.feedback(request.params.id, input.data, waveAccess(request)));
+    response.json(await wave.feedback(request.params.id, input.data, waveAccess(request), waveOwner(request)));
   } catch (error) { sendWaveError(response, error); }
 });
 
 app.delete("/api/v1/wave/sessions/:id", (request, response) => {
-  response.status(wave.stop(request.params.id) ? 204 : 404).end();
+  try { response.status(wave.stop(request.params.id, waveOwner(request)) ? 204 : 404).end(); }
+  catch (error) { sendWaveError(response, error); }
 });
 
 app.all(
@@ -326,9 +360,39 @@ app.post("/api/import/preview", (request, response) => {
   });
 });
 
-io.on("connection", (socket) => registerRoomHandlers(io, socket));
+function roomAccess(socket: import("socket.io").Socket, create = false) {
+  const deviceId = socket.handshake.auth.deviceId;
+  if (typeof deviceId !== "string") throw new Error("Войдите в аккаунт Resonance");
+  let userId = typeof socket.data.subscriptionUserId === "string" ? socket.data.subscriptionUserId : undefined;
+  if (!userId) {
+    const authorization = socket.handshake.auth.authorization;
+    if (typeof authorization !== "string") throw new Error("Войдите в аккаунт Resonance");
+    const identity = accessControl.identity({ authorization });
+    if (!identity.userId) throw new Error("Войдите в аккаунт Resonance");
+    userId = identity.userId;
+    // The JWT authenticates the handshake. The live socket keeps only the user
+    // identity; subscription/device rights are still rechecked every 30 seconds.
+    // A new transport handshake must present a fresh valid access token.
+    socket.data.subscriptionUserId = userId;
+  }
+  subscriptionStore.require(create ? "rooms.create" : "rooms.join", userId);
+  subscriptionStore.touchDevice(userId, deviceId);
+}
+io.use((socket, next) => { try { roomAccess(socket); next(); } catch { next(new Error("Для комнат нужна действующая подписка и вход в аккаунт")); } });
+io.on("connection", (socket) => {
+  registerRoomHandlers(io, socket, create => roomAccess(socket, create));
+  const timer = setInterval(() => { try { roomAccess(socket); } catch { socket.disconnect(true); } }, 30_000);
+  socket.once("disconnect", () => clearInterval(timer));
+});
+
+function waveOwner(request: express.Request) {
+  const identity = accessControl.fromRequest(request);
+  const tier = subscriptionStore.snapshot(identity.userId, identity.guestToken).tier;
+  return `${identity.userId ?? hashSecret(identity.guestToken ?? "")}:${tier}`;
+}
 
 function sendGatewayError(response: express.Response, error: unknown) {
+  if (error instanceof SubscriptionError || error instanceof AccountError) { accessError(response, error); return; }
   if (error instanceof ProviderGatewayError) {
     response.status(error.status).json({
       error: { code: error.code, message: error.message }
@@ -361,8 +425,8 @@ function providerAccess(request: express.Request) {
 }
 
 function waveAccess(request: express.Request) {
-  const result: Partial<Record<"soundcloud" | "yandex" | "youtube", ProviderAccess>> = {};
-  for (const provider of ["soundcloud", "yandex", "youtube"] as const) {
+  const result: Partial<Record<"soundcloud" | "yandex", ProviderAccess>> = {};
+  for (const provider of ["soundcloud", "yandex"] as const) {
     const token = request.header(`x-${provider}-token`)?.trim();
     if (token && token.length <= 4096 && !/[\r\n]/.test(token)) {
       result[provider] = {

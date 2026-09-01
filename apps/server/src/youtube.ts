@@ -98,7 +98,7 @@ export class YouTubeAdapter implements MusicProviderAdapter {
   async resolve(_externalId: string, _quality: AudioQuality, _access?: ProviderAccess): Promise<ResolvedStream> {
     throw new ProviderGatewayError(
       "PROVIDER_NOT_SUPPORTED",
-      "YouTube playback is available only through the official embedded player",
+      "YouTube cannot be played by the native Resonance player",
       400
     );
   }

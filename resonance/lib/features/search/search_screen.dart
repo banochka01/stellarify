@@ -21,11 +21,7 @@ class SearchScreen extends ConsumerStatefulWidget {
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
-  final _enabledProviders = {
-    MusicProvider.yandex,
-    MusicProvider.soundcloud,
-    MusicProvider.youtube,
-  };
+  final _enabledProviders = {MusicProvider.yandex, MusicProvider.soundcloud};
   Timer? _debounce;
   List<UnifiedTrack> _tracks = const [];
   bool _loading = false;
@@ -167,14 +163,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   children: [
                     _FilterPill(
                       label: 'Все',
-                      selected: _enabledProviders.length == 3,
+                      selected: _enabledProviders.length == 2,
                       onTap: _setAllProviders,
                     ),
                     const SizedBox(width: 8),
                     for (final provider in [
                       MusicProvider.yandex,
                       MusicProvider.soundcloud,
-                      MusicProvider.youtube,
                     ]) ...[
                       _FilterPill(
                         label: _providerName(provider),
@@ -230,11 +225,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     setState(() {
       _enabledProviders
         ..clear()
-        ..addAll([
-          MusicProvider.yandex,
-          MusicProvider.soundcloud,
-          MusicProvider.youtube,
-        ]);
+        ..addAll([MusicProvider.yandex, MusicProvider.soundcloud]);
     });
     _search(_controller.text);
   }

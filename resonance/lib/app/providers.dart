@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/core/database/app_database.dart';
 import 'package:resonance/core/networking/backend_endpoint.dart';
@@ -27,6 +28,7 @@ import 'package:resonance/features/auth/account_api.dart';
 import 'package:resonance/features/auth/account_session_repository.dart';
 import 'package:resonance/features/auth/library_sync_service.dart';
 import 'package:resonance/features/library/playlist_import_service.dart';
+import 'package:resonance/features/subscription/subscription_service.dart';
 import 'package:resonance/providers/common/provider_registry.dart';
 import 'package:resonance/providers/soundcloud/backend_soundcloud_provider.dart';
 import 'package:resonance/providers/yandex/backend_yandex_provider.dart';
@@ -87,11 +89,53 @@ final soundCloudProxyPreferenceProvider = Provider<SoundCloudProxyPreference>((
   );
 });
 
-final resonanceHttpClientProvider = Provider<ResonanceHttpClient>((ref) {
+final Provider<ResonanceHttpClient>
+resonanceHttpClientProvider = Provider<ResonanceHttpClient>((ref) {
   final client = ResonanceHttpClient();
+  client.dio.interceptors.add(
+    InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        final path = options.uri.path;
+        final protected =
+            path.startsWith('/api/v1/catalog/') ||
+            path.startsWith('/api/v1/playback/resolve') ||
+            path.startsWith('/api/v1/auth/validate') ||
+            path.startsWith('/api/v1/wave/') ||
+            path.startsWith('/api/v1/playlists/') ||
+            path.startsWith('/api/v1/account/library');
+        if (!protected ||
+            options.uri.origin != BackendEndpoint.requireCurrent().origin) {
+          handler.next(options);
+          return;
+        }
+        try {
+          final headers = await ref.read(subscriptionServiceProvider).headers();
+          // AccountApi already binds library requests to an exact session: never replace that token.
+          for (final entry in headers.entries) {
+            options.headers.putIfAbsent(entry.key, () => entry.value);
+          }
+          options.followRedirects = false;
+          handler.next(options);
+        } on Object catch (error) {
+          handler.reject(DioException(requestOptions: options, error: error));
+        }
+      },
+    ),
+  );
   ref.onDispose(client.close);
   return client;
 });
+
+final Provider<SubscriptionService> subscriptionServiceProvider =
+    Provider<SubscriptionService>(
+      (ref) => SubscriptionService(
+        ref.watch(resonanceHttpClientProvider).dio,
+        BackendEndpoint.requireCurrent,
+        ref.watch(secureKeyValueStoreProvider),
+        ref.watch(accountApiProvider),
+        ref.watch(accountSessionRepositoryProvider),
+      ),
+    );
 
 final accountApiProvider = Provider<AccountApi>((ref) {
   return AccountApi(
@@ -187,6 +231,7 @@ final playbackServiceProvider = FutureProvider<PlaybackService>((ref) async {
     persistence: ref.watch(playbackPersistenceProvider),
     sourceCache: ref.watch(resolvedSourceCacheProvider),
     quality: onboarding.quality,
+    authorizeSource: ref.read(subscriptionServiceProvider).requireProvider,
   );
   await service.initialize();
   AudioFocusCoordinator? focusCoordinator;

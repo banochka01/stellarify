@@ -3,7 +3,7 @@ import type { ProviderAccess, ProviderTrack } from "./provider-gateway.js";
 import { ProviderGateway } from "./provider-gateway.js";
 import { YandexAdapter } from "./yandex.js";
 
-export type WaveProviderName = "soundcloud" | "yandex" | "youtube";
+export type WaveProviderName = "soundcloud" | "yandex";
 export type WaveAccess = Partial<Record<WaveProviderName, ProviderAccess>>;
 export type WaveFeedbackType = "started" | "finished" | "skipped" | "liked" | "disliked";
 
@@ -24,6 +24,7 @@ export interface WaveItem extends ProviderTrack {
 
 interface WaveSession {
   id: string;
+  owner: string;
   request: WaveRequest;
   station?: string;
   batchId?: string;
@@ -44,10 +45,12 @@ export class WaveService {
     private readonly now: () => number = Date.now
   ) {}
 
-  async start(request: WaveRequest, access: WaveAccess = {}) {
+  async start(request: WaveRequest, access: WaveAccess = {}, owner = "") {
     this.sweep();
+    if (this.sessions.size >= 2000) throw new WaveSessionError();
     const session: WaveSession = {
       id: randomUUID(),
+      owner,
       request,
       recentTracks: [],
       recentArtists: [],
@@ -60,8 +63,8 @@ export class WaveService {
     return this.response(session, items);
   }
 
-  async next(id: string, access: WaveAccess = {}) {
-    const session = this.requireSession(id);
+  async next(id: string, access: WaveAccess = {}, owner = "") {
+    const session = this.requireSession(id, owner);
     const items = await this.fill(session, access);
     return this.response(session, items);
   }
@@ -76,9 +79,10 @@ export class WaveService {
       batchId?: string;
       playedDurationMs: number;
     },
-    access: WaveAccess = {}
+    access: WaveAccess = {},
+    owner = ""
   ) {
-    const session = this.requireSession(id);
+    const session = this.requireSession(id, owner);
     if (session.feedbackIds.has(event.eventId)) return { accepted: true, duplicate: true };
     session.feedbackIds.add(event.eventId);
     if (session.feedbackIds.size > 500) {
@@ -97,7 +101,8 @@ export class WaveService {
     return { accepted: true, duplicate: false };
   }
 
-  stop(id: string) {
+  stop(id: string, owner = "") {
+    if (this.sessions.has(id)) this.requireSession(id, owner);
     return this.sessions.delete(id);
   }
 
@@ -144,30 +149,7 @@ export class WaveService {
       }
     }));
     for (const result of await Promise.all(searches)) candidates.push(...result);
-    // YouTube is an official visible-player source in Resonance, so it cannot be
-    // inserted into a native background queue. Use its catalog as a discovery
-    // signal and resolve those artists back through native-capable providers.
-    const youtubeSeeds = [...new Set(candidates
-      .filter((item) => item.provider === "youtube")
-      .map((item) => item.artist.trim())
-      .filter(Boolean))].slice(0, 3);
-    const nativeProviders = providers.filter((provider) => provider !== "youtube");
-    const expansions = nativeProviders.flatMap((provider) => youtubeSeeds.map(async (query) => {
-      try {
-        const tracks = await this.gateway.search(
-          provider,
-          query,
-          5,
-          access[provider]
-        );
-        return tracks.map((track, rank) => this.item(provider, track, "wild", .69 - rank * .025));
-      } catch {
-        return [];
-      }
-    }));
-    for (const result of await Promise.all(expansions)) candidates.push(...result);
-    const nativeCandidates = candidates.filter((item) => item.provider !== "youtube");
-    const items = rerank(nativeCandidates, session, 20, session.request.discovery);
+    const items = rerank(candidates, session, 20, session.request.discovery);
     for (const item of items) {
       session.recentTracks.push(trackKey(item));
       session.recentArtists.push(normalize(item.artist));
@@ -190,10 +172,10 @@ export class WaveService {
     return { sessionId: session.id, items, expiresAt: new Date(session.expiresAt).toISOString() };
   }
 
-  private requireSession(id: string) {
+  private requireSession(id: string, owner: string) {
     this.sweep();
     const session = this.sessions.get(id);
-    if (!session) throw new WaveSessionError();
+    if (!session || session.owner !== owner) throw new WaveSessionError();
     return session;
   }
 
@@ -210,7 +192,7 @@ export function rerank(candidates: WaveItem[], history: Pick<WaveSession, "recen
   for (const candidate of candidates) {
     const key = trackKey(candidate);
     const old = unique.get(key);
-    const providerBonus = candidate.provider === "youtube" ? .01 : candidate.provider === "soundcloud" ? .02 : 0;
+    const providerBonus = candidate.provider === "soundcloud" ? .02 : 0;
     const discoveryBonus = candidate.lane === "wild" ? discovery * .12 : candidate.lane === "safe" ? (1 - discovery) * .12 : .06;
     const scored = { ...candidate, score: candidate.score + providerBonus + discoveryBonus };
     if (!old || scored.score > old.score) unique.set(key, scored);

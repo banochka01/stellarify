@@ -21,6 +21,7 @@ final class PlaybackService {
     ResolvedSourceCache? sourceCache,
     AudioQuality quality = AudioQuality.high,
     Random? random,
+    Future<void> Function(MusicProvider)? authorizeSource,
   }) {
     return PlaybackService._(
       engine: engine,
@@ -30,6 +31,7 @@ final class PlaybackService {
       sourceCache: sourceCache,
       quality: quality,
       random: random,
+      authorizeSource: authorizeSource,
     );
   }
 
@@ -41,12 +43,15 @@ final class PlaybackService {
     required ResolvedSourceCache? sourceCache,
     required this._quality,
     required Random? random,
+    required this._authorizeSource,
   }) : _sourceCache = sourceCache ?? ResolvedSourceCache(),
        _random = random ?? Random() {
     _subscriptions.addAll([
-      _engine.playing.listen(
-        (playing) => _emit(_state.copyWith(playing: playing)),
-      ),
+      _engine.playing.listen((playing) {
+        if (!playing) _accessTimer?.cancel();
+        _emit(_state.copyWith(playing: playing));
+        if (playing) _scheduleAccessCheck();
+      }),
       _engine.buffering.listen(
         (buffering) => _emit(_state.copyWith(buffering: buffering)),
       ),
@@ -62,6 +67,39 @@ final class PlaybackService {
         unawaited(_recoverFromEngineError(message));
       }),
     ]);
+  }
+
+  final Future<void> Function(MusicProvider)? _authorizeSource;
+  Timer? _accessTimer;
+  bool _checkingAccess = false;
+  void _scheduleAccessCheck() {
+    _accessTimer?.cancel();
+    if (_authorizeSource == null || _disposed || !_state.playing || _state.activeTrackSource == null) return;
+    _accessTimer = Timer(const Duration(seconds: 15), () async {
+      await _checkActiveAccess();
+      _scheduleAccessCheck();
+    });
+  }
+  Future<void> _checkActiveAccess() async {
+    final source = _state.activeTrackSource;
+    if (!_state.playing || source == null || _checkingAccess) return;
+    _checkingAccess = true;
+    try {
+      await _authorizeSource?.call(source.provider);
+    } on Object catch (_) {
+      await _engine.pause();
+      _sourceCache.clear();
+      _emit(
+        _state.copyWith(
+          playing: false,
+          activeAudioSource: null,
+          errorMessage:
+              'Проверьте подписку в настройках. Воспроизведение приостановлено.',
+        ),
+      );
+    } finally {
+      _checkingAccess = false;
+    }
   }
 
   final PlaybackEngine _engine;
@@ -154,6 +192,8 @@ final class PlaybackService {
     if (_state.currentTrack == null) {
       return;
     }
+    final provider = _state.activeTrackSource?.provider;
+    if (provider != null) await _authorizeSource?.call(provider);
     if (_state.activeAudioSource == null ||
         _state.activeAudioSource!.isExpired()) {
       await _openCurrent(play: true, start: _state.position);
@@ -300,6 +340,7 @@ final class PlaybackService {
         continue;
       }
       try {
+        await _authorizeSource?.call(source.provider);
         var resolved = _sourceCache.get(source);
         resolved ??= await resolver.resolve(source, quality: _quality);
         if (resolved.isExpired()) {
@@ -319,6 +360,7 @@ final class PlaybackService {
             errorMessage: null,
           ),
         );
+        _scheduleAccessCheck();
         return;
       } on Object catch (error) {
         _sourceCache.invalidate(source);
@@ -394,6 +436,7 @@ final class PlaybackService {
       return;
     }
     _disposed = true;
+    _accessTimer?.cancel();
     for (final subscription in _subscriptions) {
       await subscription.cancel();
     }

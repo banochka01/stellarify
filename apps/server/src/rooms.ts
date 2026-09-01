@@ -127,7 +127,12 @@ const leaveRooms = (io: Server, socket: Socket) => {
   }
 };
 
-export function registerRoomHandlers(io: Server, socket: Socket) {
+export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (create: boolean) => void) {
+  socket.use(([event], next) => {
+    if (event === "room:leave") { next(); return; }
+    try { authorize?.(event === "room:create"); next(); }
+    catch { socket.emit("room:access-denied", { message: "Для этой функции нужна подписка Plus или Family" }); }
+  });
   socket.on("room:create", (payload, acknowledge) => {
     leaveRooms(io, socket);
     let code = createCode();

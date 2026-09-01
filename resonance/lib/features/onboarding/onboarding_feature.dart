@@ -40,7 +40,10 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 }
 
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
-  final _providers = <MusicProvider>{...MusicProvider.values};
+  final _providers = <MusicProvider>{
+    MusicProvider.soundcloud,
+    MusicProvider.yandex,
+  };
   final _tokens = <MusicProvider, TextEditingController>{
     for (final provider in MusicProvider.values)
       provider: TextEditingController(),
@@ -448,7 +451,10 @@ class _ProviderStep extends StatelessWidget {
                 spacing: 12,
                 runSpacing: 12,
                 children: [
-                  for (final provider in MusicProvider.values)
+                  for (final provider in [
+                    MusicProvider.soundcloud,
+                    MusicProvider.yandex,
+                  ])
                     SizedBox(
                       width: cardWidth,
                       child: _ProviderChoice(
@@ -463,7 +469,7 @@ class _ProviderStep extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           const Text(
-            'YouTube открывается в официальном видимом плеере; Яндекс Музыка '
+            'Воспроизведение — только в собственном плеере Resonance; Яндекс Музыка '
             'и SoundCloud поддерживают нативное воспроизведение.',
             style: TextStyle(color: ResonanceColors.muted, fontSize: 12),
           ),
@@ -505,7 +511,10 @@ class _ConnectionStep extends StatelessWidget {
                 'Проверка выполняется до сохранения. Значения хранятся только в защищённом хранилище устройства.',
           ),
           const SizedBox(height: 24),
-          for (final provider in MusicProvider.values)
+          for (final provider in [
+            MusicProvider.soundcloud,
+            MusicProvider.yandex,
+          ])
             if (providers.contains(provider))
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
@@ -898,7 +907,7 @@ String _providerName(MusicProvider provider) => switch (provider) {
 String _providerDescription(MusicProvider provider) => switch (provider) {
   MusicProvider.yandex => 'Каталог, плейлисты и нативное воспроизведение.',
   MusicProvider.soundcloud => 'Ремиксы, независимые артисты и нативный звук.',
-  MusicProvider.youtube => 'Поиск и официальный видимый видеоплеер.',
+  MusicProvider.youtube => 'Только импорт метаданных, без воспроизведения.',
 };
 
 String _credentialLabel(MusicProvider provider) => switch (provider) {
@@ -912,7 +921,7 @@ String _credentialHint(MusicProvider provider) => switch (provider) {
   MusicProvider.soundcloud =>
     'Можно пропустить, если доступен серверный режим.',
   MusicProvider.youtube =>
-    'Воспроизведение всё равно остаётся в IFrame Player.',
+    'Внешний плеер не используется. Доступен только импорт метаданных.',
 };
 
 IconData _providerIcon(MusicProvider provider) => switch (provider) {

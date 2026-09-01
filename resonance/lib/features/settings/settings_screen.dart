@@ -275,6 +275,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onTap: () => context.go('/account'),
           ),
         ),
+        const SizedBox(height: 16),
+        Card(
+          margin: EdgeInsets.zero,
+          child: ListTile(
+            leading: const Icon(Icons.workspace_premium_outlined),
+            title: const Text('Подписка и промокоды'),
+            subtitle: const Text('Гостевые сутки · Base · Plus · Family'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => context.go('/subscription'),
+          ),
+        ),
         const SizedBox(height: 34),
         Text(
           'Воспроизведение',
@@ -431,11 +442,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _buildTokenConnection(
           provider: MusicProvider.soundcloud,
           controller: _soundCloudTokenController,
-        ),
-        const SizedBox(height: 12),
-        _buildTokenConnection(
-          provider: MusicProvider.youtube,
-          controller: _youtubeTokenController,
         ),
         const SizedBox(height: 12),
         Card(

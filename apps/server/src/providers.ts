@@ -38,7 +38,7 @@ export const providerCapabilities: ProviderCapability[] = [
     importMode: "api",
     playbackMode: "embed",
     status: "credentials-required",
-    note: "Воспроизведение через официальный YouTube IFrame Player."
+    note: "Импорт и поиск метаданных; воспроизведение в Resonance не поддерживается."
   },
   {
     id: "yandex",
@@ -57,4 +57,3 @@ export const providerCapabilities: ProviderCapability[] = [
     note: "Пока сохраняем ссылки и открываем официальный клиент."
   }
 ];
-

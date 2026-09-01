@@ -35,6 +35,19 @@ final class AccountApi implements AccountLibraryApi {
     );
   }
 
+  /// Shared by provider/subscription requests; account credentials never go to providers.
+  Future<String?> accessToken() async {
+    var session = await _sessions.read();
+    if (session == null) return null;
+    if (session.accessExpiresAt.isBefore(
+      DateTime.now().toUtc().add(const Duration(seconds: 30)),
+    )) {
+      session = await _refresh(session);
+    }
+    _requireExpectedUser(await _sessions.read(), session.user.id);
+    return session.accessToken;
+  }
+
   @override
   Future<RemoteLibrarySnapshot> library(String expectedUserId) async {
     final response = await _authorized(

@@ -5,6 +5,7 @@ import {
   ArrowDown,
   ArrowRight,
   Apple,
+  Clock3,
   Download,
   Heart,
   Layers3,
@@ -12,6 +13,8 @@ import {
   Search,
   ShieldCheck,
   Smartphone,
+  Ticket,
+  Users,
   Volume2
 } from "lucide-react";
 
@@ -122,6 +125,7 @@ function App() {
         </a>
         <nav aria-label="Основная навигация">
           <a href="#features">Возможности</a>
+          <a href="#plans">Подписки</a>
           <a href="#interface">Интерфейс</a>
           <a href="#privacy">Приватность</a>
         </nav>
@@ -150,7 +154,7 @@ function App() {
                 <Apple size={18} /> Unsigned IPA
               </a>
             </div>
-            <p className="release-note">Resonance 0.3.2 · Моя волна · Windows · Android · iOS unsigned</p>
+            <p className="release-note">Resonance 0.4.0 · Подписки · Windows · Android debug-signed · iOS unsigned</p>
           </div>
           <div className="hero-visual" aria-hidden="true">
             <img className="hero-orbit" src="/assets/resonance-hero-orbit.png" alt="" />
@@ -167,8 +171,8 @@ function App() {
               <h2>Один поиск —<br /><em>разные</em><br />источники.</h2>
             </div>
             <p>
-              Resonance ищет музыку сразу в подключённых сервисах и объединяет
-              результаты в одном чистом списке.
+              Resonance ищет музыку в SoundCloud и Яндекс Музыке, объединяет
+              результаты и воспроизводит их только в собственном плеере.
             </p>
           </div>
 
@@ -197,13 +201,77 @@ function App() {
           </div>
         </section>
 
+        <section className="plans-section" id="plans">
+          <div className="plans-heading" data-reveal>
+            <div>
+              <p className="eyebrow">Доступ без скрытых условий</p>
+              <h2>Сутки на знакомство.<br /><em>Дальше — твой план.</em></h2>
+            </div>
+            <p>
+              Оплаченный промокод вводится внутри Resonance и открывает выбранный
+              тариф на указанный срок. Подписка источника приобретается отдельно.
+            </p>
+          </div>
+
+          <div className="guest-pass" data-reveal>
+            <span className="plan-icon"><Clock3 size={24} /></span>
+            <div>
+              <p className="plan-kicker">Гостевой доступ</p>
+              <h3>24 часа · только SoundCloud</h3>
+            </div>
+            <p>Поиск и наш плеер, локальная библиотека и до трёх подборок Wave. Без облака и комнат.</p>
+          </div>
+
+          <div className="plans-grid">
+            <article className="plan-card" data-reveal>
+              <div className="plan-card-top">
+                <span className="plan-icon"><Ticket size={22} /></span>
+                <p className="plan-kicker">Base</p>
+              </div>
+              <h3>Для личного прослушивания</h3>
+              <ul>
+                <li>SoundCloud и Яндекс Музыка</li>
+                <li>Облачная библиотека и импорт</li>
+                <li>Стандартная Wave</li>
+                <li>Вход в комнаты · 2 устройства</li>
+              </ul>
+            </article>
+            <article className="plan-card plan-card-accent" data-reveal>
+              <div className="plan-card-top">
+                <span className="plan-icon"><Volume2 size={22} /></span>
+                <p className="plan-kicker">Plus</p>
+              </div>
+              <h3>Для музыки без компромиссов</h3>
+              <ul>
+                <li>Всё из Base</li>
+                <li>Персонализированная Wave</li>
+                <li>Создание и вход в комнаты</li>
+                <li>До 10 устройств</li>
+              </ul>
+            </article>
+            <article className="plan-card" data-reveal>
+              <div className="plan-card-top">
+                <span className="plan-icon"><Users size={22} /></span>
+                <p className="plan-kicker">Family</p>
+              </div>
+              <h3>Для пяти отдельных аккаунтов</h3>
+              <ul>
+                <li>Всё из Plus</li>
+                <li>Владелец и до 4 участников</li>
+                <li>Отдельные библиотеки и настройки</li>
+                <li>До 10 устройств на участника</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
         <section className="interface-section" id="interface">
           <div className="interface-copy" data-reveal>
             <p className="eyebrow">Один выразительный плеер</p>
             <h2>Не ещё один<br />клон стриминга.</h2>
             <p>
-              Три темы, собственные фоны с размытием и затемнением, качественные
-              обложки и стабильный адаптивный плеер на каждом экране.
+              Один нативный плеер Resonance для всех разрешённых источников:
+              очередь, обложки, темы и стабильное адаптивное управление на каждом экране.
             </p>
             <a href={downloads.windows}>Попробовать Resonance <ArrowRight size={17} /></a>
           </div>

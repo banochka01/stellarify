@@ -178,19 +178,8 @@ behind plugins and small adapters:
 
 ## YouTube boundary
 
-YouTube is intentionally different from Yandex and SoundCloud. The supported
-implementation uses YouTube Data API search and a visible official IFrame
-Player hosted inside a platform WebView. It does not extract an audio-only URL,
-does not feed YouTube media into `media_kit`, does not hide the player or its
-branding, and does not continue YouTube playback when the application is
-closed or minimized.
-
-The next YouTube stage is therefore:
-
-1. add a server-side `YOUTUBE_API_KEY` and normalized Data API search adapter;
-2. mark results as `MusicProvider.youtube` and retain the video ID;
-3. open a dedicated visible player mode using the official IFrame API;
-4. pass app identity/Referer information required by embedded playback;
-5. keep the existing `PlaybackService` audio resolver unchanged for Yandex and
-   SoundCloud;
-6. add platform WebView and policy-compliance tests before enabling the source.
+Resonance uses only its own native player. YouTube may remain an optional
+metadata-import source for existing playlists, but it has no audio resolver,
+is not included in search/Wave playback and never opens an external or embedded
+player. A YouTube-only entry is explicitly non-playable until a lawful
+native-compatible source is matched; it must not be represented as playable.

@@ -46,6 +46,8 @@ void main() {
       220,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.ensureVisible(outputPicker);
+    await tester.pumpAndSettle();
     await tester.tap(outputPicker);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Наушники').last);

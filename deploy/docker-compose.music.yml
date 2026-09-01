@@ -1,11 +1,39 @@
 name: app
 
 services:
+  promo-bot:
+    profiles: [promo-bot]
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.server
+    image: resonance-api:20260830-subscriptions-0.4.0
+    container_name: resonance-promo-bot
+    command: [node, dist/promo-bot-main.js]
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    environment:
+      NODE_ENV: production
+      AUTH_DB_PATH: /data/resonance.sqlite
+    volumes:
+      - ../../data:/data
+    # No exposed port and exactly one poller per Telegram bot.
+    healthcheck:
+      test: [CMD, node, -e, "const fs=require('node:fs');process.exit(Date.now()-fs.statSync('/tmp/promo-bot-health').mtimeMs<90000?0:1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
   api:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.server
-    image: resonance-api:20260829-account-sync-0.3.1
+    image: resonance-api:20260830-subscriptions-0.4.0
     container_name: resonance-api
     restart: unless-stopped
     env_file:

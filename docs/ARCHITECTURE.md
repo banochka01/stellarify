@@ -14,7 +14,7 @@ This is important because the providers expose very different capabilities:
 | --- | --- | --- | --- |
 | Spotify | OAuth + Web API | Web Playback SDK, Premium account | Adapter + official SDK |
 | SoundCloud | Public API v2 Client ID or API OAuth token | Short-lived attributed HLS/MP3 URL | Server adapter + native player |
-| YouTube / YouTube Music | Data API | YouTube IFrame Player | Adapter + official embed |
+| YouTube / YouTube Music | Data API | No playback | Metadata import only |
 | Yandex Music | User OAuth token | Short-lived account-bound stream URL | Token adapter |
 | VK Music | Link import only | Open in official client | Metadata/link adapter |
 
@@ -91,7 +91,7 @@ the user's account, location, and the provider's terms.
 
 1. Authentication, PostgreSQL schema, encrypted OAuth token vault.
 2. Spotify OAuth/PKCE and playlist import.
-3. YouTube Data API search and visible IFrame/WebView playback. YouTube never
+3. YouTube Data API metadata import only. It never
    enters the native audio-only resolver or background-audio path.
 4. SoundCloud OAuth/PKCE and widget playback.
 5. Redis-backed room presence and host authorization.

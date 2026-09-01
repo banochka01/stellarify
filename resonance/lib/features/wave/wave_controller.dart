@@ -87,7 +87,7 @@ class WaveController extends StateNotifier<WaveState> {
         _baseUri().resolve('/api/v1/wave/sessions'),
         data: {
           'seedQueries': seeds,
-          'enabledProviders': ['soundcloud', 'yandex', 'youtube'],
+          'enabledProviders': ['soundcloud', 'yandex'],
           'discovery': discovery,
           'mood': 'all',
           'language': 'any',

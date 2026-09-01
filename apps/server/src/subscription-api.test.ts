@@ -1,0 +1,42 @@
+import assert from "node:assert/strict";
+import { randomBytes, randomUUID } from "node:crypto";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createServer } from "node:http";
+import { test } from "node:test";
+import express from "express";
+import { AccountStore } from "./account-store.js";
+import { AccessControl, createSubscriptionRouter } from "./subscription-api.js";
+import { SubscriptionStore } from "./subscriptions.js";
+
+test("HTTP guards reject legacy/bad auth/guest provider bypass; activation unlocks paid access", async t => {
+  const dir = mkdtempSync(join(tmpdir(), 'resonance-access-api-'));
+  const path = join(dir, 'test.sqlite'); const accounts = new AccountStore(path); const subs = new SubscriptionStore(path);
+  const access = new AccessControl(accounts, subs); const app = express(); app.use(express.json());
+  app.use('/subscription', createSubscriptionRouter(access));
+  app.get('/sc', access.middleware('playback.soundcloud'), (_q, r) => r.json({ ok: true }));
+  app.get('/yandex', access.middleware('playback.yandex'), (_q, r) => r.json({ ok: true }));
+  app.get('/library', access.middleware('library.cloudSync'), (_q, r) => r.json({ ok: true }));
+  const server = createServer(app); await new Promise<void>(r => server.listen(0, '127.0.0.1', r));
+  t.after(async () => { await new Promise<void>(r => server.close(() => r())); subs.close(); accounts.close(); rmSync(dir, { recursive: true, force: true }); });
+  const address = server.address(); assert(address && typeof address !== 'string'); const base = `http://127.0.0.1:${address.port}`;
+  const req = (path: string, headers: Record<string, string> = {}, body?: object) => fetch(base + path, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', ...headers }, ...(body ? { body: JSON.stringify(body) } : {}) });
+  assert.equal((await req('/sc')).status, 403);
+  const token = randomBytes(32).toString('base64url');
+  assert.equal((await req('/subscription/guest', {}, { token })).status, 200);
+  const guest = { 'x-guest-token': token, 'x-device-id': token };
+  assert.equal((await req('/sc', guest)).status, 200);
+  assert.equal((await req('/yandex', guest)).status, 403);
+  assert.equal((await req('/library', guest)).status, 403);
+  assert.equal((await req('/sc', { ...guest, authorization: 'Bearer ' + 'x'.repeat(40) })).status, 401);
+  const session = await accounts.register('test@example.com', 'this is a secure password', 'test');
+  const auth = { ...guest, authorization: `Bearer ${session.accessToken}` };
+  assert.equal((await req('/subscription/status', auth)).status, 200);
+  assert.equal((await req('/sc', guest)).status, 403); // guest bound to account, no account hopping
+  const code = randomBytes(24).toString('hex'); subs.createPromo('base', 30, 90, 'admin', randomUUID(), code);
+  assert.equal((await req('/subscription/redeem', auth, { code })).status, 200);
+  assert.equal((await req('/yandex', auth)).status, 200);
+  assert.equal((await req('/library', auth)).status, 200);
+  assert.equal((await req('/subscription/create', auth, { plan: 'family' })).status, 404);
+});
