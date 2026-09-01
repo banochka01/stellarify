@@ -250,7 +250,7 @@ final playbackServiceProvider = FutureProvider<PlaybackService>((ref) async {
       ),
     );
   } else if (Platform.isWindows) {
-    windowsMediaControls = WindowsMediaControls(service);
+    windowsMediaControls = WindowsMediaControls.tryCreate(service);
   }
   ref.onDispose(() {
     final coordinator = focusCoordinator;

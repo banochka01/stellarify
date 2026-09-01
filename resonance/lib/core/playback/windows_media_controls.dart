@@ -1,11 +1,12 @@
 import 'dart:async';
+import 'dart:developer';
 
 import 'package:resonance/core/playback/playback_service.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:smtc_windows/smtc_windows.dart';
 
 final class WindowsMediaControls {
-  WindowsMediaControls(this._service) {
+  WindowsMediaControls._(this._service) {
     _smtc = SMTCWindows(
       config: const SMTCConfig(
         playEnabled: true,
@@ -20,6 +21,39 @@ final class WindowsMediaControls {
     _subscriptions.add(_smtc.buttonPressStream.listen(_handleButton));
     _subscriptions.add(_service.states.listen(_publish));
     _publish(_service.state);
+  }
+
+  static bool _available = false;
+
+  static Future<bool> initialize() async {
+    try {
+      await SMTCWindows.initialize();
+      _available = true;
+    } catch (error, stackTrace) {
+      _available = false;
+      log(
+        'Windows media controls are unavailable; startup will continue.',
+        name: 'resonance.windows_media_controls',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+    return _available;
+  }
+
+  static WindowsMediaControls? tryCreate(PlaybackService service) {
+    if (!_available) return null;
+    try {
+      return WindowsMediaControls._(service);
+    } catch (error, stackTrace) {
+      log(
+        'Windows media controls could not be created.',
+        name: 'resonance.windows_media_controls',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return null;
+    }
   }
 
   final PlaybackService _service;

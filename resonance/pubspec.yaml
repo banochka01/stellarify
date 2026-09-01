@@ -56,6 +56,9 @@ dependencies:
   file_picker: ^12.1.1
   package_info_plus: ^10.2.1
   smtc_windows: ^1.1.0
+  # smtc_windows 1.1.0 was generated with this exact FRB runtime. A newer
+  # transitive runtime aborts SMTC initialization before the first frame.
+  flutter_rust_bridge: 2.11.1
 
 dev_dependencies:
   flutter_test:
