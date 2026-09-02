@@ -2,7 +2,7 @@
 
 ## Version 1.0.0 — contextual Wave and fluid interface
 
-Status: implemented locally; production release validation pending.
+Status: released to production and publicly verified on 2026-09-02.
 
 - [x] Natural-language Wave requests with deterministic fallback
 - [x] Explainable safe, adjacent and discovery lanes
@@ -13,8 +13,8 @@ Status: implemented locally; production release validation pending.
 - [x] Shared 160–280 ms motion system with reduced-motion support
 - [x] Adaptive desktop and mobile Home redesign
 - [x] Server and Flutter automated validation
-- [ ] Windows, Android and unsigned iOS production artifacts
-- [ ] Atomic production deployment and public behavior verification
+- [x] Windows, Android and unsigned iOS production artifacts
+- [x] Atomic production deployment and public behavior verification
 
 ## Version 0.4.0 — subscriptions and native-player access (candidate, not deployed)
 
