@@ -160,7 +160,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                       (
                         'Plus',
                         'Больше возможностей',
-                        'Всё из Base\nПерсональные семена Wave\nНастройка новизны\nСоздание комнат\nДо 10 устройств',
+                        'Всё из Base\nWave обычным языком\nМузыкальная память и продолжение\nОбщая Wave в комнатах\nДо 10 устройств',
                       ),
                       (
                         'Family',

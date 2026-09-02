@@ -188,6 +188,11 @@ final class PlaybackService {
     await _openCurrent(play: true);
   }
 
+  Future<void> prepareCurrent({Duration start = Duration.zero}) async {
+    if (_state.currentTrack == null) return;
+    await _openCurrent(play: false, start: start);
+  }
+
   Future<void> play() async {
     if (_state.currentTrack == null) {
       return;

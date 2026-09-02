@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { rerank, type WaveItem } from "./wave.js";
+import { WaveService, rerank, type WaveItem } from "./wave.js";
+import type { ProviderGateway } from "./provider-gateway.js";
+import type { YandexAdapter } from "./yandex.js";
 
 function item(id: string, artist: string, album: string, score: number): WaveItem {
   return {
@@ -61,4 +63,46 @@ test("personalized artist weights influence ranking without bypassing repeat rul
     }
   }, 2, .3);
   assert.equal(result[0]?.id, "preferred");
+});
+
+test("active Wave resumes from the current track and checkpoint", async () => {
+  const gateway = {
+    search: async () => Array.from({ length: 20 }, (_, index) => ({
+      id: `track-${index}`,
+      title: `Track ${index}`,
+      artist: `Artist ${index}`,
+      externalUrl: `https://soundcloud.com/test/track-${index}`
+    }))
+  } as unknown as ProviderGateway;
+  const service = new WaveService(
+    gateway,
+    {} as YandexAdapter,
+    undefined,
+    () => 1_000
+  );
+  const started = await service.start({
+    seedQueries: ["test"],
+    enabledProviders: ["soundcloud"],
+    discovery: .3,
+    mood: "all",
+    language: "any"
+  }, {}, "owner");
+  const current = started.items[5]!;
+  await service.feedback(started.sessionId, {
+    eventId: "82f6ea9f-5c50-4d3d-9bea-0d26ebad9bd2",
+    type: "started",
+    trackId: current.id,
+    provider: current.provider,
+    playedDurationMs: 0
+  }, {}, "owner");
+  service.checkpoint(started.sessionId, {
+    provider: current.provider,
+    trackId: current.id,
+    positionMs: 42_000
+  }, "owner");
+
+  const active = service.active("owner");
+  assert.equal(active?.items[0]?.id, current.id);
+  assert.equal(active?.positionMs, 42_000);
+  assert.equal(active?.currentTrackKey, `soundcloud:${current.id}`);
 });

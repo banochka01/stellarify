@@ -15,7 +15,7 @@ import { parseImportPayload } from "./importer.js";
 import { PlaylistImportService } from "./playlist-import.js";
 import { ProviderGateway, ProviderGatewayError, type ProviderAccess } from "./provider-gateway.js";
 import { providerCapabilities } from "./providers.js";
-import { registerRoomHandlers } from "./rooms.js";
+import { registerRoomHandlers, roomWaveUserIds } from "./rooms.js";
 import { SoundCloudAdapter } from "./soundcloud.js";
 import {
   isSoundCloudRelayTicket,
@@ -99,9 +99,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "0.4.0",
+    version: process.env.CLIENT_VERSION || "1.0.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Подписки Resonance: 24 часа SoundCloud для гостей, Base, Plus и Family; активация оплаченных промокодов.",
+      "Resonance 1.0: естественно-языковая Wave, музыкальная память, продолжение между устройствами, общая Wave и плавный интерфейс.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       android: "https://music.webcordes.ru/downloads/android",
@@ -206,11 +206,14 @@ app.post("/api/v1/playback/resolve", async (request, response) => {
 });
 
 const waveRequestSchema = z.object({
+  prompt: z.string().trim().max(500).optional(),
   seedQueries: z.array(z.string().trim().min(1).max(200)).max(20).default([]),
+  excludedTerms: z.array(z.string().trim().min(1).max(80)).max(10).default([]),
   enabledProviders: z.array(z.enum(["soundcloud", "yandex"])).min(1).max(2).default(["soundcloud", "yandex"]),
   discovery: z.number().min(0).max(1).default(.3),
   mood: z.enum(["fun", "active", "calm", "sad", "all"]).default("all"),
-  language: z.enum(["not-russian", "russian", "any"]).default("any")
+  language: z.enum(["not-russian", "russian", "any"]).default("any"),
+  roomCode: z.string().trim().regex(/^[A-F0-9]{6}$/).optional()
 });
 const waveFeedbackSchema = z.object({
   eventId: z.string().uuid(),
@@ -220,6 +223,11 @@ const waveFeedbackSchema = z.object({
   batchId: z.string().trim().min(1).max(200).optional(),
   playedDurationMs: z.number().int().min(0).max(24 * 60 * 60 * 1000).default(0)
 });
+const waveCheckpointSchema = z.object({
+  trackId: z.string().trim().min(1).max(200),
+  provider: z.enum(["soundcloud", "yandex"]),
+  positionMs: z.number().int().min(0).max(24 * 60 * 60 * 1000)
+}).strict();
 
 app.post("/api/v1/wave/sessions", async (request, response) => {
   const input = waveRequestSchema.safeParse(request.body);
@@ -229,13 +237,55 @@ app.post("/api/v1/wave/sessions", async (request, response) => {
     const entitlement = subscriptionStore.snapshot(identity.userId, identity.guestToken);
     subscriptionStore.consumeGuestWave(identity.userId, identity.guestToken);
     const personalized = entitlement.capabilities["wave.personalized"];
+    const roomUsers = personalized && input.data.roomCode && identity.userId
+      ? roomWaveUserIds(input.data.roomCode, identity.userId)
+      : [];
     response.status(201).json(await wave.start({
       ...input.data,
       enabledProviders: input.data.enabledProviders.filter(p => entitlement.providers.includes(p)),
       seedQueries: personalized ? input.data.seedQueries : [],
+      prompt: personalized ? input.data.prompt : undefined,
+      excludedTerms: personalized ? input.data.excludedTerms : [],
       discovery: personalized ? input.data.discovery : .3,
-    }, waveAccess(request), waveOwner(request), personalized ? identity.userId : undefined));
+    }, waveAccess(request), waveOwner(request), personalized ? identity.userId : undefined,
+    roomUsers.length ? roomUsers : identity.userId ? [identity.userId] : []));
   } catch (error) { sendGatewayError(response, error); }
+});
+
+app.get("/api/v1/wave/active", (request, response) => {
+  try {
+    const active = wave.active(waveOwner(request));
+    if (!active) return void response.status(204).end();
+    response.json(active);
+  } catch (error) { sendWaveError(response, error); }
+});
+
+app.get("/api/v1/wave/profile", (request, response) => {
+  try {
+    const identity = accessControl.fromRequest(request);
+    if (!identity.userId) throw new SubscriptionError("AUTH_REQUIRED", "Войдите в аккаунт", 401);
+    const signals = accountStore.getWaveTasteSignals(identity.userId);
+    const artists = new Map<string, number>();
+    for (const item of [...signals.favorites, ...signals.playlistTracks, ...signals.listening]) {
+      artists.set(item.artist, (artists.get(item.artist) ?? 0) + 1);
+    }
+    response.json({
+      feedbackCount: signals.listening.length,
+      favoritesCount: signals.favorites.length,
+      playlistTracksCount: signals.playlistTracks.length,
+      topArtists: [...artists.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([artist]) => artist)
+    });
+  } catch (error) { sendWaveError(response, error); }
+});
+
+app.delete("/api/v1/wave/profile", (request, response) => {
+  try {
+    const identity = accessControl.fromRequest(request);
+    if (!identity.userId) throw new SubscriptionError("AUTH_REQUIRED", "Войдите в аккаунт", 401);
+    accountStore.clearWaveFeedback(identity.userId);
+    wavePersonalizer.invalidate(identity.userId);
+    response.status(204).end();
+  } catch (error) { sendWaveError(response, error); }
 });
 
 app.post("/api/v1/wave/sessions/:id/next", async (request, response) => {
@@ -251,6 +301,14 @@ app.post("/api/v1/wave/sessions/:id/feedback", async (request, response) => {
   if (!input.success) return void response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Invalid wave feedback" } });
   try {
     response.json(await wave.feedback(request.params.id, input.data, waveAccess(request), waveOwner(request)));
+  } catch (error) { sendWaveError(response, error); }
+});
+
+app.put("/api/v1/wave/sessions/:id/state", (request, response) => {
+  const input = waveCheckpointSchema.safeParse(request.body);
+  if (!input.success) return void response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Invalid wave state" } });
+  try {
+    response.json(wave.checkpoint(request.params.id, input.data, waveOwner(request)));
   } catch (error) { sendWaveError(response, error); }
 });
 
@@ -387,6 +445,7 @@ function roomAccess(socket: import("socket.io").Socket, create = false) {
     socket.data.subscriptionUserId = userId;
   }
   subscriptionStore.require(create ? "rooms.create" : "rooms.join", userId);
+  socket.data.userId = userId;
   subscriptionStore.touchDevice(userId, deviceId);
 }
 io.use((socket, next) => { try { roomAccess(socket); next(); } catch { next(new Error("Для комнат нужна действующая подписка и вход в аккаунт")); } });

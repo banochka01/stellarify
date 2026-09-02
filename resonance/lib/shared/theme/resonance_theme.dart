@@ -68,6 +68,14 @@ abstract final class ResonanceTheme {
       dividerColor: palette.border,
       cardColor: palette.surface,
       splashFactory: InkSparkle.splashFactory,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.macOS: FadeForwardsPageTransitionsBuilder(),
+        },
+      ),
       textTheme: const TextTheme(
         displaySmall: TextStyle(
           fontSize: 48,

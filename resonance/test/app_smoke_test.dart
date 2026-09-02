@@ -57,7 +57,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Midnight Signal'), findsWidgets);
-    expect(find.text('Трек, артист, альбом, плейлист'), findsOneWidget);
+    expect(find.text('Какую музыку включить?'), findsOneWidget);
     resonanceRouter.go('/');
   });
 }

@@ -5,23 +5,40 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:resonance/app/providers.dart';
+import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/core/playback/demo_track.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/player/track_action.dart';
+import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/features/wave/wave_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
+import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/seek_timeline.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(ref.read(waveControllerProvider.notifier).resume());
+      unawaited(ref.read(waveControllerProvider.notifier).loadProfile());
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final playback = ref.watch(playbackStateProvider);
     final state = playback.valueOrNull ?? const ResonancePlaybackState();
     final track = state.currentTrack ?? demoTrack;
@@ -105,9 +122,7 @@ class _CinematicPlayer extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _SearchLauncher(onTap: () => context.go('/search')),
-              const SizedBox(height: 12),
-              const _WaveButton(),
+              const ResonanceEntrance(child: _WaveCommandCenter()),
               const Spacer(flex: 2),
               const Row(
                 children: [
@@ -133,31 +148,43 @@ class _CinematicPlayer extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 24),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 610),
-                child: Text(
-                  track.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: ResonanceColors.text,
-                    fontSize: 60,
-                    height: .92,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -3.4,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                track.artist,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFFB7B0AA),
-                  fontSize: 22,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: -.5,
+              ResonanceAnimatedSwap(
+                child: Column(
+                  key: ValueKey('track-copy-${track.id}'),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 610),
+                      child: Text(
+                        track.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: ResonanceColors.text,
+                          fontSize: 60,
+                          height: .92,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -3.4,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      track.artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFFB7B0AA),
+                        fontSize: 22,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: -.5,
+                      ),
+                    ),
+                    if (_waveReason(track) case final reason?) ...[
+                      const SizedBox(height: 10),
+                      _ReasonPill(reason: reason),
+                    ],
+                  ],
                 ),
               ),
               const SizedBox(height: 36),
@@ -171,56 +198,6 @@ class _CinematicPlayer extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _SearchLauncher extends StatelessWidget {
-  const _SearchLauncher({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 540),
-      child: Material(
-        color: const Color(0xB20D0D0D),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: ResonanceColors.border),
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: onTap,
-          child: const SizedBox(
-            height: 50,
-            child: Row(
-              children: [
-                SizedBox(width: 16),
-                Icon(
-                  Icons.search_rounded,
-                  size: 21,
-                  color: ResonanceColors.muted,
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Трек, артист, альбом, плейлист',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: ResonanceColors.muted,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-                SizedBox(width: 12),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -275,12 +252,29 @@ class _HeroControls extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final service = ref.read(playbackServiceProvider.future);
+    final wave = ref.watch(waveControllerProvider);
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 500),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.shuffle_rounded)),
+          IconButton(
+            tooltip: wave.active ? 'Не нравится' : 'Перемешать',
+            onPressed: wave.active
+                ? () => unawaited(
+                    ref
+                        .read(waveControllerProvider.notifier)
+                        .rateCurrent(liked: false),
+                  )
+                : () => unawaited(
+                    service.then((value) => value.setShuffle(!state.shuffle)),
+                  ),
+            icon: Icon(
+              wave.active
+                  ? Icons.thumb_down_alt_outlined
+                  : Icons.shuffle_rounded,
+            ),
+          ),
           IconButton(
             onPressed: () =>
                 unawaited(service.then((value) => value.previous())),
@@ -311,7 +305,27 @@ class _HeroControls extends ConsumerWidget {
             onPressed: () => unawaited(service.then((value) => value.next())),
             icon: const Icon(Icons.skip_next_rounded),
           ),
-          IconButton(onPressed: () {}, icon: const Icon(Icons.repeat_rounded)),
+          IconButton(
+            tooltip: wave.active ? 'Нравится' : 'Повтор',
+            onPressed: wave.active
+                ? () => unawaited(
+                    ref
+                        .read(waveControllerProvider.notifier)
+                        .rateCurrent(liked: true),
+                  )
+                : () => unawaited(
+                    service.then(
+                      (value) => value.setRepeatMode(
+                        state.repeatMode == PlaybackRepeatMode.off
+                            ? PlaybackRepeatMode.all
+                            : PlaybackRepeatMode.off,
+                      ),
+                    ),
+                  ),
+            icon: Icon(
+              wave.active ? Icons.thumb_up_alt_outlined : Icons.repeat_rounded,
+            ),
+          ),
         ],
       ),
     );
@@ -490,9 +504,7 @@ class _CompactHome extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 20, 18, 28),
       children: [
-        _SearchLauncher(onTap: () => context.go('/search')),
-        const SizedBox(height: 12),
-        const _WaveButton(),
+        const ResonanceEntrance(child: _WaveCommandCenter()),
         const SizedBox(height: 22),
         ClipRRect(
           borderRadius: BorderRadius.circular(18),
@@ -514,20 +526,35 @@ class _CompactHome extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 22),
-        Text(
-          track.title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontSize: 38,
-            height: .95,
-            fontWeight: FontWeight.w800,
+        ResonanceAnimatedSwap(
+          child: Column(
+            key: ValueKey('compact-track-${track.id}'),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                track.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 38,
+                  height: .95,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                track.artist,
+                style: const TextStyle(
+                  color: ResonanceColors.muted,
+                  fontSize: 17,
+                ),
+              ),
+              if (_waveReason(track) case final reason?) ...[
+                const SizedBox(height: 10),
+                _ReasonPill(reason: reason),
+              ],
+            ],
           ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          track.artist,
-          style: const TextStyle(color: ResonanceColors.muted, fontSize: 17),
         ),
         const SizedBox(height: 22),
         _HeroProgress(state: state),
@@ -554,40 +581,276 @@ class _CompactHome extends StatelessWidget {
   }
 }
 
-class _WaveButton extends ConsumerWidget {
-  const _WaveButton();
+class _WaveCommandCenter extends ConsumerStatefulWidget {
+  const _WaveCommandCenter();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final wave = ref.watch(waveControllerProvider);
+  ConsumerState<_WaveCommandCenter> createState() => _WaveCommandCenterState();
+}
+
+class _WaveCommandCenterState extends ConsumerState<_WaveCommandCenter> {
+  final TextEditingController _controller = TextEditingController();
+
+  static const _scenes = [
+    _WaveScene(
+      'Работа',
+      Icons.center_focus_strong_rounded,
+      'Спокойная музыка для глубокой работы, сначала знакомое',
+    ),
+    _WaveScene(
+      'Дорога',
+      Icons.route_rounded,
+      'Энергичная музыка в дорогу, постепенно добавляй новое',
+    ),
+    _WaveScene(
+      'Вечер',
+      Icons.nightlight_round,
+      'Тёплая спокойная музыка для позднего вечера',
+    ),
+    _WaveScene(
+      'Открытия',
+      Icons.explore_rounded,
+      'Удиви меня новой музыкой рядом с моим вкусом',
+    ),
+  ];
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _start([String? scene]) async {
+    final prompt = (scene ?? _controller.text).trim();
+    if (scene != null) {
+      _controller.value = TextEditingValue(
+        text: scene,
+        selection: TextSelection.collapsed(offset: scene.length),
+      );
+    }
     final favorites = ref
-        .watch(libraryControllerProvider)
+        .read(libraryControllerProvider)
         .valueOrNull
         ?.favorites;
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: FilledButton.icon(
-        onPressed: wave.loading
-            ? null
-            : () => wave.active
-                  ? unawaited(ref.read(waveControllerProvider.notifier).stop())
-                  : unawaited(
-                      ref
-                          .read(waveControllerProvider.notifier)
-                          .start(taste: favorites ?? const []),
+    final hasBackend = BackendEndpoint.displayValue.isNotEmpty;
+    final room = hasBackend ? ref.read(roomControllerProvider) : null;
+    final roomController = hasBackend
+        ? ref.read(roomControllerProvider.notifier)
+        : null;
+    await ref
+        .read(waveControllerProvider.notifier)
+        .start(
+          taste: favorites ?? const [],
+          prompt: prompt,
+          roomCode: room?.inRoom == true && roomController?.isHost == true
+              ? room?.code
+              : null,
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final wave = ref.watch(waveControllerProvider);
+    final profile = wave.profile;
+    final hasBackend = BackendEndpoint.displayValue.isNotEmpty;
+    final room = hasBackend ? ref.watch(roomControllerProvider) : null;
+    final shared =
+        room?.inRoom == true &&
+        ref.read(roomControllerProvider.notifier).isHost;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 620),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xD90B0B0C),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: ResonanceColors.border),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x30000000),
+              blurRadius: 28,
+              offset: Offset(0, 12),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  AnimatedContainer(
+                    duration: ResonanceMotion.standard,
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: wave.active
+                          ? ResonanceColors.success
+                          : Theme.of(context).colorScheme.primary,
+                      shape: BoxShape.circle,
+                      boxShadow: wave.active
+                          ? const [
+                              BoxShadow(
+                                color: Color(0x665DDAA3),
+                                blurRadius: 9,
+                              ),
+                            ]
+                          : null,
                     ),
-        icon: wave.loading
-            ? const SizedBox.square(
-                dimension: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Icon(wave.active ? Icons.stop_rounded : Icons.graphic_eq_rounded),
-        label: Text(
-          wave.loading
-              ? 'Подбираем…'
-              : wave.active
-              ? 'Остановить волну'
-              : 'Моя волна',
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    shared ? 'ОБЩАЯ RESONANCE WAVE' : 'RESONANCE WAVE',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: 'Открыть поиск',
+                    onPressed: () => context.go('/search'),
+                    icon: const Icon(Icons.search_rounded, size: 20),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _controller,
+                enabled: !wave.loading,
+                maxLength: 500,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => unawaited(_start()),
+                decoration: InputDecoration(
+                  counterText: '',
+                  hintText: 'Какую музыку включить?',
+                  prefixIcon: const Icon(Icons.auto_awesome_rounded, size: 20),
+                  suffixIcon: Padding(
+                    padding: const EdgeInsets.all(5),
+                    child: IconButton.filled(
+                      tooltip: wave.active
+                          ? 'Перестроить волну'
+                          : 'Запустить волну',
+                      onPressed: wave.loading
+                          ? null
+                          : () => unawaited(_start()),
+                      icon: wave.loading
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.arrow_upward_rounded, size: 20),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final scene in _scenes) ...[
+                      ActionChip(
+                        avatar: Icon(scene.icon, size: 17),
+                        label: Text(scene.label),
+                        onPressed: wave.loading
+                            ? null
+                            : () => unawaited(_start(scene.prompt)),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                  ],
+                ),
+              ),
+              AnimatedSize(
+                duration: ResonanceMotion.standard,
+                curve: ResonanceMotion.curve,
+                child: wave.active || wave.error != null || profile != null
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                wave.error ??
+                                    wave.summary ??
+                                    (profile == null
+                                        ? 'Волна учитывает дослушивания и пропуски'
+                                        : 'Музыкальная память: ${profile.signalCount} сигналов${profile.topArtists.isEmpty ? '' : ' · ${profile.topArtists.take(2).join(', ')}'}'),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: wave.error == null
+                                      ? ResonanceColors.muted
+                                      : Theme.of(context).colorScheme.error,
+                                  fontSize: 11,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                            if (wave.active) ...[
+                              const SizedBox(width: 8),
+                              TextButton.icon(
+                                onPressed: () => unawaited(
+                                  ref
+                                      .read(waveControllerProvider.notifier)
+                                      .stop(),
+                                ),
+                                icon: const Icon(Icons.stop_rounded, size: 17),
+                                label: const Text('Стоп'),
+                              ),
+                            ],
+                          ],
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WaveScene {
+  const _WaveScene(this.label, this.icon, this.prompt);
+  final String label;
+  final IconData icon;
+  final String prompt;
+}
+
+class _ReasonPill extends StatelessWidget {
+  const _ReasonPill({required this.reason});
+  final String reason;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: .14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: .38),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.auto_awesome_rounded,
+              size: 14,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              reason,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+            ),
+          ],
         ),
       ),
     );
@@ -604,26 +867,40 @@ class _TrackBackdrop extends ConsumerWidget {
       return const SizedBox.expand();
     }
     final artwork = track.artworkUrl;
-    if (artwork == null) {
-      return Image.asset(
-        'assets/images/resonance_fallback_cover.png',
-        fit: BoxFit.cover,
-        alignment: Alignment.centerRight,
-      );
-    }
-    return CachedNetworkImage(
-      imageUrl: highQualityArtworkUrl(artwork),
-      memCacheWidth: 1400,
-      maxWidthDiskCache: 1400,
-      fit: BoxFit.cover,
-      alignment: Alignment.centerRight,
-      errorWidget: (_, _, _) => Image.asset(
-        'assets/images/resonance_fallback_cover.png',
-        fit: BoxFit.cover,
-        alignment: Alignment.centerRight,
-      ),
+    final image = artwork == null
+        ? Image.asset(
+            'assets/images/resonance_fallback_cover.png',
+            key: ValueKey('fallback-${track.id}'),
+            fit: BoxFit.cover,
+            alignment: Alignment.centerRight,
+          )
+        : CachedNetworkImage(
+            key: ValueKey('artwork-${track.id}'),
+            imageUrl: highQualityArtworkUrl(artwork),
+            memCacheWidth: 1400,
+            maxWidthDiskCache: 1400,
+            fit: BoxFit.cover,
+            alignment: Alignment.centerRight,
+            fadeInDuration: ResonanceMotion.standard,
+            fadeOutDuration: ResonanceMotion.quick,
+            errorWidget: (_, _, _) => Image.asset(
+              'assets/images/resonance_fallback_cover.png',
+              fit: BoxFit.cover,
+              alignment: Alignment.centerRight,
+            ),
+          );
+    return ResonanceAnimatedSwap(
+      child: SizedBox.expand(key: ValueKey(track.id), child: image),
     );
   }
+}
+
+String? _waveReason(UnifiedTrack track) {
+  for (final source in track.sources) {
+    final reason = source.metadata['waveReason'];
+    if (reason is String && reason.trim().isNotEmpty) return reason.trim();
+  }
+  return null;
 }
 
 String _formatDuration(Duration duration) {

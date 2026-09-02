@@ -5,6 +5,7 @@ type Participant = {
   id: string;
   name: string;
   joinedAt: number;
+  userId?: string;
 };
 
 type PlaybackState = {
@@ -47,7 +48,7 @@ const createCode = () => randomBytes(3).toString("hex").toUpperCase();
 const publicRoom = (room: Room) => ({
   code: room.code,
   hostId: room.hostId,
-  participants: [...room.participants.values()],
+  participants: [...room.participants.values()].map(({ id, name, joinedAt }) => ({ id, name, joinedAt })),
   playback: room.playback
 });
 
@@ -141,7 +142,8 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
     const participant: Participant = {
       id: socket.id,
       name: normalizeName(payload?.name),
-      joinedAt: Date.now()
+      joinedAt: Date.now(),
+      ...(typeof socket.data.userId === "string" ? { userId: socket.data.userId } : {})
     };
     const room: Room = {
       code,
@@ -175,7 +177,8 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
     const participant: Participant = {
       id: socket.id,
       name: normalizeName(payload?.name),
-      joinedAt: Date.now()
+      joinedAt: Date.now(),
+      ...(typeof socket.data.userId === "string" ? { userId: socket.data.userId } : {})
     };
     room.participants.set(socket.id, participant);
     socket.join(code);
@@ -219,4 +222,15 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
   socket.on("disconnect", () => {
     leaveRooms(io, socket);
   });
+}
+
+export function roomWaveUserIds(code: string, hostUserId: string) {
+  const room = rooms.get(code.trim().toUpperCase());
+  const host = room?.participants.get(room.hostId);
+  if (!room || host?.userId !== hostUserId) return [];
+  return [...new Set(
+    [...room.participants.values()]
+      .map((participant) => participant.userId)
+      .filter((value): value is string => typeof value === "string" && value.length > 0)
+  )].slice(0, 10);
 }

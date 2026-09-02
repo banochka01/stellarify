@@ -30,6 +30,9 @@ class WaveState {
     this.sessionId,
     this.error,
     this.discovery = .3,
+    this.prompt = '',
+    this.summary,
+    this.profile,
   });
 
   final bool active;
@@ -37,6 +40,9 @@ class WaveState {
   final String? sessionId;
   final String? error;
   final double discovery;
+  final String prompt;
+  final String? summary;
+  final WaveProfile? profile;
 
   WaveState copyWith({
     bool? active,
@@ -45,13 +51,35 @@ class WaveState {
     String? error,
     bool clearError = false,
     double? discovery,
+    String? prompt,
+    String? summary,
+    WaveProfile? profile,
   }) => WaveState(
     active: active ?? this.active,
     loading: loading ?? this.loading,
     sessionId: sessionId ?? this.sessionId,
     error: clearError ? null : error ?? this.error,
     discovery: discovery ?? this.discovery,
+    prompt: prompt ?? this.prompt,
+    summary: summary ?? this.summary,
+    profile: profile ?? this.profile,
   );
+}
+
+class WaveProfile {
+  const WaveProfile({
+    required this.feedbackCount,
+    required this.favoritesCount,
+    required this.playlistTracksCount,
+    required this.topArtists,
+  });
+
+  final int feedbackCount;
+  final int favoritesCount;
+  final int playlistTracksCount;
+  final List<String> topArtists;
+
+  int get signalCount => feedbackCount + favoritesCount + playlistTracksCount;
 }
 
 class WaveController extends StateNotifier<WaveState> {
@@ -67,16 +95,22 @@ class WaveController extends StateNotifier<WaveState> {
   Duration _currentPosition = Duration.zero;
   Duration _currentDuration = Duration.zero;
   bool _fetching = false;
+  DateTime _lastCheckpointAt = DateTime.fromMillisecondsSinceEpoch(0);
   final Map<String, _WaveMeta> _metadata = {};
 
   Future<void> start({
     Iterable<UnifiedTrack> taste = const [],
     double discovery = .3,
+    String prompt = '',
+    String mood = 'all',
+    String language = 'any',
+    String? roomCode,
   }) async {
     if (state.loading) return;
     state = state.copyWith(
       loading: true,
       discovery: discovery,
+      prompt: prompt.trim(),
       clearError: true,
     );
     try {
@@ -86,11 +120,13 @@ class WaveController extends StateNotifier<WaveState> {
       final response = await _dio.postUri<Map<String, dynamic>>(
         _baseUri().resolve('/api/v1/wave/sessions'),
         data: {
+          if (prompt.trim().isNotEmpty) 'prompt': prompt.trim(),
           'seedQueries': seeds,
           'enabledProviders': ['soundcloud', 'yandex'],
           'discovery': discovery,
-          'mood': 'all',
-          'language': 'any',
+          'mood': mood,
+          'language': language,
+          'roomCode': ?roomCode,
         },
         options: await _options(),
       );
@@ -101,18 +137,110 @@ class WaveController extends StateNotifier<WaveState> {
         active: true,
         sessionId: batch.sessionId,
         discovery: discovery,
+        prompt: prompt.trim(),
+        summary: batch.summary,
+        profile: state.profile,
       );
       await _subscription?.cancel();
       _subscription = service.states.listen(_onPlayback);
       _onPlayback(service.state);
     } on Object catch (error) {
-      state = WaveState(error: _message(error), discovery: discovery);
+      state = WaveState(
+        error: _message(error),
+        discovery: discovery,
+        prompt: prompt.trim(),
+        profile: state.profile,
+      );
     }
+  }
+
+  Future<void> resume() async {
+    if (state.active || state.loading) return;
+    try {
+      final response = await _dio.getUri<Map<String, dynamic>>(
+        _baseUri().resolve('/api/v1/wave/active'),
+        options: await _options(),
+      );
+      if (response.statusCode == 204 || response.data == null) return;
+      final batch = _parseBatch(response.data);
+      final service = await _serviceFuture;
+      if (service.state.currentTrack != null || batch.tracks.isEmpty) return;
+      await service.setQueue(
+        batch.tracks,
+        startIndex: batch.currentIndex,
+        autoplay: false,
+      );
+      await service.prepareCurrent(start: batch.position);
+      state = WaveState(
+        active: true,
+        sessionId: batch.sessionId,
+        discovery: batch.discovery ?? state.discovery,
+        summary: batch.summary,
+        profile: state.profile,
+      );
+      await _subscription?.cancel();
+      _subscription = service.states.listen(_onPlayback);
+    } on Object {
+      // Resume is opportunistic and must not disturb offline startup.
+    }
+  }
+
+  Future<void> loadProfile() async {
+    try {
+      final response = await _dio.getUri<Map<String, dynamic>>(
+        _baseUri().resolve('/api/v1/wave/profile'),
+      );
+      final data = response.data;
+      if (data == null) return;
+      state = state.copyWith(
+        profile: WaveProfile(
+          feedbackCount: (data['feedbackCount'] as num?)?.toInt() ?? 0,
+          favoritesCount: (data['favoritesCount'] as num?)?.toInt() ?? 0,
+          playlistTracksCount:
+              (data['playlistTracksCount'] as num?)?.toInt() ?? 0,
+          topArtists: (data['topArtists'] as List? ?? const [])
+              .map((value) => value.toString())
+              .toList(growable: false),
+        ),
+      );
+    } on Object {
+      // Guests and offline users simply do not get account taste statistics.
+    }
+  }
+
+  Future<void> clearProfile() async {
+    await _dio.deleteUri<void>(_baseUri().resolve('/api/v1/wave/profile'));
+    state = state.copyWith(
+      profile: const WaveProfile(
+        feedbackCount: 0,
+        favoritesCount: 0,
+        playlistTracksCount: 0,
+        topArtists: [],
+      ),
+    );
+  }
+
+  Future<void> rateCurrent({required bool liked}) async {
+    if (!state.active) return;
+    final service = await _serviceFuture;
+    final track = service.state.currentTrack;
+    if (track == null) return;
+    await _feedback(
+      track.id,
+      liked ? 'liked' : 'disliked',
+      service.state.position,
+    );
+    if (!liked) await service.next();
+    await loadProfile();
   }
 
   Future<void> stop() async {
     final id = state.sessionId;
-    state = WaveState(discovery: state.discovery);
+    state = WaveState(
+      discovery: state.discovery,
+      prompt: state.prompt,
+      profile: state.profile,
+    );
     await _subscription?.cancel();
     _subscription = null;
     if (id != null) {
@@ -149,6 +277,12 @@ class WaveController extends StateNotifier<WaveState> {
     } else {
       _currentPosition = playback.position;
       _currentDuration = playback.duration;
+      if (track != null &&
+          DateTime.now().difference(_lastCheckpointAt) >=
+              const Duration(seconds: 15)) {
+        _lastCheckpointAt = DateTime.now();
+        unawaited(_checkpoint(track.id, playback.position));
+      }
     }
     final remaining = playback.queue.length - playback.currentIndex - 1;
     if (remaining <= 4) unawaited(_next());
@@ -198,6 +332,25 @@ class WaveController extends StateNotifier<WaveState> {
     }
   }
 
+  Future<void> _checkpoint(String localTrackId, Duration position) async {
+    final id = state.sessionId;
+    final meta = _metadata[localTrackId];
+    if (id == null || meta == null) return;
+    try {
+      await _dio.putUri<Map<String, dynamic>>(
+        _baseUri().resolve('/api/v1/wave/sessions/$id/state'),
+        data: {
+          'trackId': meta.externalId,
+          'provider': meta.provider.name,
+          'positionMs': position.inMilliseconds,
+        },
+        options: await _options(),
+      );
+    } on DioException {
+      // Cross-device checkpoints are best-effort and never interrupt audio.
+    }
+  }
+
   _WaveBatch _parseBatch(Map<String, dynamic>? json) {
     final sessionId = json?['sessionId'];
     final rawItems = json?['items'];
@@ -230,6 +383,10 @@ class WaveController extends StateNotifier<WaveState> {
             provider: provider,
             externalId: externalId,
             externalUrl: externalUrl,
+            metadata: {
+              if (item['lane'] is String) 'waveLane': item['lane'],
+              if (item['reason'] is String) 'waveReason': item['reason'],
+            },
           ),
         ],
       );
@@ -241,7 +398,31 @@ class WaveController extends StateNotifier<WaveState> {
       );
     }
     if (tracks.isEmpty) throw const FormatException('Empty wave');
-    return _WaveBatch(sessionId, tracks);
+    final intent = json?['intent'];
+    final intentMap = intent is Map ? Map<String, dynamic>.from(intent) : null;
+    final currentKey = json?['currentTrackKey'] as String?;
+    final currentIndex = currentKey == null
+        ? 0
+        : tracks
+              .indexWhere((track) {
+                final source = track.sources.isEmpty
+                    ? null
+                    : track.sources.first;
+                return source != null &&
+                    '${source.provider.name}:${source.externalId}' ==
+                        currentKey;
+              })
+              .clamp(0, tracks.length - 1);
+    return _WaveBatch(
+      sessionId,
+      tracks,
+      currentIndex: currentIndex,
+      summary: intentMap?['summary'] as String?,
+      discovery: (intentMap?['discovery'] as num?)?.toDouble(),
+      position: Duration(
+        milliseconds: (json?['positionMs'] as num?)?.toInt() ?? 0,
+      ),
+    );
   }
 
   Future<Options?> _options() async {
@@ -272,9 +453,20 @@ class WaveController extends StateNotifier<WaveState> {
 }
 
 class _WaveBatch {
-  const _WaveBatch(this.sessionId, this.tracks);
+  const _WaveBatch(
+    this.sessionId,
+    this.tracks, {
+    this.currentIndex = 0,
+    this.summary,
+    this.discovery,
+    this.position = Duration.zero,
+  });
   final String sessionId;
   final List<UnifiedTrack> tracks;
+  final int currentIndex;
+  final String? summary;
+  final double? discovery;
+  final Duration position;
 }
 
 class _WaveMeta {

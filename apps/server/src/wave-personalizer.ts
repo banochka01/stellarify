@@ -12,6 +12,15 @@ const agentProfileSchema = z.object({
   discoveryDelta: z.number().min(-.15).max(.15).default(0)
 }).strict();
 
+const waveIntentSchema = z.object({
+  seedQueries: z.array(z.string().trim().min(1).max(120)).max(5).default([]),
+  excludedTerms: z.array(z.string().trim().min(1).max(80)).max(10).default([]),
+  discovery: z.number().min(0).max(1),
+  mood: z.enum(["fun", "active", "calm", "sad", "all"]),
+  language: z.enum(["not-russian", "russian", "any"]),
+  summary: z.string().trim().min(1).max(160)
+}).strict();
+
 const completionSchema = z.object({
   choices: z.array(z.object({
     message: z.object({ content: z.string() }).passthrough()
@@ -22,6 +31,10 @@ export type WavePersonalization = {
   seedQueries: string[];
   artistWeights: Record<string, number>;
   discoveryDelta: number;
+  source: "agentrouter" | "deterministic";
+};
+
+export type WaveIntent = z.infer<typeof waveIntentSchema> & {
   source: "agentrouter" | "deterministic";
 };
 
@@ -80,8 +93,77 @@ export class WavePersonalizer {
     return value;
   }
 
+  async personalizeGroup(userIds: string[]): Promise<WavePersonalization | undefined> {
+    const ids = [...new Set(userIds.filter(Boolean))].slice(0, 10);
+    if (ids.length === 0) return undefined;
+    const profiles = await Promise.all(ids.map((id) => this.personalize(id)));
+    if (profiles.length === 1) return profiles[0];
+    const weights = new Map<string, number[]>();
+    for (const profile of profiles) {
+      for (const [artist, weight] of Object.entries(profile.artistWeights)) {
+        const values = weights.get(artist) ?? [];
+        values.push(weight);
+        weights.set(artist, values);
+      }
+    }
+    return {
+      seedQueries: [...new Set(profiles.flatMap((profile) => profile.seedQueries))].slice(0, 8),
+      artistWeights: Object.fromEntries(
+        [...weights.entries()].map(([artist, values]) => [
+          artist,
+          values.reduce((sum, value) => sum + value, 0) / profiles.length
+        ])
+      ),
+      discoveryDelta: profiles.reduce((sum, profile) => sum + profile.discoveryDelta, 0) / profiles.length,
+      source: profiles.some((profile) => profile.source === "agentrouter") ? "agentrouter" : "deterministic"
+    };
+  }
+
   invalidate(userId: string) {
     this.cache.delete(userId);
+  }
+
+  async interpretPrompt(
+    prompt: string,
+    defaults: Pick<WaveIntent, "discovery" | "mood" | "language">
+  ): Promise<WaveIntent> {
+    const fallback = deterministicIntent(prompt, defaults);
+    if (!this.apiKey || !prompt.trim()) return fallback;
+    try {
+      const response = await this.request(this.endpoint, {
+        method: "POST",
+        redirect: "error",
+        headers: {
+          authorization: `Bearer ${this.apiKey}`,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          model: this.model,
+          temperature: 0,
+          max_tokens: 300,
+          messages: [
+            {
+              role: "system",
+              content: "Interpret a Russian or English music request. Return only compact JSON: seedQueries (search phrases, max 5), excludedTerms (artists/genres explicitly rejected, max 10), discovery (0 familiar..1 experimental), mood (fun|active|calm|sad|all), language (not-russian|russian|any), summary (short Russian description). Never return track IDs, URLs, credentials or provider names."
+            },
+            {
+              role: "user",
+              content: JSON.stringify({ prompt: prompt.trim(), defaults })
+            }
+          ]
+        }),
+        signal: AbortSignal.timeout(this.timeoutMs)
+      });
+      if (!response.ok) throw new Error(`AgentRouter returned ${response.status}`);
+      const completion = completionSchema.parse(await response.json());
+      return {
+        ...waveIntentSchema.parse(parseJsonObject(completion.choices[0]!.message.content)),
+        source: "agentrouter"
+      };
+    } catch (error) {
+      console.warn("Wave prompt interpretation fell back to local rules", error instanceof Error ? error.message : "unknown error");
+      return fallback;
+    }
   }
 
   recordFeedback(
@@ -232,4 +314,36 @@ function clamp(value: number, min: number, max: number) {
 
 function normalize(value: string) {
   return value.toLocaleLowerCase("ru").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+}
+
+function deterministicIntent(
+  prompt: string,
+  defaults: Pick<WaveIntent, "discovery" | "mood" | "language">
+): WaveIntent {
+  const value = prompt.trim().slice(0, 500);
+  const normalized = normalize(value);
+  let discovery = defaults.discovery;
+  if (/(новое|новинки|неизвестн|эксперимент|удиви|discover|new music)/u.test(normalized)) discovery = Math.max(discovery, .72);
+  if (/(знакомое|любимое|проверенное|без сюрпризов|familiar|favorites)/u.test(normalized)) discovery = Math.min(discovery, .2);
+  const mood = /(груст|печал|melanch|sad)/u.test(normalized) ? "sad"
+    : /(спокой|расслаб|сон|фокус|работ|calm|focus|chill)/u.test(normalized) ? "calm"
+    : /(энерг|спорт|тренир|бег|active|workout)/u.test(normalized) ? "active"
+    : /(весел|вечерин|радост|party|fun)/u.test(normalized) ? "fun"
+    : defaults.mood;
+  const language = /(без русск|иностран|foreign|not russian)/u.test(normalized) ? "not-russian"
+    : /(русск|на русском|russian)/u.test(normalized) ? "russian"
+    : defaults.language;
+  const excludedTerms = [...value.matchAll(/(?:без|кроме|не ставь|no)\s+([\p{L}\p{N}][\p{L}\p{N}\s-]{1,50})/giu)]
+    .map((match) => match[1]!.split(/[,.;]/u)[0]!.trim())
+    .filter(Boolean)
+    .slice(0, 10);
+  return {
+    seedQueries: value ? [value] : [],
+    excludedTerms,
+    discovery,
+    mood,
+    language,
+    summary: value || "Персональная волна по вашему вкусу",
+    source: "deterministic"
+  };
 }

@@ -140,8 +140,8 @@ function App() {
             <p className="eyebrow">Музыка без переключений</p>
             <h1>Музыка<br /><em>живёт</em><br />здесь.</h1>
             <p className="hero-lead">
-              Подключай свои сервисы. Находи нужный трек. Слушай в едином
-              интерфейсе Resonance.
+              Опиши настроение обычными словами. Wave поймёт контекст, учтёт
+              твой вкус и соберёт живую очередь из подключённых источников.
             </p>
             <div className="hero-actions">
               <a className="button button-primary" href={downloads.windows}>
@@ -154,7 +154,7 @@ function App() {
                 <Apple size={18} /> Unsigned IPA
               </a>
             </div>
-            <p className="release-note">Resonance 0.4.0 · Подписки · Windows · Android debug-signed · iOS unsigned</p>
+            <p className="release-note">Resonance 1.0 · Умная Wave · Windows · Android debug-signed · iOS unsigned</p>
           </div>
           <div className="hero-visual" aria-hidden="true">
             <img className="hero-orbit" src="/assets/resonance-hero-orbit.png" alt="" />
@@ -195,8 +195,8 @@ function App() {
             </article>
             <article data-reveal>
               <span><Heart size={24} /></span>
-              <h3>Твой выбор</h3>
-              <p>Сохраняй, собирай очередь и управляй музыкой по-своему.</p>
+              <h3>Wave понимает контекст</h3>
+              <p>«Спокойнее», «больше нового», «без этого артиста» — очередь перестраивается без выдуманных треков.</p>
             </article>
           </div>
         </section>
@@ -244,7 +244,7 @@ function App() {
               <h3>Для музыки без компромиссов</h3>
               <ul>
                 <li>Всё из Base</li>
-                <li>Персонализированная Wave</li>
+                <li>Wave обычным языком и музыкальная память</li>
                 <li>Создание и вход в комнаты</li>
                 <li>До 10 устройств</li>
               </ul>

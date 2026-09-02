@@ -13,6 +13,7 @@ import 'package:resonance/core/preferences/appearance_preferences.dart';
 import 'package:resonance/core/update/app_update_service.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/features/auth/account_controller.dart';
+import 'package:resonance/features/wave/wave_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -59,6 +60,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _apiController.text = BackendEndpoint.displayValue;
     _loadStatus();
     _checkUpdate();
+    unawaited(ref.read(waveControllerProvider.notifier).loadProfile());
   }
 
   @override
@@ -285,6 +287,57 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => context.go('/subscription'),
           ),
+        ),
+        const SizedBox(height: 16),
+        Consumer(
+          builder: (context, ref, _) {
+            final profile = ref.watch(waveControllerProvider).profile;
+            return Card(
+              margin: EdgeInsets.zero,
+              child: ListTile(
+                leading: const Icon(Icons.auto_awesome_rounded),
+                title: const Text('Музыкальная память Wave'),
+                subtitle: Text(
+                  profile == null
+                      ? 'Войдите в Plus или Family, чтобы синхронизировать вкус'
+                      : '${profile.signalCount} сигналов${profile.topArtists.isEmpty ? '' : ' · ${profile.topArtists.take(3).join(', ')}'}',
+                ),
+                trailing: profile == null || profile.signalCount == 0
+                    ? null
+                    : IconButton(
+                        tooltip: 'Очистить музыкальную память',
+                        icon: const Icon(Icons.delete_outline_rounded),
+                        onPressed: () async {
+                          final accepted = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Очистить память Wave?'),
+                              content: const Text(
+                                'История обратной связи Wave будет удалена. Избранное и плейлисты останутся.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(context, false),
+                                  child: const Text('Отмена'),
+                                ),
+                                FilledButton(
+                                  onPressed: () => Navigator.pop(context, true),
+                                  child: const Text('Очистить'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (accepted == true) {
+                            await ref
+                                .read(waveControllerProvider.notifier)
+                                .clearProfile();
+                          }
+                        },
+                      ),
+              ),
+            );
+          },
         ),
         const SizedBox(height: 34),
         Text(

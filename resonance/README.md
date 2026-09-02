@@ -5,7 +5,11 @@ The current client targets Windows, Android, and iOS. It includes a bundled
 local diagnostic track plus server-backed SoundCloud and Yandex Music search
 and playback. YouTube Music remains a later provider.
 
-Version 0.4.0 adds server-enforced subscriptions: a one-day SoundCloud-only
+Version 1.0.0 adds a contextual Wave controlled with ordinary language,
+account-owned musical memory, cross-device continuation, shared room taste,
+explainable recommendations, and a fluid reduced-motion-aware Home interface.
+
+Version 0.4.0 added server-enforced subscriptions: a one-day SoundCloud-only
 guest trial plus Base, Plus and Family access activated by paid promo codes.
 Promo codes are issued only by the configured Telegram admin bot. See
 [`../deploy/SUBSCRIPTIONS.md`](../deploy/SUBSCRIPTIONS.md) for the exact

@@ -85,3 +85,52 @@ test("falls back locally when AgentRouter fails", async () => {
     store.close();
   }
 });
+
+test("interprets natural-language Wave controls without allowing the model to pick tracks", async () => {
+  const store = new AccountStore(":memory:");
+  let body = "";
+  const request: typeof fetch = async (_input, init) => {
+    body = String(init?.body);
+    return Response.json({ choices: [{ message: { content: JSON.stringify({
+      seedQueries: ["русский инди для работы"],
+      excludedTerms: ["рэп"],
+      discovery: .65,
+      mood: "calm",
+      language: "russian",
+      summary: "Спокойный русский инди с небольшими открытиями"
+    }) } }] });
+  };
+  try {
+    const personalizer = new WavePersonalizer(store, { apiKey: "test-secret" }, request);
+    const intent = await personalizer.interpretPrompt(
+      "Спокойный русский инди для работы, без рэпа",
+      { discovery: .3, mood: "all", language: "any" }
+    );
+    assert.equal(intent.source, "agentrouter");
+    assert.equal(intent.mood, "calm");
+    assert.deepEqual(intent.excludedTerms, ["рэп"]);
+    assert.match(body, /Спокойный русский инди/u);
+    assert.doesNotMatch(body, /test-secret/u);
+    assert.doesNotMatch(body, /streamUrl|trackId|providerToken/u);
+  } finally {
+    store.close();
+  }
+});
+
+test("uses deterministic prompt controls while AgentRouter is unavailable", async () => {
+  const store = new AccountStore(":memory:");
+  try {
+    const personalizer = new WavePersonalizer(store);
+    const intent = await personalizer.interpretPrompt(
+      "Спокойная русская музыка для работы, без рэпа, добавь новое",
+      { discovery: .3, mood: "all", language: "any" }
+    );
+    assert.equal(intent.source, "deterministic");
+    assert.equal(intent.mood, "calm");
+    assert.equal(intent.language, "russian");
+    assert.ok(intent.discovery >= .72);
+    assert.ok(intent.excludedTerms.some((value) => value.includes("рэп")));
+  } finally {
+    store.close();
+  }
+});

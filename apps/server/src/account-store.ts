@@ -304,6 +304,10 @@ export class AccountStore {
     `).run(userId, userId);
   }
 
+  clearWaveFeedback(userId: string) {
+    this.#database.prepare("DELETE FROM account_wave_feedback WHERE user_id = ?").run(userId);
+  }
+
   applyOperations(userId: string, operations: LibraryOperation[]) {
     const seen = this.#database.prepare(`
       SELECT 1 FROM account_sync_operations WHERE user_id = ? AND operation_id = ?

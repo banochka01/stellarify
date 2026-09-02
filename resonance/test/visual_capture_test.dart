@@ -135,6 +135,42 @@ void main() {
     resonanceRouter.go('/');
   });
 
+  testWidgets('mobile home visual', (tester) async {
+    _setViewport(tester, const Size(390, 844));
+    resonanceRouter.go('/');
+    final track = _makeTrack(
+      provider: MusicProvider.yandex,
+      index: 0,
+      title: 'Star Shopping',
+      artist: 'Lil Peep',
+    );
+    await tester.pumpWidget(
+      _testApp(
+        database: database,
+        playbackState: ResonancePlaybackState(
+          queue: [track],
+          currentIndex: 0,
+          playing: true,
+          position: const Duration(seconds: 40),
+          duration: const Duration(minutes: 2, seconds: 21),
+          activeTrackSource: track.sources.first,
+        ),
+      ),
+    );
+    await tester.runAsync(
+      () => precacheImage(
+        const AssetImage('assets/images/resonance_fallback_cover.png'),
+        tester.element(find.byType(MaterialApp)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/resonance-home-mobile.png'),
+    );
+  });
+
   testWidgets('desktop player visual', (tester) async {
     _setViewport(tester, const Size(1280, 800));
     resonanceRouter.go('/player');

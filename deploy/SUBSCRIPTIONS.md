@@ -5,13 +5,13 @@ clients and the admin bot have been verified together. Old 0.3.x clients do not
 send account/device access headers and will receive access errors. Do not switch
 production API independently of the clients.
 
-## Actual features (not the wider 1.0 roadmap)
+## Actual features
 
 | Access | Sources | Library | Wave | Rooms | Devices |
 | --- | --- | --- | --- | --- | --- |
 | Guest, 24h | SoundCloud | Local | 3 batches total | None | Installation |
 | Base | SoundCloud + Yandex | Local + cloud | Standard | Join | 2 |
-| Plus | SoundCloud + Yandex | Local + cloud | Seeds and discovery control | Create/join | 10 |
+| Plus | SoundCloud + Yandex | Local + cloud | Natural language, memory, handoff | Create/join + shared Wave | 10 |
 | Family | Same as Plus | Separate per account | Same as Plus | Create/join | 10 per member |
 
 Family: owner plus four members; revocable one-use invitations valid for 24h.
@@ -20,8 +20,7 @@ owner's Family period immediately removes inherited access. Joining does not
 merge libraries, share provider credentials, or consume a member's paid period;
 accounts with their own purchased periods must wait or decline the invitation.
 
-No offline downloads, multi-device handoff, room votes, or collaborative Wave are
-advertised/sold yet. These remain separate product work. There is one native
+No offline downloads or room votes are advertised/sold yet. There is one native
 Resonance player; YouTube playback/external player launch is disabled, while
 paid playlist metadata import can retain old YouTube entries as non-playable.
 Provider subscriptions/permissions remain independent of Resonance access.

@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { after, before, test } from "node:test";
 import { io as createClient, type Socket as ClientSocket } from "socket.io-client";
 import { Server } from "socket.io";
-import { registerRoomHandlers } from "./rooms.js";
+import { registerRoomHandlers, roomWaveUserIds } from "./rooms.js";
 
 let io: Server;
 let url: string;
@@ -12,7 +12,10 @@ const clients: ClientSocket[] = [];
 before(async () => {
   const http = createServer();
   io = new Server(http);
-  io.on("connection", (socket) => registerRoomHandlers(io, socket));
+  io.on("connection", (socket) => {
+    socket.data.userId = socket.handshake.auth.userId;
+    registerRoomHandlers(io, socket);
+  });
   await new Promise<void>((resolve) => http.listen(0, "127.0.0.1", resolve));
   const address = http.address();
   assert(address && typeof address === "object");
@@ -24,8 +27,8 @@ after(async () => {
   await io.close();
 });
 
-const connect = async () => {
-  const client = createClient(url, { transports: ["websocket"] });
+const connect = async (userId?: string) => {
+  const client = createClient(url, { transports: ["websocket"], auth: { userId } });
   clients.push(client);
   await new Promise<void>((resolve, reject) => {
     client.once("connect", resolve);
@@ -38,8 +41,8 @@ const emitAck = <T>(socket: ClientSocket, event: string, payload: unknown) =>
   new Promise<T>((resolve) => socket.emit(event, payload, resolve));
 
 test("host and guest share a sanitized track and playback state", async () => {
-  const host = await connect();
-  const guest = await connect();
+  const host = await connect("host-user");
+  const guest = await connect("guest-user");
   const created = await emitAck<any>(host, "room:create", { name: "Host" });
   assert.equal(created.ok, true);
   const code = created.room.code as string;
@@ -47,6 +50,9 @@ test("host and guest share a sanitized track and playback state", async () => {
   const joined = await emitAck<any>(guest, "room:join", { code, name: "Friend" });
   assert.equal(joined.ok, true);
   assert.equal(joined.room.participants.length, 2);
+  assert.equal(joined.room.participants.some((participant: any) => "userId" in participant), false);
+  assert.deepEqual(roomWaveUserIds(code, "host-user"), ["host-user", "guest-user"]);
+  assert.deepEqual(roomWaveUserIds(code, "guest-user"), []);
 
   const nextState = new Promise<any>((resolve) => guest.once("room:state", resolve));
   const updated = await emitAck<any>(host, "playback:update", {

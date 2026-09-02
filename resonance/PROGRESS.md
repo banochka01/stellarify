@@ -1,5 +1,21 @@
 # Progress
 
+## Version 1.0.0 — contextual Wave and fluid interface
+
+Status: implemented locally; production release validation pending.
+
+- [x] Natural-language Wave requests with deterministic fallback
+- [x] Explainable safe, adjacent and discovery lanes
+- [x] Account-owned musical memory with visible statistics and deletion
+- [x] Cross-device active Wave and position checkpoints
+- [x] Shared room Wave blended from participating account profiles
+- [x] Context presets for work, road, evening and discoveries
+- [x] Shared 160–280 ms motion system with reduced-motion support
+- [x] Adaptive desktop and mobile Home redesign
+- [x] Server and Flutter automated validation
+- [ ] Windows, Android and unsigned iOS production artifacts
+- [ ] Atomic production deployment and public behavior verification
+
 ## Version 0.4.0 — subscriptions and native-player access (candidate, not deployed)
 
 - [x] Server-owned 24-hour SoundCloud guest access

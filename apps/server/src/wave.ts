@@ -2,14 +2,16 @@ import { randomUUID } from "node:crypto";
 import type { ProviderAccess, ProviderTrack } from "./provider-gateway.js";
 import { ProviderGateway } from "./provider-gateway.js";
 import { YandexAdapter } from "./yandex.js";
-import { WavePersonalizer, type WavePersonalization } from "./wave-personalizer.js";
+import { WavePersonalizer, type WaveIntent, type WavePersonalization } from "./wave-personalizer.js";
 
 export type WaveProviderName = "soundcloud" | "yandex";
 export type WaveAccess = Partial<Record<WaveProviderName, ProviderAccess>>;
 export type WaveFeedbackType = "started" | "finished" | "skipped" | "liked" | "disliked";
 
 export interface WaveRequest {
+  prompt?: string;
   seedQueries: string[];
+  excludedTerms?: string[];
   enabledProviders: WaveProviderName[];
   discovery: number;
   mood: "fun" | "active" | "calm" | "sad" | "all";
@@ -21,6 +23,7 @@ export interface WaveItem extends ProviderTrack {
   batchId?: string;
   score: number;
   lane: "safe" | "adjacent" | "wild";
+  reason?: string;
 }
 
 interface WaveSession {
@@ -29,6 +32,7 @@ interface WaveSession {
   userId?: string;
   request: WaveRequest;
   personalization?: WavePersonalization;
+  intent?: WaveIntent;
   station?: string;
   batchId?: string;
   queue?: string;
@@ -37,6 +41,9 @@ interface WaveSession {
   recentAlbums: string[];
   feedbackIds: Set<string>;
   tracks: Map<string, WaveItem>;
+  lastItems: WaveItem[];
+  currentTrackKey?: string;
+  currentPositionMs: number;
   expiresAt: number;
 }
 
@@ -50,33 +57,69 @@ export class WaveService {
     private readonly now: () => number = Date.now
   ) {}
 
-  async start(request: WaveRequest, access: WaveAccess = {}, owner = "", userId?: string) {
+  async start(
+    request: WaveRequest,
+    access: WaveAccess = {},
+    owner = "",
+    userId?: string,
+    tasteUserIds: string[] = userId ? [userId] : []
+  ) {
     this.sweep();
     if (this.sessions.size >= 2000) throw new WaveSessionError();
-    const personalization = userId && this.personalizer
-      ? await this.personalizer.personalize(userId)
-      : undefined;
-    const personalizedRequest = personalization ? {
+    const [personalization, intent] = await Promise.all([
+      this.personalizer ? this.personalizer.personalizeGroup(tasteUserIds) : undefined,
+      request.prompt?.trim() && this.personalizer
+        ? this.personalizer.interpretPrompt(request.prompt, request)
+        : undefined
+    ]);
+    const interpretedRequest = intent ? {
       ...request,
-      seedQueries: [...new Set([...request.seedQueries, ...personalization.seedQueries])].slice(0, 10),
-      discovery: clamp(request.discovery + personalization.discoveryDelta, 0, 1)
+      seedQueries: [...new Set([...intent.seedQueries, ...request.seedQueries])].slice(0, 10),
+      excludedTerms: [...new Set([...(request.excludedTerms ?? []), ...intent.excludedTerms])].slice(0, 10),
+      discovery: intent.discovery,
+      mood: intent.mood,
+      language: intent.language
     } : request;
+    const personalizedRequest = personalization ? {
+      ...interpretedRequest,
+      seedQueries: [...new Set([...interpretedRequest.seedQueries, ...personalization.seedQueries])].slice(0, 10),
+      discovery: clamp(interpretedRequest.discovery + personalization.discoveryDelta, 0, 1)
+    } : interpretedRequest;
     const session: WaveSession = {
       id: randomUUID(),
       owner,
       ...(userId ? { userId } : {}),
       request: personalizedRequest,
       ...(personalization ? { personalization } : {}),
+      ...(intent ? { intent } : {}),
       recentTracks: [],
       recentArtists: [],
       recentAlbums: [],
       feedbackIds: new Set(),
       tracks: new Map(),
+      lastItems: [],
+      currentPositionMs: 0,
       expiresAt: this.now() + 30 * 60_000
     };
     this.sessions.set(session.id, session);
     const items = await this.fill(session, access);
     return this.response(session, items);
+  }
+
+  active(owner = "") {
+    this.sweep();
+    const session = [...this.sessions.values()]
+      .filter((value) => value.owner === owner)
+      .sort((a, b) => b.expiresAt - a.expiresAt)[0];
+    if (!session) return undefined;
+    const buffered = [...session.tracks.values()];
+    const currentIndex = session.currentTrackKey
+      ? buffered.findIndex((item) => `${item.provider}:${item.id}` === session.currentTrackKey)
+      : -1;
+    const resumable = currentIndex >= 0
+      ? buffered.slice(currentIndex, currentIndex + 50)
+      : session.lastItems;
+    return this.response(session, resumable, false);
   }
 
   async next(id: string, access: WaveAccess = {}, owner = "") {
@@ -107,6 +150,7 @@ export class WaveService {
     }
     session.expiresAt = this.now() + 30 * 60_000;
     const track = session.tracks.get(`${event.provider}:${event.trackId}`);
+    if (event.type === "started") session.currentTrackKey = `${event.provider}:${event.trackId}`;
     if (session.userId && track && this.personalizer) {
       this.personalizer.recordFeedback(session.userId, event, {
         title: track.title,
@@ -128,6 +172,20 @@ export class WaveService {
   stop(id: string, owner = "") {
     if (this.sessions.has(id)) this.requireSession(id, owner);
     return this.sessions.delete(id);
+  }
+
+  checkpoint(
+    id: string,
+    value: { provider: WaveProviderName; trackId: string; positionMs: number },
+    owner = ""
+  ) {
+    const session = this.requireSession(id, owner);
+    const key = `${value.provider}:${value.trackId}`;
+    if (!session.tracks.has(key)) throw new WaveSessionError();
+    session.currentTrackKey = key;
+    session.currentPositionMs = Math.max(0, Math.trunc(value.positionMs));
+    session.expiresAt = this.now() + 30 * 60_000;
+    return { accepted: true };
   }
 
   private async fill(session: WaveSession, access: WaveAccess) {
@@ -173,7 +231,20 @@ export class WaveService {
       }
     }));
     for (const result of await Promise.all(searches)) candidates.push(...result);
-    const items = rerank(candidates, session, 20, session.request.discovery);
+    const excluded = (session.request.excludedTerms ?? []).map(normalize).filter(Boolean);
+    const allowed = excluded.length === 0 ? candidates : candidates.filter((item) => {
+      const haystack = normalize(`${item.artist} ${item.title} ${item.album ?? ""}`);
+      return !excluded.some((term) => haystack.includes(term));
+    });
+    const items = rerank(allowed, session, 20, session.request.discovery).map((item) => ({
+      ...item,
+      reason: item.lane === "safe"
+        ? "Знакомое направление"
+        : item.lane === "wild"
+          ? "Немного нового"
+          : "Рядом с вашим вкусом"
+    }));
+    session.lastItems = items;
     for (const item of items) {
       session.tracks.set(`${item.provider}:${item.id}`, item);
       session.recentTracks.push(trackKey(item));
@@ -193,13 +264,22 @@ export class WaveService {
     return { ...track, provider, lane, batchId, score: base };
   }
 
-  private response(session: WaveSession, items: WaveItem[]) {
-    session.expiresAt = this.now() + 30 * 60_000;
+  private response(session: WaveSession, items: WaveItem[], extend = true) {
+    if (extend) session.expiresAt = this.now() + 30 * 60_000;
     return {
       sessionId: session.id,
       items,
       expiresAt: new Date(session.expiresAt).toISOString(),
-      personalization: session.personalization?.source ?? "none"
+      personalization: session.personalization?.source ?? "none",
+      intent: session.intent ? {
+        summary: session.intent.summary,
+        source: session.intent.source,
+        discovery: session.request.discovery,
+        mood: session.request.mood,
+        language: session.request.language
+      } : undefined,
+      currentTrackKey: session.currentTrackKey,
+      positionMs: session.currentPositionMs
     };
   }
 
