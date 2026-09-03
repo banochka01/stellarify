@@ -54,7 +54,7 @@ const gateway = new ProviderGateway([
   youtube
 ]);
 const playlistImports = new PlaylistImportService(yandex, youtube);
-const lyrics = new LyricsService();
+const lyrics = LyricsService.fromEnvironment();
 const accountStore = new AccountStore(
   process.env.AUTH_DB_PATH || "./data/resonance.sqlite",
   process.env.AUTH_PASSWORD_PEPPER || ""
@@ -101,11 +101,12 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "1.2.0",
+    version: process.env.CLIENT_VERSION || "1.3.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Resonance 1.2 Visual Stage: полноэкранные клипы, кинематографичный Lyrics и локальный OBS-виджет «Сейчас играет».",
+      "Resonance 1.3 Lyrics Network: каскад источников текстов и Windows Setup EXE.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
+      windowsPortable: "https://music.webcordes.ru/downloads/windows-portable",
       android: "https://music.webcordes.ru/downloads/android",
       ios: "https://music.webcordes.ru/downloads/ios"
     }

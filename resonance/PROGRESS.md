@@ -1,5 +1,21 @@
 # Progress
 
+## Version 1.3.0 — Lyrics Network and Windows installer
+
+Status: release candidate.
+
+- [x] Sequential LRCLIB primary lookup with resilient provider fallback
+- [x] Key-free Lyrics.ovh plain-text fallback
+- [x] Optional licensed Musixmatch integration via server-side key
+- [x] Up to four configurable compatible lyrics endpoints
+- [x] Parallel fallback fan-out with synchronized-result preference
+- [x] Bounded responses, stable cache and provider-failure isolation
+- [x] Per-user Windows Setup EXE with shortcuts and uninstall support
+- [x] Full server (66 tests) and Flutter (60 tests) validation
+- [x] Windows installer install-launch-uninstall runtime proof (`1.3.0+18`)
+- [ ] Windows, Android and unsigned iOS production artifacts
+- [ ] Atomic production deployment and public verification
+
 ## Version 1.2.0 — Visual Stage, fullscreen clips and OBS
 
 Status: released to production and publicly verified on 2026-09-03.

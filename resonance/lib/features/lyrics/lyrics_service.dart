@@ -23,6 +23,7 @@ final class LyricsDocument {
     required this.instrumental,
     required this.lines,
     required this.sourceUrl,
+    this.sourceName = 'LRCLIB',
   });
 
   final int id;
@@ -30,6 +31,7 @@ final class LyricsDocument {
   final bool instrumental;
   final List<LyricLine> lines;
   final Uri sourceUrl;
+  final String sourceName;
 
   factory LyricsDocument.fromJson(Map<String, dynamic> json) {
     final source = json['source'] as Map<String, dynamic>? ?? const {};
@@ -45,6 +47,7 @@ final class LyricsDocument {
       sourceUrl:
           Uri.tryParse(source['url'] as String? ?? '') ??
           Uri.parse('https://lrclib.net'),
+      sourceName: source['name'] as String? ?? 'Источник',
     );
   }
 }

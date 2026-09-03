@@ -65,3 +65,95 @@ test("does not return an unrelated search result", async () => {
   });
   assert.equal(await service.find({ title: "Track", artist: "Artist" }), null);
 });
+
+test("uses Lyrics.ovh when LRCLIB has no match", async () => {
+  const calls: string[] = [];
+  const service = new LyricsService(async input => {
+    const url = new URL(String(input));
+    calls.push(`${url.hostname}${url.pathname}`);
+    if (url.hostname === "lrclib.net" && url.pathname === "/api/get") {
+      return new Response(null, { status: 404 });
+    }
+    if (url.hostname === "lrclib.net") return Response.json([]);
+    if (url.hostname === "api.lyrics.ovh") {
+      return Response.json({ lyrics: "Fallback first\nFallback second" });
+    }
+    return new Response(null, { status: 404 });
+  });
+
+  const result = await service.find({ title: "Missing", artist: "Artist" });
+  assert.equal(result?.source.name, "Lyrics.ovh");
+  assert.deepEqual(result?.lines, [
+    { startMs: null, text: "Fallback first" },
+    { startMs: null, text: "Fallback second" }
+  ]);
+  assert.deepEqual(calls, [
+    "lrclib.net/api/get",
+    "lrclib.net/api/search",
+    "api.lyrics.ovh/v1/Artist/Missing"
+  ]);
+});
+
+test("continues to fallback when LRCLIB is unavailable", async () => {
+  const service = new LyricsService(async input => {
+    const url = new URL(String(input));
+    if (url.hostname === "lrclib.net") return new Response(null, { status: 503 });
+    return Response.json({ lyrics: "Still available" });
+  });
+
+  const result = await service.find({ title: "Track", artist: "Artist" });
+  assert.equal(result?.source.name, "Lyrics.ovh");
+  assert.equal(result?.lines[0]?.text, "Still available");
+});
+
+test("prefers synchronized compatible fallback over plain providers", async () => {
+  const service = new LyricsService(async input => {
+    const url = new URL(String(input));
+    if (url.hostname === "lrclib.net" && url.pathname === "/api/get") {
+      return new Response(null, { status: 404 });
+    }
+    if (url.hostname === "lrclib.net") return Response.json([]);
+    if (url.hostname === "sync.example") {
+      return Response.json({
+        syncedLyrics: "[00:01.20]Synced fallback",
+        source: { name: "Licensed sync", url: "https://sync.example" }
+      });
+    }
+    return Response.json({ lyrics: "Plain fallback" });
+  }, Date.now, 60_000, "https://lrclib.net", {
+    compatibleProviderUrls: ["https://sync.example/lyrics"]
+  });
+
+  const result = await service.find({ title: "Track", artist: "Artist" });
+  assert.equal(result?.source.name, "Licensed sync");
+  assert.equal(result?.synced, true);
+  assert.equal(result?.lines[0]?.startMs, 1_200);
+});
+
+test("uses configured Musixmatch without exposing its key", async () => {
+  let requestedUrl = "";
+  const service = new LyricsService(async input => {
+    const url = new URL(String(input));
+    if (url.hostname === "lrclib.net" && url.pathname === "/api/get") {
+      return new Response(null, { status: 404 });
+    }
+    if (url.hostname === "lrclib.net") return Response.json([]);
+    if (url.hostname === "api.musixmatch.com") {
+      requestedUrl = url.toString();
+      return Response.json({
+        message: {
+          header: { status_code: 200 },
+          body: { lyrics: { lyrics_body: "Licensed text", restricted: 0 } }
+        }
+      });
+    }
+    return new Response(null, { status: 404 });
+  }, Date.now, 60_000, "https://lrclib.net", {
+    musixmatchApiKey: "secret-key"
+  });
+
+  const result = await service.find({ title: "Track", artist: "Artist" });
+  assert.equal(result?.source.name, "Musixmatch");
+  assert.match(requestedUrl, /apikey=secret-key/);
+  assert.doesNotMatch(JSON.stringify(result), /secret-key/);
+});

@@ -12,7 +12,7 @@ void main() {
         {'startMs': null, 'text': 'Second'},
         {'startMs': 3000, 'text': ''},
       ],
-      'source': {'url': 'https://lrclib.net/api/get/7'},
+      'source': {'name': 'LRCLIB', 'url': 'https://lrclib.net/api/get/7'},
     });
 
     expect(document.id, 7);
@@ -20,5 +20,6 @@ void main() {
     expect(document.lines, hasLength(2));
     expect(document.lines.first.start, const Duration(milliseconds: 1200));
     expect(document.lines.last.start, isNull);
+    expect(document.sourceName, 'LRCLIB');
   });
 }

@@ -598,7 +598,7 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
                     if (document.synced) const _LyricsChip(label: 'Синхронно'),
                     TextButton(
                       onPressed: () => launchUrl(document.sourceUrl),
-                      child: const Text('LRCLIB'),
+                      child: Text(document.sourceName),
                     ),
                   ],
                 ),

@@ -5,7 +5,13 @@ The current client targets Windows, Android, and iOS. It includes a bundled
 local diagnostic track plus server-backed SoundCloud and Yandex Music search
 and playback. YouTube Music remains a later provider.
 
-Version 1.2.0 adds Visual Stage: authorized video tracks can fill the screen
+Version 1.3.0 adds a resilient Lyrics Network: LRCLIB remains the synchronized
+primary source, Lyrics.ovh provides a key-free plain-text fallback, licensed
+Musixmatch access can be enabled by server key, and up to four compatible
+provider endpoints can be added without another client release. Windows now
+ships as a per-user Setup EXE while retaining a separate portable ZIP.
+
+Version 1.2.0 added Visual Stage: authorized video tracks can fill the screen
 behind readable artwork, metadata and lyrics; Lyrics gets a dedicated cinematic
 fullscreen layout; and desktop builds can expose a local-only OBS now-playing
 widget without provider tokens or playback URLs.

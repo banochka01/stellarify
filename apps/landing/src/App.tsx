@@ -22,6 +22,7 @@ gsap.registerPlugin(ScrollTrigger);
 
 const downloads = {
   windows: "/downloads/windows",
+  windowsPortable: "/downloads/windows-portable",
   android: "/downloads/android",
   ios: "/downloads/ios"
 };
@@ -145,7 +146,10 @@ function App() {
             </p>
             <div className="hero-actions">
               <a className="button button-primary" href={downloads.windows}>
-                <Download size={18} /> Скачать для Windows
+                <Download size={18} /> Windows Setup EXE
+              </a>
+              <a className="button button-secondary" href={downloads.windowsPortable}>
+                <Download size={18} /> Portable ZIP
               </a>
               <a className="button button-secondary" href={downloads.android}>
                 <Smartphone size={18} /> Версия для Android
@@ -154,7 +158,7 @@ function App() {
                 <Apple size={18} /> Unsigned IPA
               </a>
             </div>
-            <p className="release-note">Resonance 1.2 Visual Stage · Клипы · Fullscreen Lyrics · OBS-виджет · Android debug-signed · iOS unsigned</p>
+            <p className="release-note">Resonance 1.3 Lyrics Network · Несколько Lyrics-источников · Windows Setup EXE · Android debug-signed · iOS unsigned</p>
           </div>
           <div className="hero-visual" aria-hidden="true">
             <img className="hero-orbit" src="/assets/resonance-hero-orbit.png" alt="" />
@@ -303,7 +307,8 @@ function App() {
           <Layers3 size={32} />
           <h2>Твои сервисы.<br /><em>Один Resonance.</em></h2>
           <div className="hero-actions">
-            <a className="button button-primary" href={downloads.windows}>Скачать для Windows</a>
+            <a className="button button-primary" href={downloads.windows}>Скачать Setup EXE</a>
+            <a className="button button-secondary" href={downloads.windowsPortable}>Скачать Portable ZIP</a>
             <a className="button button-secondary" href={downloads.android}>Скачать APK</a>
             <a className="button button-secondary" href={downloads.ios}>Скачать unsigned IPA</a>
           </div>
