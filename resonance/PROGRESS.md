@@ -1,5 +1,23 @@
 # Progress
 
+## Version 1.2.0 — Visual Stage, fullscreen clips and OBS
+
+Status: release candidate.
+
+- [x] Fullscreen Visual Stage shared by clip and Lyrics modes
+- [x] Native video-track detection without a second audio player
+- [x] Artwork, title, artist and synchronized lyrics over cinematic video
+- [x] Click-to-seek lyrics with active-line focus and reduced-motion support
+- [x] Responsive desktop, portrait and landscape layouts
+- [x] Loopback-only OBS Browser Source widget with sanitized track state
+- [x] Persistent OBS toggle and one-click local URL copy
+- [x] Content security policy and no-store responses for the OBS widget
+- [x] Flutter analysis and full 60-test suite
+- [x] Windows release build and responsive-window runtime proof (`1.2.0+17`)
+- [x] Android release build verified as debug-signed
+- [ ] Unsigned iOS production artifact
+- [ ] Atomic production deployment and public verification
+
 ## Version 1.1.0 — Flow, lyrics and player motion
 
 Status: released to production and publicly verified on 2026-09-03.

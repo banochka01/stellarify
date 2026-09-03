@@ -101,9 +101,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "1.1.0",
+    version: process.env.CLIENT_VERSION || "1.2.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Resonance 1.1 Flow: плавные переходы, выравнивание громкости, синхронизированные тексты песен и новая пластика плеера.",
+      "Resonance 1.2 Visual Stage: полноэкранные клипы, кинематографичный Lyrics и локальный OBS-виджет «Сейчас играет».",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       android: "https://music.webcordes.ru/downloads/android",

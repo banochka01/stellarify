@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -252,6 +253,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final account = ref.watch(accountControllerProvider);
     final audioOutput = ref.watch(audioOutputControllerProvider);
     final flow = ref.watch(playbackFlowControllerProvider);
+    final obs = ref.watch(obsOverlayControllerProvider);
     return ListView(
       padding: EdgeInsets.fromLTRB(
         compact ? 18 : 34,
@@ -434,6 +436,96 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   'Добавляет лёгкое движение таймлайну без постоянной фоновой анимации.',
                 ),
               ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          margin: EdgeInsets.zero,
+          child: Column(
+            children: [
+              SwitchListTile(
+                key: const ValueKey('obs-overlay-switch'),
+                value: obs.enabled,
+                onChanged: !obs.supported || obs.starting
+                    ? null
+                    : (enabled) => unawaited(
+                        ref
+                            .read(obsOverlayControllerProvider.notifier)
+                            .setEnabled(enabled),
+                      ),
+                secondary: const Icon(Icons.live_tv_rounded),
+                title: const Text('OBS · Сейчас играет'),
+                subtitle: Text(
+                  obs.supported
+                      ? 'Локальный прозрачный виджет для Browser Source. Передаёт только обложку и данные трека.'
+                      : 'Доступно в настольной версии Resonance.',
+                ),
+              ),
+              if (obs.enabled && obs.url != null) ...[
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Flex(
+                    direction: compact ? Axis.vertical : Axis.horizontal,
+                    crossAxisAlignment: compact
+                        ? CrossAxisAlignment.stretch
+                        : CrossAxisAlignment.center,
+                    children: [
+                      if (compact)
+                        SelectableText(
+                          obs.url.toString(),
+                          style: const TextStyle(
+                            color: ResonanceColors.muted,
+                            fontFamily: 'monospace',
+                          ),
+                        )
+                      else
+                        Expanded(
+                          child: SelectableText(
+                            obs.url.toString(),
+                            style: const TextStyle(
+                              color: ResonanceColors.muted,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        ),
+                      SizedBox(
+                        width: compact ? 0 : 12,
+                        height: compact ? 12 : 0,
+                      ),
+                      FilledButton.icon(
+                        onPressed: () async {
+                          await Clipboard.setData(
+                            ClipboardData(text: obs.url.toString()),
+                          );
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Адрес OBS-виджета скопирован'),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.copy_rounded),
+                        label: const Text('Копировать'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (obs.error != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      obs.error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

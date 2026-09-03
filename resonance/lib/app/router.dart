@@ -4,6 +4,7 @@ import 'package:resonance/features/auth/account_screen.dart';
 import 'package:resonance/features/home/home_screen.dart';
 import 'package:resonance/features/library/library_screen.dart';
 import 'package:resonance/features/player/now_playing_screen.dart';
+import 'package:resonance/features/player/visual_stage_screen.dart';
 import 'package:resonance/features/rooms/rooms_screen.dart';
 import 'package:resonance/features/search/search_screen.dart';
 import 'package:resonance/features/settings/settings_screen.dart';
@@ -83,6 +84,15 @@ final resonanceRouter = GoRouter(
             ),
           );
         },
+      ),
+    ),
+    GoRoute(
+      path: '/stage',
+      name: 'visual-stage',
+      builder: (context, state) => VisualStageScreen(
+        initialMode: state.uri.queryParameters['mode'] == 'video'
+            ? VisualStageMode.video
+            : VisualStageMode.lyrics,
       ),
     ),
   ],

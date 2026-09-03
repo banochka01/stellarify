@@ -233,6 +233,68 @@ void main() {
     resonanceRouter.go('/');
   });
 
+  testWidgets('desktop visual stage lyrics', (tester) async {
+    _setViewport(tester, const Size(1440, 900));
+    resonanceRouter.go('/stage?mode=lyrics');
+    final track = _makeTrack(
+      provider: MusicProvider.yandex,
+      index: 0,
+      title: 'Star Shopping',
+      artist: 'Lil Peep',
+    );
+    await tester.pumpWidget(
+      _testApp(
+        database: database,
+        lyrics: LyricsDocument(
+          id: 8,
+          synced: true,
+          instrumental: false,
+          lines: const [
+            LyricLine(text: 'Wait right here', start: Duration(seconds: 18)),
+            LyricLine(
+              text: 'I\'ll be back in the morning',
+              start: Duration(seconds: 25),
+            ),
+            LyricLine(
+              text: 'I know that I\'m not that important to you',
+              start: Duration(seconds: 34),
+            ),
+            LyricLine(
+              text: 'But to me, girl, you\'re so much more than gorgeous',
+              start: Duration(seconds: 40),
+            ),
+            LyricLine(
+              text: 'So much more than perfect',
+              start: Duration(seconds: 47),
+            ),
+          ],
+          sourceUrl: Uri.parse('https://lrclib.net'),
+        ),
+        playbackState: ResonancePlaybackState(
+          queue: [track],
+          currentIndex: 0,
+          playing: true,
+          position: const Duration(seconds: 41),
+          duration: const Duration(minutes: 2, seconds: 22),
+          activeTrackSource: track.sources.first,
+        ),
+      ),
+    );
+    await tester.runAsync(
+      () => precacheImage(
+        const AssetImage('assets/images/resonance_fallback_cover.png'),
+        tester.element(find.byType(MaterialApp)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/resonance-visual-stage-desktop.png'),
+    );
+    resonanceRouter.go('/');
+  });
+
   for (final viewport in const [Size(390, 844), Size(844, 390)]) {
     testWidgets('player stays usable at ${viewport.width}x${viewport.height}', (
       tester,

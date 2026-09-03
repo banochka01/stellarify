@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import 'package:resonance/core/database/app_database.dart';
 import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/core/networking/resonance_http_client.dart';
@@ -20,6 +21,7 @@ import 'package:resonance/core/preferences/appearance_preferences.dart';
 import 'package:resonance/core/preferences/onboarding_preferences.dart';
 import 'package:resonance/core/preferences/playback_flow_preferences.dart';
 import 'package:resonance/core/security/flutter_secure_token_repository.dart';
+import 'package:resonance/core/streaming/obs_overlay_controller.dart';
 import 'package:resonance/core/update/app_update_service.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
@@ -239,6 +241,19 @@ final playbackEngineProvider = Provider<PlaybackEngine>((ref) {
   return MediaKitPlaybackEngine();
 });
 
+final playbackVideoControllerProvider = Provider<VideoController?>((ref) {
+  final engine = ref.watch(playbackEngineProvider);
+  return engine is MediaKitPlaybackEngine
+      ? VideoController(engine.player)
+      : null;
+});
+
+final playbackVideoAvailableProvider = StreamProvider<bool>((ref) async* {
+  final engine = ref.watch(playbackEngineProvider);
+  yield engine.hasVideo;
+  yield* engine.videoAvailable;
+});
+
 final audioOutputControllerProvider =
     StateNotifierProvider<AudioOutputController, AudioOutputState>((ref) {
       return AudioOutputController(
@@ -299,3 +314,11 @@ final playbackStateProvider = StreamProvider<ResonancePlaybackState>((
   yield service.state;
   yield* service.states;
 });
+
+final obsOverlayControllerProvider =
+    StateNotifierProvider<ObsOverlayController, ObsOverlayState>((ref) {
+      return ObsOverlayController(
+        ref.watch(secureKeyValueStoreProvider),
+        ref.watch(playbackServiceProvider.future),
+      );
+    });

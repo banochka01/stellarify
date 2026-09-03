@@ -154,7 +154,7 @@ function App() {
                 <Apple size={18} /> Unsigned IPA
               </a>
             </div>
-            <p className="release-note">Resonance 1.1 Flow · Lyrics · Плавные переходы · Android debug-signed · iOS unsigned</p>
+            <p className="release-note">Resonance 1.2 Visual Stage · Клипы · Fullscreen Lyrics · OBS-виджет · Android debug-signed · iOS unsigned</p>
           </div>
           <div className="hero-visual" aria-hidden="true">
             <img className="hero-orbit" src="/assets/resonance-hero-orbit.png" alt="" />

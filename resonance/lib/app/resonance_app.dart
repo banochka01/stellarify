@@ -67,6 +67,7 @@ class _ResonanceAppState extends ConsumerState<ResonanceApp> {
   Widget build(BuildContext context) {
     final appearance = ref.watch(appearanceControllerProvider);
     ref.watch(accountControllerProvider);
+    ref.watch(obsOverlayControllerProvider);
     return MaterialApp.router(
       title: 'Resonance',
       debugShowCheckedModeBanner: false,

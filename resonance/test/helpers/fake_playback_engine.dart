@@ -14,6 +14,7 @@ final class FakePlaybackEngine implements PlaybackEngine {
   final _errors = StreamController<String>.broadcast();
   final _audioOutput = StreamController<AudioOutputDevice>.broadcast();
   final _audioOutputs = StreamController<List<AudioOutputDevice>>.broadcast();
+  final _videoAvailable = StreamController<bool>.broadcast();
 
   final openedSources = <ResolvedAudioSource>[];
   final openedPositions = <Duration>[];
@@ -24,6 +25,7 @@ final class FakePlaybackEngine implements PlaybackEngine {
   var repeatMode = PlaybackRepeatMode.off;
   var loudnessNormalization = false;
   var selectedAudioOutput = AudioOutputDevice.automatic;
+  var hasVideoTrack = false;
   var outputDevices = const [
     AudioOutputDevice.automatic,
     AudioOutputDevice(id: 'speakers', label: 'Колонки'),
@@ -58,10 +60,16 @@ final class FakePlaybackEngine implements PlaybackEngine {
   Stream<List<AudioOutputDevice>> get audioOutputs => _audioOutputs.stream;
 
   @override
+  Stream<bool> get videoAvailable => _videoAvailable.stream;
+
+  @override
   AudioOutputDevice get currentAudioOutput => selectedAudioOutput;
 
   @override
   List<AudioOutputDevice> get availableAudioOutputs => outputDevices;
+
+  @override
+  bool get hasVideo => hasVideoTrack;
 
   @override
   Future<void> open(
@@ -128,6 +136,11 @@ final class FakePlaybackEngine implements PlaybackEngine {
 
   void emitError(String value) => _errors.add(value);
 
+  void emitVideoAvailable(bool value) {
+    hasVideoTrack = value;
+    _videoAvailable.add(value);
+  }
+
   @override
   Future<void> dispose() async {
     await Future.wait([
@@ -140,6 +153,7 @@ final class FakePlaybackEngine implements PlaybackEngine {
       _errors.close(),
       _audioOutput.close(),
       _audioOutputs.close(),
+      _videoAvailable.close(),
     ]);
   }
 }

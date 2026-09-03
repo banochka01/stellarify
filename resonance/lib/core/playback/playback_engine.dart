@@ -31,8 +31,10 @@ abstract interface class PlaybackEngine {
   Stream<String> get errors;
   Stream<AudioOutputDevice> get audioOutput;
   Stream<List<AudioOutputDevice>> get audioOutputs;
+  Stream<bool> get videoAvailable;
   AudioOutputDevice get currentAudioOutput;
   List<AudioOutputDevice> get availableAudioOutputs;
+  bool get hasVideo;
 
   Future<void> open(
     ResolvedAudioSource source, {
@@ -87,12 +89,20 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
       player.stream.audioDevices.map(_mapDevices);
 
   @override
+  Stream<bool> get videoAvailable => player.stream.tracks
+      .map((tracks) => tracks.video.any(_isPlayableVideoTrack))
+      .distinct();
+
+  @override
   AudioOutputDevice get currentAudioOutput =>
       _mapDevice(player.state.audioDevice);
 
   @override
   List<AudioOutputDevice> get availableAudioOutputs =>
       _mapDevices(player.state.audioDevices);
+
+  @override
+  bool get hasVideo => player.state.tracks.video.any(_isPlayableVideoTrack);
 
   @override
   Future<void> open(
@@ -174,4 +184,7 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
       for (final device in mapped) device.id: device,
     }.values.toList(growable: false);
   }
+
+  static bool _isPlayableVideoTrack(media_kit.VideoTrack track) =>
+      track.id != 'auto' && track.id != 'no';
 }

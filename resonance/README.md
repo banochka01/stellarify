@@ -5,7 +5,12 @@ The current client targets Windows, Android, and iOS. It includes a bundled
 local diagnostic track plus server-backed SoundCloud and Yandex Music search
 and playback. YouTube Music remains a later provider.
 
-Version 1.1.0 adds Flow transitions with adaptive source-aware timing,
+Version 1.2.0 adds Visual Stage: authorized video tracks can fill the screen
+behind readable artwork, metadata and lyrics; Lyrics gets a dedicated cinematic
+fullscreen layout; and desktop builds can expose a local-only OBS now-playing
+widget without provider tokens or playback URLs.
+
+Version 1.1.0 added Flow transitions with adaptive source-aware timing,
 loudness normalization, a visual queue timeline, synchronized lyrics with a
 plain-text fallback, and more natural reduced-motion-aware player animations.
 
