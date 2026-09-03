@@ -2,7 +2,7 @@
 
 ## Version 1.2.0 — Visual Stage, fullscreen clips and OBS
 
-Status: release candidate.
+Status: released to production and publicly verified on 2026-09-03.
 
 - [x] Fullscreen Visual Stage shared by clip and Lyrics modes
 - [x] Native video-track detection without a second audio player
@@ -15,8 +15,11 @@ Status: release candidate.
 - [x] Flutter analysis and full 60-test suite
 - [x] Windows release build and responsive-window runtime proof (`1.2.0+17`)
 - [x] Android release build verified as debug-signed
-- [ ] Unsigned iOS production artifact
-- [ ] Atomic production deployment and public verification
+- [x] Unsigned iOS production artifact from GitHub Actions run `33750035408`
+- [x] Atomic production deployment and public verification
+- [x] Public health/version, landing bundle and HTTP 206 download checks
+
+Rollback backup: `/opt/resonance/backups/release-1.2.0-20260903T113753Z`.
 
 ## Version 1.1.0 — Flow, lyrics and player motion
 
