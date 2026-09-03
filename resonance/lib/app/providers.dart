@@ -18,9 +18,11 @@ import 'package:resonance/core/playback/resonance_audio_handler.dart';
 import 'package:resonance/core/playback/windows_media_controls.dart';
 import 'package:resonance/core/preferences/appearance_preferences.dart';
 import 'package:resonance/core/preferences/onboarding_preferences.dart';
+import 'package:resonance/core/preferences/playback_flow_preferences.dart';
 import 'package:resonance/core/security/flutter_secure_token_repository.dart';
 import 'package:resonance/core/update/app_update_service.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
+import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/domain/repositories/playback_persistence.dart';
 import 'package:resonance/domain/repositories/secure_token_repository.dart';
 import 'package:resonance/domain/services/source_selection_policy.dart';
@@ -28,6 +30,7 @@ import 'package:resonance/features/auth/account_api.dart';
 import 'package:resonance/features/auth/account_session_repository.dart';
 import 'package:resonance/features/auth/library_sync_service.dart';
 import 'package:resonance/features/library/playlist_import_service.dart';
+import 'package:resonance/features/lyrics/lyrics_service.dart';
 import 'package:resonance/features/subscription/subscription_service.dart';
 import 'package:resonance/providers/common/provider_registry.dart';
 import 'package:resonance/providers/soundcloud/backend_soundcloud_provider.dart';
@@ -67,6 +70,17 @@ final accountSessionRepositoryProvider = Provider<AccountSessionRepository>((
 final appearancePreferencesProvider = Provider<AppearancePreferences>((ref) {
   return AppearancePreferences(ref.watch(secureKeyValueStoreProvider));
 });
+
+final playbackFlowPreferencesProvider = Provider<PlaybackFlowPreferences>((
+  ref,
+) {
+  return PlaybackFlowPreferences(ref.watch(secureKeyValueStoreProvider));
+});
+
+final playbackFlowControllerProvider =
+    StateNotifierProvider<PlaybackFlowController, PlaybackFlowSettings>((ref) {
+      return PlaybackFlowController(ref.watch(playbackFlowPreferencesProvider));
+    });
 
 final onboardingPreferencesProvider = Provider<OnboardingPreferences>((ref) {
   return OnboardingPreferences(ref.watch(secureKeyValueStoreProvider));
@@ -167,6 +181,18 @@ final appUpdateServiceProvider = Provider<AppUpdateService>((ref) {
   );
 });
 
+final lyricsServiceProvider = Provider<LyricsService>((ref) {
+  return LyricsService(
+    ref.watch(resonanceHttpClientProvider).dio,
+    BackendEndpoint.requireCurrent,
+  );
+});
+
+final lyricsProvider = FutureProvider.autoDispose
+    .family<LyricsDocument?, UnifiedTrack>((ref, track) {
+      return ref.watch(lyricsServiceProvider).find(track);
+    });
+
 final sourceSelectionPolicyProvider = Provider<SourceSelectionPolicy>((ref) {
   return SourceSelectionPolicy();
 });
@@ -224,6 +250,7 @@ final audioOutputControllerProvider =
 final playbackServiceProvider = FutureProvider<PlaybackService>((ref) async {
   ref.watch(audioOutputControllerProvider);
   final onboarding = await ref.watch(onboardingPreferencesProvider).read();
+  final flowSettings = await ref.watch(playbackFlowPreferencesProvider).read();
   final service = PlaybackService(
     engine: ref.watch(playbackEngineProvider),
     providers: ref.watch(providerRegistryProvider),
@@ -232,6 +259,7 @@ final playbackServiceProvider = FutureProvider<PlaybackService>((ref) async {
     sourceCache: ref.watch(resolvedSourceCacheProvider),
     quality: onboarding.quality,
     authorizeSource: ref.read(subscriptionServiceProvider).requireProvider,
+    flowSettings: flowSettings,
   );
   await service.initialize();
   AudioFocusCoordinator? focusCoordinator;

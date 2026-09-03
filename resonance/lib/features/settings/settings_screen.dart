@@ -10,6 +10,7 @@ import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/core/playback/audio_output_controller.dart';
 import 'package:resonance/core/playback/playback_engine.dart';
 import 'package:resonance/core/preferences/appearance_preferences.dart';
+import 'package:resonance/core/preferences/playback_flow_preferences.dart';
 import 'package:resonance/core/update/app_update_service.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/features/auth/account_controller.dart';
@@ -238,12 +239,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  Future<void> _updateFlow(PlaybackFlowSettings next) async {
+    await ref.read(playbackFlowControllerProvider.notifier).update(next);
+    final service = await ref.read(playbackServiceProvider.future);
+    await service.setFlowSettings(next);
+  }
+
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 650;
     final appearance = ref.watch(appearanceControllerProvider);
     final account = ref.watch(accountControllerProvider);
     final audioOutput = ref.watch(audioOutputControllerProvider);
+    final flow = ref.watch(playbackFlowControllerProvider);
     return ListView(
       padding: EdgeInsets.fromLTRB(
         compact ? 18 : 34,
@@ -349,6 +357,84 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           audioOutput: audioOutput,
           onSelected: (device) => unawaited(
             ref.read(audioOutputControllerProvider.notifier).select(device),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          margin: EdgeInsets.zero,
+          child: Column(
+            children: [
+              SwitchListTile(
+                value: flow.enabled,
+                onChanged: (enabled) =>
+                    unawaited(_updateFlow(flow.copyWith(enabled: enabled))),
+                secondary: const Icon(Icons.multitrack_audio_rounded),
+                title: const Text('Flow-переходы'),
+                subtitle: const Text(
+                  'Мягко соединяет треки и сам сокращает эффект при смене источника.',
+                ),
+              ),
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Длительность перехода',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final milliseconds
+                            in PlaybackFlowPreferences.allowedTransitionMs)
+                          ChoiceChip(
+                            selected: flow.transitionMs == milliseconds,
+                            onSelected: flow.enabled
+                                ? (_) => unawaited(
+                                    _updateFlow(
+                                      flow.copyWith(transitionMs: milliseconds),
+                                    ),
+                                  )
+                                : null,
+                            label: Text(
+                              milliseconds == 0
+                                  ? 'Без fade'
+                                  : '${(milliseconds / 1000).toStringAsFixed(milliseconds % 1000 == 0 ? 0 : 1)} с',
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              SwitchListTile(
+                value: flow.normalizeLoudness,
+                onChanged: (enabled) => unawaited(
+                  _updateFlow(flow.copyWith(normalizeLoudness: enabled)),
+                ),
+                secondary: const Icon(Icons.graphic_eq_rounded),
+                title: const Text('Выравнивать громкость'),
+                subtitle: const Text(
+                  'Сглаживает резкие перепады между тихими и громкими записями.',
+                ),
+              ),
+              const Divider(height: 1),
+              SwitchListTile(
+                value: flow.visualizer,
+                onChanged: (enabled) =>
+                    unawaited(_updateFlow(flow.copyWith(visualizer: enabled))),
+                secondary: const Icon(Icons.waves_rounded),
+                title: const Text('Живая волна'),
+                subtitle: const Text(
+                  'Добавляет лёгкое движение таймлайну без постоянной фоновой анимации.',
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 34),

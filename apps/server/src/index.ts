@@ -13,6 +13,7 @@ import { AccessControl, accessError, createSubscriptionRouter } from "./subscrip
 import { SubscriptionStore, SubscriptionError, hashSecret } from "./subscriptions.js";
 import { parseImportPayload } from "./importer.js";
 import { PlaylistImportService } from "./playlist-import.js";
+import { LyricsError, LyricsService } from "./lyrics.js";
 import { ProviderGateway, ProviderGatewayError, type ProviderAccess } from "./provider-gateway.js";
 import { providerCapabilities } from "./providers.js";
 import { registerRoomHandlers, roomWaveUserIds } from "./rooms.js";
@@ -53,6 +54,7 @@ const gateway = new ProviderGateway([
   youtube
 ]);
 const playlistImports = new PlaylistImportService(yandex, youtube);
+const lyrics = new LyricsService();
 const accountStore = new AccountStore(
   process.env.AUTH_DB_PATH || "./data/resonance.sqlite",
   process.env.AUTH_PASSWORD_PEPPER || ""
@@ -99,9 +101,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "1.0.0",
+    version: process.env.CLIENT_VERSION || "1.1.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Resonance 1.0: естественно-языковая Wave, музыкальная память, продолжение между устройствами, общая Wave и плавный интерфейс.",
+      "Resonance 1.1 Flow: плавные переходы, выравнивание громкости, синхронизированные тексты песен и новая пластика плеера.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       android: "https://music.webcordes.ru/downloads/android",
@@ -128,6 +130,36 @@ const resolveSchema = z.object({
 
 const authValidationSchema = z.object({
   provider: z.enum(["soundcloud", "yandex", "youtube"])
+});
+
+const lyricsQuerySchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  artist: z.string().trim().min(1).max(200),
+  album: z.string().trim().min(1).max(200).optional(),
+  durationMs: z.coerce.number().int().min(1).max(24 * 60 * 60 * 1_000).optional()
+});
+
+app.get("/api/v1/lyrics", async (request, response) => {
+  const input = lyricsQuerySchema.safeParse(request.query);
+  if (!input.success) {
+    response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Invalid lyrics request" } });
+    return;
+  }
+  try {
+    const result = await lyrics.find(input.data);
+    if (!result) {
+      response.status(404).json({ error: { code: "LYRICS_NOT_FOUND", message: "Текст для этого трека пока не найден" } });
+      return;
+    }
+    response.setHeader("cache-control", "public, max-age=900, stale-while-revalidate=3600");
+    response.json(result);
+  } catch (error) {
+    if (error instanceof LyricsError) {
+      response.status(error.status).json({ error: { code: error.code, message: "Не удалось загрузить текст песни" } });
+      return;
+    }
+    response.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Не удалось загрузить текст песни" } });
+  }
 });
 
 app.get("/api/v1/playback/providers", (_request, response) => {

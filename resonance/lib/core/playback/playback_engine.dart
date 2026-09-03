@@ -46,6 +46,7 @@ abstract interface class PlaybackEngine {
   Future<void> setVolume(double volume);
   Future<void> setShuffle(bool enabled);
   Future<void> setRepeatMode(PlaybackRepeatMode mode);
+  Future<void> setLoudnessNormalization(bool enabled);
   Future<void> setAudioOutput(AudioOutputDevice device);
   Future<void> dispose();
 }
@@ -130,6 +131,19 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
       PlaybackRepeatMode.one => media_kit.PlaylistMode.single,
     };
     return player.setPlaylistMode(playlistMode);
+  }
+
+  @override
+  Future<void> setLoudnessNormalization(bool enabled) async {
+    try {
+      final dynamic platform = player.platform;
+      await platform.setProperty(
+        'af',
+        enabled ? 'loudnorm=I=-16:TP=-1.5:LRA=11' : '',
+      );
+    } on Object {
+      // Some media backends do not expose libmpv audio filters. Flow must fail open.
+    }
   }
 
   @override

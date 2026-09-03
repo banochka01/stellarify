@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
 abstract final class ResonanceMotion {
-  static const quick = Duration(milliseconds: 160);
-  static const standard = Duration(milliseconds: 240);
-  static const entrance = Duration(milliseconds: 280);
-  static const curve = Curves.easeOutCubic;
+  static const quick = Duration(milliseconds: 140);
+  static const standard = Duration(milliseconds: 220);
+  static const entrance = Duration(milliseconds: 320);
+  static const gentle = Duration(milliseconds: 420);
+  static const curve = Cubic(.16, 1, .3, 1);
 }
 
 class ResonanceEntrance extends StatefulWidget {
@@ -97,6 +98,35 @@ class ResonanceAnimatedSwap extends StatelessWidget {
             begin: const Offset(0, .035),
             end: Offset.zero,
           ).animate(animation),
+          child: child,
+        ),
+      ),
+      child: child,
+    );
+  }
+}
+
+class ResonanceTrackSwap extends StatelessWidget {
+  const ResonanceTrackSwap({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    return AnimatedSwitcher(
+      duration: reduced ? Duration.zero : ResonanceMotion.gentle,
+      reverseDuration: reduced ? Duration.zero : ResonanceMotion.quick,
+      switchInCurve: ResonanceMotion.curve,
+      switchOutCurve: Curves.easeInCubic,
+      layoutBuilder: (currentChild, previousChildren) => Stack(
+        alignment: Alignment.center,
+        children: [...previousChildren, ?currentChild],
+      ),
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: Tween(begin: .985, end: 1.0).animate(animation),
           child: child,
         ),
       ),

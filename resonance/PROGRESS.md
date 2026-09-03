@@ -1,5 +1,20 @@
 # Progress
 
+## Version 1.1.0 — Flow, lyrics and player motion
+
+Status: implementation and release validation in progress.
+
+- [x] Source-aware Flow fade transitions with a user-selected duration
+- [x] Optional loudness normalization with fail-open backend support
+- [x] Visual queue timeline and direct queue navigation
+- [x] Synchronized lyrics with plain-text and instrumental states
+- [x] Responsible server-side LRCLIB lookup, timeout and bounded cache
+- [x] Active-line autoscroll with reduced-motion support
+- [x] Refined track, artwork, route and playback-control transitions
+- [ ] Full server and Flutter validation
+- [ ] Windows, Android and unsigned iOS production artifacts
+- [ ] Atomic production deployment and public behavior verification
+
 ## Version 1.0.0 — contextual Wave and fluid interface
 
 Status: released to production and publicly verified on 2026-09-02.

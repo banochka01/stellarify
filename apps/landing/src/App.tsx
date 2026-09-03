@@ -7,9 +7,9 @@ import {
   Apple,
   Clock3,
   Download,
+  FileText,
   Heart,
   Layers3,
-  Play,
   Search,
   ShieldCheck,
   Smartphone,
@@ -154,7 +154,7 @@ function App() {
                 <Apple size={18} /> Unsigned IPA
               </a>
             </div>
-            <p className="release-note">Resonance 1.0 · Умная Wave · Windows · Android debug-signed · iOS unsigned</p>
+            <p className="release-note">Resonance 1.1 Flow · Lyrics · Плавные переходы · Android debug-signed · iOS unsigned</p>
           </div>
           <div className="hero-visual" aria-hidden="true">
             <img className="hero-orbit" src="/assets/resonance-hero-orbit.png" alt="" />
@@ -189,9 +189,9 @@ function App() {
               <p>Один запрос — результаты из всех подключённых каталогов.</p>
             </article>
             <article data-reveal>
-              <span><Play size={24} /></span>
-              <h3>Единое воспроизведение</h3>
-              <p>Треки из разных источников играют в одном плеере.</p>
+              <span><FileText size={24} /></span>
+              <h3>Синхронные тексты</h3>
+              <p>Активная строка следует за музыкой, а обычный текст остаётся доступным без таймкодов.</p>
             </article>
             <article data-reveal>
               <span><Heart size={24} /></span>
@@ -271,7 +271,8 @@ function App() {
             <h2>Не ещё один<br />клон стриминга.</h2>
             <p>
               Один нативный плеер Resonance для всех разрешённых источников:
-              очередь, обложки, темы и стабильное адаптивное управление на каждом экране.
+              Flow-переходы, выравнивание громкости, живая очередь, lyrics и
+              стабильное адаптивное управление на каждом экране.
             </p>
             <a href={downloads.windows}>Попробовать Resonance <ArrowRight size={17} /></a>
           </div>

@@ -5,7 +5,11 @@ The current client targets Windows, Android, and iOS. It includes a bundled
 local diagnostic track plus server-backed SoundCloud and Yandex Music search
 and playback. YouTube Music remains a later provider.
 
-Version 1.0.0 adds a contextual Wave controlled with ordinary language,
+Version 1.1.0 adds Flow transitions with adaptive source-aware timing,
+loudness normalization, a visual queue timeline, synchronized lyrics with a
+plain-text fallback, and more natural reduced-motion-aware player animations.
+
+Version 1.0.0 added a contextual Wave controlled with ordinary language,
 account-owned musical memory, cross-device continuation, shared room taste,
 explainable recommendations, and a fluid reduced-motion-aware Home interface.
 

@@ -9,6 +9,7 @@ import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/seek_timeline.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 
@@ -58,12 +59,15 @@ class PlayerBar extends ConsumerWidget {
                   padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 20),
                   child: Row(
                     children: [
-                      TrackArtwork(
-                        track: track,
-                        size: compact ? 44 : 54,
-                        borderRadius: 10,
-                        fallbackAsset:
-                            'assets/images/resonance_fallback_cover.png',
+                      ResonanceTrackSwap(
+                        child: TrackArtwork(
+                          key: ValueKey(track.id),
+                          track: track,
+                          size: compact ? 44 : 54,
+                          borderRadius: 10,
+                          fallbackAsset:
+                              'assets/images/resonance_fallback_cover.png',
+                        ),
                       ),
                       const SizedBox(width: 12),
                       if (compact)
@@ -209,8 +213,14 @@ class _PlayButton extends ConsumerWidget {
               dimension: 19,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : Icon(
-              state.playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+          : AnimatedSwitcher(
+              duration: ResonanceMotion.quick,
+              transitionBuilder: (child, animation) =>
+                  ScaleTransition(scale: animation, child: child),
+              child: Icon(
+                state.playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                key: ValueKey(state.playing),
+              ),
             ),
     );
   }

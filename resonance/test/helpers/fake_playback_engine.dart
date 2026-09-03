@@ -22,6 +22,7 @@ final class FakePlaybackEngine implements PlaybackEngine {
   var isPlaying = false;
   var shuffle = false;
   var repeatMode = PlaybackRepeatMode.off;
+  var loudnessNormalization = false;
   var selectedAudioOutput = AudioOutputDevice.automatic;
   var outputDevices = const [
     AudioOutputDevice.automatic,
@@ -108,6 +109,11 @@ final class FakePlaybackEngine implements PlaybackEngine {
   @override
   Future<void> setRepeatMode(PlaybackRepeatMode mode) async {
     repeatMode = mode;
+  }
+
+  @override
+  Future<void> setLoudnessNormalization(bool enabled) async {
+    loudnessNormalization = enabled;
   }
 
   @override

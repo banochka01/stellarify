@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:resonance/core/errors/app_exception.dart';
 import 'package:resonance/core/playback/playback_engine.dart';
 import 'package:resonance/core/playback/resolved_source_cache.dart';
+import 'package:resonance/core/preferences/playback_flow_preferences.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_session.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
@@ -22,6 +23,7 @@ final class PlaybackService {
     AudioQuality quality = AudioQuality.high,
     Random? random,
     Future<void> Function(MusicProvider)? authorizeSource,
+    PlaybackFlowSettings flowSettings = const PlaybackFlowSettings(),
   }) {
     return PlaybackService._(
       engine: engine,
@@ -32,6 +34,7 @@ final class PlaybackService {
       quality: quality,
       random: random,
       authorizeSource: authorizeSource,
+      flowSettings: flowSettings,
     );
   }
 
@@ -44,6 +47,7 @@ final class PlaybackService {
     required this._quality,
     required Random? random,
     required this._authorizeSource,
+    required this._flowSettings,
   }) : _sourceCache = sourceCache ?? ResolvedSourceCache(),
        _random = random ?? Random() {
     _subscriptions.addAll([
@@ -55,13 +59,17 @@ final class PlaybackService {
       _engine.buffering.listen(
         (buffering) => _emit(_state.copyWith(buffering: buffering)),
       ),
-      _engine.position.listen(
-        (position) => _emit(_state.copyWith(position: position)),
-      ),
+      _engine.position.listen((position) {
+        _emit(_state.copyWith(position: position));
+        _maybePrefetchNext(position);
+        _maybeStartAutomaticFlow(position);
+      }),
       _engine.duration.listen(
         (duration) => _emit(_state.copyWith(duration: duration)),
       ),
-      _engine.volume.listen((volume) => _emit(_state.copyWith(volume: volume))),
+      _engine.volume.listen((volume) {
+        if (!_transitioning) _emit(_state.copyWith(volume: volume));
+      }),
       _engine.completed.listen(_onCompleted),
       _engine.errors.listen((message) {
         unawaited(_recoverFromEngineError(message));
@@ -74,12 +82,18 @@ final class PlaybackService {
   bool _checkingAccess = false;
   void _scheduleAccessCheck() {
     _accessTimer?.cancel();
-    if (_authorizeSource == null || _disposed || !_state.playing || _state.activeTrackSource == null) return;
+    if (_authorizeSource == null ||
+        _disposed ||
+        !_state.playing ||
+        _state.activeTrackSource == null) {
+      return;
+    }
     _accessTimer = Timer(const Duration(seconds: 15), () async {
       await _checkActiveAccess();
       _scheduleAccessCheck();
     });
   }
+
   Future<void> _checkActiveAccess() async {
     final source = _state.activeTrackSource;
     if (!_state.playing || source == null || _checkingAccess) return;
@@ -112,15 +126,25 @@ final class PlaybackService {
   final _states = StreamController<ResonancePlaybackState>.broadcast();
   final _subscriptions = <StreamSubscription<Object?>>[];
   final _lastSuccessfulProvider = <String, MusicProvider>{};
+  final _prefetchingTrackIds = <String>{};
+  PlaybackFlowSettings _flowSettings;
 
   ResonancePlaybackState _state = const ResonancePlaybackState();
   bool _recovering = false;
+  bool _transitioning = false;
   bool _disposed = false;
 
   ResonancePlaybackState get state => _state;
   Stream<ResonancePlaybackState> get states => _states.stream;
 
   AudioQuality get quality => _quality;
+
+  PlaybackFlowSettings get flowSettings => _flowSettings;
+
+  Future<void> setFlowSettings(PlaybackFlowSettings settings) async {
+    _flowSettings = settings;
+    await _engine.setLoudnessNormalization(settings.normalizeLoudness);
+  }
 
   void setQuality(AudioQuality quality) {
     if (_quality == quality) return;
@@ -145,6 +169,7 @@ final class PlaybackService {
       );
     }
     await _engine.setVolume(_state.volume);
+    await _engine.setLoudnessNormalization(_flowSettings.normalizeLoudness);
   }
 
   Future<void> setQueue(
@@ -256,6 +281,16 @@ final class PlaybackService {
     await _persist();
   }
 
+  Future<void> skipToIndex(int index) async {
+    if (index < 0 ||
+        index >= _state.queue.length ||
+        index == _state.currentIndex) {
+      return;
+    }
+    await _moveTo(index);
+    await _persist();
+  }
+
   Future<void> removeAt(int index) async {
     if (index < 0 || index >= _state.queue.length) {
       return;
@@ -282,19 +317,16 @@ final class PlaybackService {
       while (nextIndex == _state.currentIndex) {
         nextIndex = _random.nextInt(_state.queue.length);
       }
-      _emit(_state.copyWith(currentIndex: nextIndex));
-      await _openCurrent(play: true);
+      await _moveTo(nextIndex);
       await _persist();
       return;
     }
 
     final candidate = _state.currentIndex + 1;
     if (candidate < _state.queue.length) {
-      _emit(_state.copyWith(currentIndex: candidate));
-      await _openCurrent(play: true);
+      await _moveTo(candidate);
     } else if (_state.repeatMode == PlaybackRepeatMode.all) {
-      _emit(_state.copyWith(currentIndex: 0));
-      await _openCurrent(play: true);
+      await _moveTo(0);
     } else {
       await pause();
       await seek(Duration.zero);
@@ -312,15 +344,149 @@ final class PlaybackService {
     }
     final candidate = _state.currentIndex - 1;
     if (candidate >= 0) {
-      _emit(_state.copyWith(currentIndex: candidate));
-      await _openCurrent(play: true);
+      await _moveTo(candidate);
     } else if (_state.repeatMode == PlaybackRepeatMode.all) {
-      _emit(_state.copyWith(currentIndex: _state.queue.length - 1));
-      await _openCurrent(play: true);
+      await _moveTo(_state.queue.length - 1);
     } else {
       await seek(Duration.zero);
     }
     await _persist();
+  }
+
+  Future<void> _moveTo(int index) async {
+    if (_transitioning || index < 0 || index >= _state.queue.length) return;
+    final targetVolume = _state.volume;
+    final duration = _effectiveTransitionDuration(index);
+    if (!_flowSettings.enabled ||
+        duration == Duration.zero ||
+        !_state.playing) {
+      _emit(_state.copyWith(currentIndex: index));
+      await _openCurrent(play: true);
+      return;
+    }
+    _transitioning = true;
+    try {
+      final half = Duration(milliseconds: duration.inMilliseconds ~/ 2);
+      await _rampVolume(targetVolume, 0, half);
+      _emit(_state.copyWith(currentIndex: index));
+      await _engine.setVolume(0);
+      await _openCurrent(play: true);
+      await _rampVolume(0, targetVolume, half);
+      await _engine.setVolume(targetVolume);
+    } finally {
+      _transitioning = false;
+      _emit(_state.copyWith(volume: targetVolume));
+    }
+  }
+
+  Duration _effectiveTransitionDuration(int nextIndex) {
+    final configured = _flowSettings.transitionDuration;
+    if (configured == Duration.zero) return Duration.zero;
+    final currentProvider = _state.activeTrackSource?.provider;
+    final next = _state.queue[nextIndex];
+    final nextProvider =
+        next.preferredProvider ??
+        (next.sources.isEmpty ? null : next.sources.first.provider);
+    final sourceFactor =
+        currentProvider == null || nextProvider == currentProvider ? 1.0 : .5;
+    final trackFactor =
+        _state.duration > Duration.zero &&
+            _state.duration < const Duration(seconds: 45)
+        ? .5
+        : 1.0;
+    return Duration(
+      milliseconds: (configured.inMilliseconds * sourceFactor * trackFactor)
+          .round()
+          .clamp(300, 4000)
+          .toInt(),
+    );
+  }
+
+  Future<void> _rampVolume(double from, double to, Duration duration) async {
+    if (duration <= Duration.zero) {
+      await _engine.setVolume(to);
+      return;
+    }
+    const steps = 8;
+    final stepDuration = Duration(
+      milliseconds: duration.inMilliseconds ~/ steps,
+    );
+    for (var step = 1; step <= steps; step++) {
+      if (_disposed) return;
+      final progress = step / steps;
+      final eased = 1 - pow(1 - progress, 3);
+      await _engine.setVolume(from + (to - from) * eased);
+      if (step < steps && stepDuration > Duration.zero) {
+        await Future<void>.delayed(stepDuration);
+      }
+    }
+  }
+
+  void _maybePrefetchNext(Duration position) {
+    if (!_state.playing ||
+        _state.duration <= Duration.zero ||
+        _state.duration - position > const Duration(seconds: 30)) {
+      return;
+    }
+    final nextIndex = _state.currentIndex + 1 < _state.queue.length
+        ? _state.currentIndex + 1
+        : (_state.repeatMode == PlaybackRepeatMode.all &&
+                  _state.queue.isNotEmpty
+              ? 0
+              : -1);
+    if (nextIndex < 0) return;
+    final next = _state.queue[nextIndex];
+    if (_prefetchingTrackIds.add(next.id)) {
+      unawaited(
+        _prefetch(next).whenComplete(() {
+          _prefetchingTrackIds.remove(next.id);
+        }),
+      );
+    }
+  }
+
+  Future<void> _prefetch(UnifiedTrack track) async {
+    final sources = _sourceSelectionPolicy.orderedSources(
+      track,
+      lastSuccessfulProvider: _lastSuccessfulProvider[track.id],
+    );
+    for (final source in sources) {
+      if (_sourceCache.get(source) != null) return;
+      final resolver = _providers.resolverFor(source.provider);
+      if (resolver == null) continue;
+      try {
+        await _authorizeSource?.call(source.provider);
+        final resolved = await resolver.resolve(source, quality: _quality);
+        if (!resolved.isExpired()) {
+          _sourceCache.put(source, resolved);
+          return;
+        }
+      } on Object {
+        // Prefetch is opportunistic; normal resolution still reports failures.
+      }
+    }
+  }
+
+  void _maybeStartAutomaticFlow(Duration position) {
+    if (_transitioning ||
+        !_flowSettings.enabled ||
+        !_state.playing ||
+        _state.buffering ||
+        _state.repeatMode == PlaybackRepeatMode.one ||
+        _state.duration <= Duration.zero) {
+      return;
+    }
+    final nextIndex = _state.currentIndex + 1 < _state.queue.length
+        ? _state.currentIndex + 1
+        : (_state.repeatMode == PlaybackRepeatMode.all &&
+                  _state.queue.isNotEmpty
+              ? 0
+              : -1);
+    if (nextIndex < 0) return;
+    final lead = _effectiveTransitionDuration(nextIndex);
+    if (lead > Duration.zero && _state.duration - position <= lead) {
+      unawaited(_moveTo(nextIndex));
+    }
   }
 
   Future<void> _openCurrent({
@@ -383,7 +549,7 @@ final class PlaybackService {
   }
 
   void _onCompleted(bool completed) {
-    if (!completed) {
+    if (!completed || _transitioning) {
       return;
     }
     if (_state.repeatMode == PlaybackRepeatMode.one) {

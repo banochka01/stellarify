@@ -9,6 +9,7 @@ import 'package:resonance/features/search/search_screen.dart';
 import 'package:resonance/features/settings/settings_screen.dart';
 import 'package:resonance/features/subscription/subscription_screen.dart';
 import 'package:resonance/shared/widgets/adaptive_app_shell.dart';
+import 'package:resonance/shared/widgets/resonance_motion.dart';
 
 final resonanceRouter = GoRouter(
   initialLocation: '/',
@@ -59,17 +60,27 @@ final resonanceRouter = GoRouter(
       name: 'player',
       pageBuilder: (context, state) => CustomTransitionPage<void>(
         key: state.pageKey,
+        transitionDuration: ResonanceMotion.entrance,
+        reverseTransitionDuration: ResonanceMotion.standard,
         child: const NowPlayingScreen(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return SlideTransition(
-            position: Tween(begin: const Offset(0, 1), end: Offset.zero)
-                .animate(
-                  CurvedAnimation(
-                    parent: animation,
-                    curve: Curves.easeOutCubic,
-                  ),
-                ),
-            child: child,
+          if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+            return child;
+          }
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: ResonanceMotion.curve,
+            reverseCurve: Curves.easeInCubic,
+          );
+          return FadeTransition(
+            opacity: curved,
+            child: SlideTransition(
+              position: Tween(
+                begin: const Offset(0, .08),
+                end: Offset.zero,
+              ).animate(curved),
+              child: child,
+            ),
           );
         },
       ),

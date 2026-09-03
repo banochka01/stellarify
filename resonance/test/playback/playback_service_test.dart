@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:resonance/core/errors/app_exception.dart';
 import 'package:resonance/core/playback/playback_service.dart';
+import 'package:resonance/core/preferences/playback_flow_preferences.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_session.dart';
 import 'package:resonance/domain/entities/resolved_audio_source.dart';
@@ -117,16 +118,65 @@ void main() {
       engine: engine,
       providers: ProviderRegistry(resolvers: [resolver]),
       sourceSelectionPolicy: SourceSelectionPolicy(),
-      authorizeSource: (_) async { if (!allowed) throw StateError('subscription expired'); },
+      authorizeSource: (_) async {
+        if (!allowed) throw StateError('subscription expired');
+      },
     );
     final track = _track('guarded', [MusicProvider.soundcloud]);
     await service.playTrack(track);
     await service.pause();
     allowed = false;
     await expectLater(service.play(), throwsStateError);
-    await expectLater(service.playTrack(track), throwsA(isA<PlaybackFailedException>()));
+    await expectLater(
+      service.playTrack(track),
+      throwsA(isA<PlaybackFailedException>()),
+    );
     expect(engine.openedSources, hasLength(1));
     expect(engine.isPlaying, false);
+    await service.dispose();
+  });
+
+  test(
+    'Flow fades between tracks, restores volume and enables normalization',
+    () async {
+      final resolver = _FakeResolver(MusicProvider.soundcloud);
+      final service = PlaybackService(
+        engine: engine,
+        providers: ProviderRegistry(resolvers: [resolver]),
+        sourceSelectionPolicy: SourceSelectionPolicy(),
+        persistence: persistence,
+        flowSettings: const PlaybackFlowSettings(transitionMs: 800),
+      );
+      final first = _track('flow-one', [MusicProvider.soundcloud]);
+      final second = _track('flow-two', [MusicProvider.soundcloud]);
+
+      await service.initialize();
+      await service.setQueue([first, second], autoplay: true);
+      await service.setVolume(64);
+      await service.next();
+
+      expect(service.state.currentTrack, second);
+      expect(service.state.volume, 64);
+      expect(engine.currentVolume, 64);
+      expect(engine.loudnessNormalization, true);
+      expect(engine.openedSources, hasLength(2));
+      await service.dispose();
+    },
+  );
+
+  test('prefetches the next source before the transition window', () async {
+    final resolver = _FakeResolver(MusicProvider.soundcloud);
+    final service = _createService(engine, persistence, [resolver]);
+    final first = _track('prefetch-one', [MusicProvider.soundcloud]);
+    final second = _track('prefetch-two', [MusicProvider.soundcloud]);
+
+    await service.setQueue([first, second], autoplay: true);
+    engine.emitDuration(const Duration(minutes: 3));
+    await Future<void>.delayed(Duration.zero);
+    await service.seek(const Duration(minutes: 2, seconds: 31));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(resolver.calls, 2);
     await service.dispose();
   });
 }

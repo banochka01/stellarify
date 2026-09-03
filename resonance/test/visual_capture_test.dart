@@ -13,6 +13,7 @@ import 'package:resonance/domain/entities/provider_capabilities.dart';
 import 'package:resonance/domain/entities/track_source.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/domain/providers/music_catalog_provider.dart';
+import 'package:resonance/features/lyrics/lyrics_service.dart';
 import 'package:resonance/providers/common/provider_registry.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 
@@ -189,6 +190,23 @@ void main() {
     await tester.pumpWidget(
       _testApp(
         database: database,
+        lyrics: LyricsDocument(
+          id: 7,
+          synced: true,
+          instrumental: false,
+          lines: const [
+            LyricLine(text: 'Город гасит фонари', start: Duration(seconds: 32)),
+            LyricLine(
+              text: 'Мы остаёмся в музыке',
+              start: Duration(seconds: 39),
+            ),
+            LyricLine(
+              text: 'До рассвета ещё далеко',
+              start: Duration(seconds: 48),
+            ),
+          ],
+          sourceUrl: Uri.parse('https://lrclib.net'),
+        ),
         playbackState: ResonancePlaybackState(
           queue: [track, nextTrack],
           currentIndex: 0,
@@ -214,12 +232,59 @@ void main() {
     );
     resonanceRouter.go('/');
   });
+
+  for (final viewport in const [Size(390, 844), Size(844, 390)]) {
+    testWidgets('player stays usable at ${viewport.width}x${viewport.height}', (
+      tester,
+    ) async {
+      _setViewport(tester, viewport);
+      resonanceRouter.go('/player');
+      final track = _makeTrack(
+        provider: MusicProvider.soundcloud,
+        index: 0,
+        title: 'Night Drive',
+        artist: 'Resonance',
+      );
+      await tester.pumpWidget(
+        _testApp(
+          database: database,
+          lyrics: _sampleLyrics(),
+          playbackState: ResonancePlaybackState(
+            queue: [track],
+            currentIndex: 0,
+            playing: true,
+            position: const Duration(seconds: 40),
+            duration: const Duration(minutes: 3),
+            activeTrackSource: track.sources.first,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Текст'), findsOneWidget);
+      expect(find.byTooltip('Пауза'), findsOneWidget);
+      resonanceRouter.go('/');
+    });
+  }
 }
+
+LyricsDocument _sampleLyrics() => LyricsDocument(
+  id: 7,
+  synced: true,
+  instrumental: false,
+  lines: const [
+    LyricLine(text: 'Город гасит фонари', start: Duration(seconds: 32)),
+    LyricLine(text: 'Мы остаёмся в музыке', start: Duration(seconds: 39)),
+    LyricLine(text: 'До рассвета ещё далеко', start: Duration(seconds: 48)),
+  ],
+  sourceUrl: Uri.parse('https://lrclib.net'),
+);
 
 Widget _testApp({
   required AppDatabase database,
   ProviderRegistry? registry,
   ResonancePlaybackState? playbackState,
+  LyricsDocument? lyrics,
 }) {
   return ProviderScope(
     overrides: [
@@ -230,6 +295,8 @@ Widget _testApp({
         playbackStateProvider.overrideWith(
           (ref) => Stream.value(playbackState),
         ),
+      if (lyrics != null)
+        lyricsProvider.overrideWith((ref, track) async => lyrics),
       playbackEngineProvider.overrideWithValue(FakePlaybackEngine()),
       playbackPersistenceProvider.overrideWithValue(null),
     ],

@@ -9,8 +9,11 @@ import 'package:resonance/core/playback/demo_track.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
+import 'package:resonance/features/lyrics/lyrics_service.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
+import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class NowPlayingScreen extends ConsumerWidget {
   const NowPlayingScreen({super.key});
@@ -38,12 +41,15 @@ class NowPlayingScreen extends ConsumerWidget {
                       padding: const EdgeInsets.fromLTRB(22, 22, 22, 30),
                       child: Column(
                         children: [
-                          TrackArtwork(
-                            track: track,
-                            size: min(constraints.maxWidth - 44, 430),
-                            borderRadius: 2,
-                            fallbackAsset:
-                                'assets/images/resonance_fallback_cover.png',
+                          ResonanceTrackSwap(
+                            child: TrackArtwork(
+                              key: ValueKey(track.id),
+                              track: track,
+                              size: min(constraints.maxWidth - 44, 430),
+                              borderRadius: 2,
+                              fallbackAsset:
+                                  'assets/images/resonance_fallback_cover.png',
+                            ),
                           ),
                           const SizedBox(height: 30),
                           _Details(state: state, track: track, desktop: false),
@@ -65,12 +71,15 @@ class NowPlayingScreen extends ConsumerWidget {
                               );
                               return Align(
                                 alignment: Alignment.centerLeft,
-                                child: TrackArtwork(
-                                  track: track,
-                                  size: size,
-                                  borderRadius: 2,
-                                  fallbackAsset:
-                                      'assets/images/resonance_fallback_cover.png',
+                                child: ResonanceTrackSwap(
+                                  child: TrackArtwork(
+                                    key: ValueKey(track.id),
+                                    track: track,
+                                    size: size,
+                                    borderRadius: 2,
+                                    fallbackAsset:
+                                        'assets/images/resonance_fallback_cover.png',
+                                  ),
                                 ),
                               );
                             },
@@ -79,10 +88,12 @@ class NowPlayingScreen extends ConsumerWidget {
                         const SizedBox(width: 66),
                         Expanded(
                           flex: 11,
-                          child: _Details(
-                            state: state,
-                            track: track,
-                            desktop: true,
+                          child: SingleChildScrollView(
+                            child: _Details(
+                              state: state,
+                              track: track,
+                              desktop: true,
+                            ),
                           ),
                         ),
                       ],
@@ -179,6 +190,7 @@ class _Details extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final flow = ref.watch(playbackFlowControllerProvider);
     final fallbackDuration = track.duration ?? const Duration(seconds: 1);
     final duration = state.duration > Duration.zero
         ? state.duration
@@ -190,16 +202,22 @@ class _Details extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          track.title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: const Color(0xFFF3EFE7),
-            fontSize: desktop ? 64 : 40,
-            height: 0.94,
-            letterSpacing: desktop ? -3.6 : -2.2,
-            fontWeight: FontWeight.w300,
+        ResonanceTrackSwap(
+          child: Align(
+            key: ValueKey('title-${track.id}'),
+            alignment: Alignment.centerLeft,
+            child: Text(
+              track.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: const Color(0xFFF3EFE7),
+                fontSize: desktop ? 58 : 40,
+                height: 0.96,
+                letterSpacing: desktop ? -3.2 : -2.2,
+                fontWeight: FontWeight.w300,
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 16),
@@ -216,6 +234,8 @@ class _Details extends ConsumerWidget {
         SizedBox(height: desktop ? 58 : 38),
         _Waveform(
           value: positionMs / maxMs,
+          phase: state.position.inMilliseconds / 1000,
+          alive: state.playing && flow.visualizer,
           activeColor: Theme.of(context).colorScheme.primary,
           onSeek: (value) => unawaited(
             ref
@@ -234,6 +254,8 @@ class _Details extends ConsumerWidget {
         ),
         SizedBox(height: desktop ? 34 : 26),
         _Controls(state: state, desktop: desktop),
+        SizedBox(height: desktop ? 34 : 28),
+        _LyricsPanel(track: track, position: state.position, desktop: desktop),
       ],
     );
   }
@@ -298,10 +320,16 @@ class _Controls extends ConsumerWidget {
                     color: Color(0xFF080706),
                   ),
                 )
-              : Icon(
-                  state.playing
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
+              : AnimatedSwitcher(
+                  duration: ResonanceMotion.quick,
+                  transitionBuilder: (child, animation) =>
+                      ScaleTransition(scale: animation, child: child),
+                  child: Icon(
+                    state.playing
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                    key: ValueKey(state.playing),
+                  ),
                 ),
         ),
         SizedBox(width: desktop ? 22 : 12),
@@ -365,11 +393,15 @@ class _Control extends StatelessWidget {
 class _Waveform extends StatelessWidget {
   const _Waveform({
     required this.value,
+    required this.phase,
+    required this.alive,
     required this.activeColor,
     required this.onSeek,
   });
 
   final double value;
+  final double phase;
+  final bool alive;
   final Color activeColor;
   final ValueChanged<double> onSeek;
 
@@ -390,7 +422,9 @@ class _Waveform extends StatelessWidget {
             child: SizedBox(
               height: 72,
               width: double.infinity,
-              child: CustomPaint(painter: _WaveformPainter(value, activeColor)),
+              child: CustomPaint(
+                painter: _WaveformPainter(value, activeColor, phase, alive),
+              ),
             ),
           ),
         );
@@ -400,10 +434,12 @@ class _Waveform extends StatelessWidget {
 }
 
 class _WaveformPainter extends CustomPainter {
-  const _WaveformPainter(this.value, this.activeColor);
+  const _WaveformPainter(this.value, this.activeColor, this.phase, this.alive);
 
   final double value;
   final Color activeColor;
+  final double phase;
+  final bool alive;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -419,7 +455,8 @@ class _WaveformPainter extends CustomPainter {
           0.75 *
               (sin(index * 0.71).abs() * 0.58 +
                   sin(index * 0.17 + 1.4).abs() * 0.42);
-      final height = max(7.0, wave * size.height);
+      final pulse = alive ? .92 + sin(phase * 3.1 + index * .42) * .08 : 1.0;
+      final height = max(7.0, wave * size.height * pulse);
       final rect = RRect.fromRectAndRadius(
         Rect.fromLTWH(
           index * (width + gap),
@@ -435,5 +472,277 @@ class _WaveformPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _WaveformPainter oldDelegate) =>
-      oldDelegate.value != value || oldDelegate.activeColor != activeColor;
+      oldDelegate.value != value ||
+      oldDelegate.activeColor != activeColor ||
+      oldDelegate.phase != phase ||
+      oldDelegate.alive != alive;
+}
+
+class _LyricsPanel extends ConsumerStatefulWidget {
+  const _LyricsPanel({
+    required this.track,
+    required this.position,
+    required this.desktop,
+  });
+
+  final UnifiedTrack track;
+  final Duration position;
+  final bool desktop;
+
+  @override
+  ConsumerState<_LyricsPanel> createState() => _LyricsPanelState();
+}
+
+class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
+  final _scrollController = ScrollController();
+  List<GlobalKey> _lineKeys = const [];
+  int _lastActive = -2;
+
+  @override
+  void didUpdateWidget(covariant _LyricsPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.track.id != widget.track.id) {
+      _lineKeys = const [];
+      _lastActive = -2;
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lyrics = ref.watch(lyricsProvider(widget.track));
+    return Container(
+      height: widget.desktop ? 270 : 320,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFF11100F).withValues(alpha: .78),
+        border: Border.all(color: const Color(0xFF302E2A)),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: lyrics.when(
+        loading: () => const _LyricsMessage(
+          icon: Icons.lyrics_outlined,
+          title: 'Ищем текст…',
+          loading: true,
+        ),
+        error: (_, _) => _LyricsMessage(
+          icon: Icons.cloud_off_rounded,
+          title: 'Текст сейчас недоступен',
+          subtitle: 'Можно продолжать слушать — плеер работает независимо.',
+          action: () => ref.invalidate(lyricsProvider(widget.track)),
+        ),
+        data: (document) {
+          if (document == null) {
+            return const _LyricsMessage(
+              icon: Icons.lyrics_outlined,
+              title: 'Текст пока не найден',
+              subtitle: 'Он появится автоматически, когда будет доступен.',
+            );
+          }
+          if (document.instrumental && document.lines.isEmpty) {
+            return const _LyricsMessage(
+              icon: Icons.graphic_eq_rounded,
+              title: 'Инструментальная композиция',
+              subtitle: 'Здесь музыка говорит без слов.',
+            );
+          }
+          if (_lineKeys.length != document.lines.length) {
+            _lineKeys = List.generate(
+              document.lines.length,
+              (_) => GlobalKey(),
+            );
+          }
+          final active = document.synced
+              ? _activeLine(document.lines, widget.position)
+              : -1;
+          _ensureActiveVisible(active);
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 12, 10, 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.lyrics_rounded, size: 20),
+                    const SizedBox(width: 9),
+                    const Text(
+                      'Текст',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const Spacer(),
+                    if (document.synced) const _LyricsChip(label: 'Синхронно'),
+                    TextButton(
+                      onPressed: () => launchUrl(document.sourceUrl),
+                      child: const Text('LRCLIB'),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ShaderMask(
+                  shaderCallback: (bounds) => const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.white,
+                      Colors.white,
+                      Colors.transparent,
+                    ],
+                    stops: [0, .12, .86, 1],
+                  ).createShader(bounds),
+                  blendMode: BlendMode.dstIn,
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.fromLTRB(22, 28, 22, 48),
+                    itemCount: document.lines.length,
+                    itemBuilder: (context, index) {
+                      final selected = index == active || !document.synced;
+                      final reduced =
+                          MediaQuery.maybeOf(context)?.disableAnimations ??
+                          false;
+                      return Padding(
+                        key: _lineKeys[index],
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: AnimatedDefaultTextStyle(
+                          duration: reduced
+                              ? Duration.zero
+                              : ResonanceMotion.standard,
+                          curve: ResonanceMotion.curve,
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            color: selected
+                                ? const Color(0xFFF5F1E9)
+                                : const Color(0xFF716D67),
+                            fontSize: selected && document.synced ? 22 : 17,
+                            height: 1.25,
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                          ),
+                          child: Text(document.lines[index].text),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  int _activeLine(List<LyricLine> lines, Duration position) {
+    var active = -1;
+    for (var index = 0; index < lines.length; index++) {
+      final start = lines[index].start;
+      if (start == null || start > position) break;
+      active = index;
+    }
+    return active;
+  }
+
+  void _ensureActiveVisible(int active) {
+    if (active < 0 || active == _lastActive || active >= _lineKeys.length) {
+      return;
+    }
+    _lastActive = active;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final context = _lineKeys[active].currentContext;
+      if (context == null) return;
+      final reduced =
+          MediaQuery.maybeOf(this.context)?.disableAnimations ?? false;
+      Scrollable.ensureVisible(
+        context,
+        alignment: .42,
+        duration: reduced ? Duration.zero : ResonanceMotion.gentle,
+        curve: ResonanceMotion.curve,
+      );
+    });
+  }
+}
+
+class _LyricsChip extends StatelessWidget {
+  const _LyricsChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.primary.withValues(alpha: .12),
+      borderRadius: BorderRadius.circular(999),
+    ),
+    child: Text(
+      label,
+      style: TextStyle(
+        color: Theme.of(context).colorScheme.primary,
+        fontSize: 10,
+        fontWeight: FontWeight.w800,
+      ),
+    ),
+  );
+}
+
+class _LyricsMessage extends StatelessWidget {
+  const _LyricsMessage({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.loading = false,
+    this.action,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final bool loading;
+  final VoidCallback? action;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 32, color: const Color(0xFF8D8881)),
+          const SizedBox(height: 12),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+          if (subtitle != null) ...[
+            const SizedBox(height: 7),
+            Text(
+              subtitle!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF8D8881)),
+            ),
+          ],
+          if (loading) ...[
+            const SizedBox(height: 18),
+            const SizedBox(
+              width: 120,
+              child: LinearProgressIndicator(minHeight: 2),
+            ),
+          ],
+          if (action != null) ...[
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: action,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Повторить'),
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
 }
