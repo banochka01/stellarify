@@ -2,7 +2,7 @@
 
 ## Version 1.1.0 — Flow, lyrics and player motion
 
-Status: implementation and release validation in progress.
+Status: released to production and publicly verified on 2026-09-03.
 
 - [x] Source-aware Flow fade transitions with a user-selected duration
 - [x] Optional loudness normalization with fail-open backend support
@@ -11,9 +11,14 @@ Status: implementation and release validation in progress.
 - [x] Responsible server-side LRCLIB lookup, timeout and bounded cache
 - [x] Active-line autoscroll with reduced-motion support
 - [x] Refined track, artwork, route and playback-control transitions
-- [ ] Full server and Flutter validation
-- [ ] Windows, Android and unsigned iOS production artifacts
-- [ ] Atomic production deployment and public behavior verification
+- [x] Full server and Flutter validation (62 server tests, 55 Flutter tests)
+- [x] Windows, Android and unsigned iOS production artifacts
+- [x] Atomic production deployment and public behavior verification
+- [x] Windows responsive-window runtime proof (`1.1.0+16`)
+- [x] GitHub Actions unsigned-iOS run `33718604679`
+- [x] Public health/version, lyrics, landing and HTTP 206 download checks
+
+Rollback backup: `/opt/resonance/backups/release-1.1.0-20260903T053339Z`.
 
 ## Version 1.0.0 — contextual Wave and fluid interface
 
