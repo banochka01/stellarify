@@ -2,7 +2,7 @@
 
 ## Version 1.3.0 — Lyrics Network and Windows installer
 
-Status: release candidate.
+Status: released to production and publicly verified on 2026-09-03.
 
 - [x] Sequential LRCLIB primary lookup with resilient provider fallback
 - [x] Key-free Lyrics.ovh plain-text fallback
@@ -13,8 +13,12 @@ Status: release candidate.
 - [x] Per-user Windows Setup EXE with shortcuts and uninstall support
 - [x] Full server (66 tests) and Flutter (60 tests) validation
 - [x] Windows installer install-launch-uninstall runtime proof (`1.3.0+18`)
-- [ ] Windows, Android and unsigned iOS production artifacts
-- [ ] Atomic production deployment and public verification
+- [x] Windows Setup/portable, debug-signed Android and unsigned iOS production artifacts
+- [x] Unsigned iOS artifact from GitHub Actions run `33782800335`
+- [x] Atomic production deployment and public verification
+- [x] Public health/version, live lyrics, landing bundle and four HTTP 206 download checks
+
+Rollback backup: `/opt/resonance/backups/release-1.3.0-20260903T172201Z`.
 
 ## Version 1.2.0 — Visual Stage, fullscreen clips and OBS
 
