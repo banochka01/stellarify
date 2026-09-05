@@ -3,6 +3,7 @@ import 'package:resonance/core/errors/app_exception.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/domain/repositories/secure_token_repository.dart';
+import 'package:resonance/providers/common/backend_token_provider.dart';
 import 'package:resonance/providers/yandex/backend_yandex_provider.dart';
 import 'package:resonance/providers/youtube/backend_youtube_provider.dart';
 
@@ -34,6 +35,10 @@ class PlaylistImportService {
         ? MusicProvider.youtube
         : uri.host.contains('yandex.')
         ? MusicProvider.yandex
+        : uri.host == 'open.spotify.com' || uri.host == 'play.spotify.com'
+        ? MusicProvider.spotify
+        : uri.host.endsWith('vk.com') || uri.host.endsWith('vk.ru')
+        ? MusicProvider.vk
         : null;
     final token = provider == null ? null : await _tokens.read(provider);
     try {
@@ -59,9 +64,11 @@ class PlaylistImportService {
       final tracks = rawTracks
           .map((raw) {
             final json = Map<String, dynamic>.from(raw as Map);
-            return resolvedProvider == MusicProvider.youtube
-                ? youtubeTrackFromJson(json)
-                : yandexTrackFromJson(json);
+            return switch (resolvedProvider) {
+              MusicProvider.youtube => youtubeTrackFromJson(json),
+              MusicProvider.yandex => yandexTrackFromJson(json),
+              _ => tokenTrackFromJson(resolvedProvider, json),
+            };
           })
           .toList(growable: false);
       return ImportedPlaylist(

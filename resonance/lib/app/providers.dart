@@ -23,6 +23,7 @@ import 'package:resonance/core/preferences/playback_flow_preferences.dart';
 import 'package:resonance/core/security/flutter_secure_token_repository.dart';
 import 'package:resonance/core/streaming/obs_overlay_controller.dart';
 import 'package:resonance/core/update/app_update_service.dart';
+import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/domain/repositories/playback_persistence.dart';
@@ -34,6 +35,7 @@ import 'package:resonance/features/auth/library_sync_service.dart';
 import 'package:resonance/features/library/playlist_import_service.dart';
 import 'package:resonance/features/lyrics/lyrics_service.dart';
 import 'package:resonance/features/subscription/subscription_service.dart';
+import 'package:resonance/providers/common/backend_token_provider.dart';
 import 'package:resonance/providers/common/provider_registry.dart';
 import 'package:resonance/providers/soundcloud/backend_soundcloud_provider.dart';
 import 'package:resonance/providers/yandex/backend_yandex_provider.dart';
@@ -223,9 +225,21 @@ final providerRegistryProvider = Provider<ProviderRegistry>((ref) {
     BackendEndpoint.requireCurrent,
     ref.watch(secureTokenRepositoryProvider),
   );
+  final spotify = BackendTokenProvider(
+    MusicProvider.spotify,
+    ref.watch(resonanceHttpClientProvider).dio,
+    BackendEndpoint.requireCurrent,
+    ref.watch(secureTokenRepositoryProvider),
+  );
+  final vk = BackendTokenProvider(
+    MusicProvider.vk,
+    ref.watch(resonanceHttpClientProvider).dio,
+    BackendEndpoint.requireCurrent,
+    ref.watch(secureTokenRepositoryProvider),
+  );
   return ProviderRegistry(
-    catalogs: [soundCloud, yandex, youtube],
-    resolvers: [soundCloud, yandex],
+    catalogs: [soundCloud, yandex, youtube, spotify, vk],
+    resolvers: [soundCloud, yandex, spotify, vk],
   );
 });
 

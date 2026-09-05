@@ -18,6 +18,8 @@ class ProviderBadge extends StatelessWidget {
       MusicProvider.youtube => ResonanceColors.youtube,
       MusicProvider.yandex => ResonanceColors.yandex,
       MusicProvider.soundcloud => ResonanceColors.soundcloud,
+      MusicProvider.spotify => ResonanceColors.spotify,
+      MusicProvider.vk => ResonanceColors.vk,
     };
     return Container(
       width: compact ? 23 : 30,
@@ -103,6 +105,53 @@ class _ProviderLogoPainter extends CustomPainter {
               color: Colors.black,
               fontSize: 11,
               fontWeight: FontWeight.w900,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        mark.paint(
+          canvas,
+          Offset(
+            (size.width - mark.width) / 2,
+            (size.height - mark.height) / 2,
+          ),
+        );
+      case MusicProvider.spotify:
+        canvas.drawCircle(size.center(Offset.zero), size.width * .48, paint);
+        final wave = Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round;
+        for (final radiusFactor in const [0.26, 0.48, 0.70]) {
+          wave.strokeWidth = size.width * .09;
+          canvas.drawArc(
+            Rect.fromCenter(
+              center: size.center(Offset.zero),
+              width: size.width * radiusFactor * 2,
+              height: size.height * radiusFactor * 2,
+            ),
+            -2.32,
+            2.09,
+            false,
+            wave,
+          );
+        }
+      case MusicProvider.vk:
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Offset.zero & size,
+            Radius.circular(size.width * .26),
+          ),
+          paint,
+        );
+        final mark = TextPainter(
+          text: const TextSpan(
+            text: 'VK',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -.5,
             ),
           ),
           textDirection: TextDirection.ltr,

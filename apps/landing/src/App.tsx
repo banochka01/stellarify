@@ -10,6 +10,10 @@ import {
   FileText,
   Heart,
   Layers3,
+  Link2,
+  ListMusic,
+  Plus,
+  Radio,
   Search,
   ShieldCheck,
   Smartphone,
@@ -17,6 +21,11 @@ import {
   Users,
   Volume2
 } from "lucide-react";
+import { DemoSandbox } from "./components/DemoSandbox";
+import { LyricsCinema } from "./components/LyricsCinema";
+import { QueueCinema } from "./components/QueueCinema";
+import { RoomsCinema } from "./components/RoomsCinema";
+import { WaveCanvas } from "./components/WaveCanvas";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -56,14 +65,14 @@ function App() {
             stagger: 0.09,
             ease: "power3.out"
           });
-          gsap.from(".hero-orbit", {
+          gsap.from(".hero-wave", {
             autoAlpha: 0,
-            scale: 0.84,
-            rotation: -8,
+            scale: 0.92,
+            rotation: -5,
             duration: 1.35,
             ease: "power3.out"
           });
-          gsap.to(".hero-orbit", {
+          gsap.to(".hero-wave", {
             rotation: desktop ? 4 : 2,
             yPercent: -3,
             ease: "none",
@@ -92,22 +101,6 @@ function App() {
                 }
               )
           });
-
-          gsap.fromTo(
-            ".source-map",
-            { scale: 0.84, rotation: -4 },
-            {
-              scale: 1,
-              rotation: 0,
-              ease: "none",
-              scrollTrigger: {
-                trigger: ".search-scene",
-                start: "top 88%",
-                end: "center 48%",
-                scrub: 1
-              }
-            }
-          );
         }
       );
 
@@ -126,9 +119,11 @@ function App() {
         </a>
         <nav aria-label="Основная навигация">
           <a href="#features">Возможности</a>
+          <a href="#rooms">Комнаты</a>
+          <a href="#demo">Демо</a>
           <a href="#plans">Подписки</a>
-          <a href="#interface">Интерфейс</a>
           <a href="#privacy">Приватность</a>
+          <a href="#faq">FAQ</a>
         </nav>
         <a className="header-download" href={downloads.windows}>
           <Download size={16} /> Скачать
@@ -160,8 +155,8 @@ function App() {
             </div>
             <p className="release-note">Resonance 1.3 Lyrics Network · Несколько Lyrics-источников · Windows Setup EXE · Android debug-signed · iOS unsigned</p>
           </div>
-          <div className="hero-visual" aria-hidden="true">
-            <img className="hero-orbit" src="/assets/resonance-hero-orbit.png" alt="" />
+          <div className="hero-visual">
+            <WaveCanvas />
           </div>
           <a className="scroll-cue" href="#features" aria-label="К возможностям">
             <ArrowDown size={26} />
@@ -175,16 +170,13 @@ function App() {
               <h2>Один поиск —<br /><em>разные</em><br />источники.</h2>
             </div>
             <p>
-              Resonance ищет музыку в SoundCloud и Яндекс Музыке, объединяет
-              результаты и воспроизводит их только в собственном плеере.
+              Resonance ищет музыку в SoundCloud, Яндекс Музыке, Spotify и
+              VK Музыке, объединяет результаты и воспроизводит их только в
+              собственном плеере.
             </p>
           </div>
 
-          <div className="search-scene" data-reveal>
-            <img className="source-map" src="/assets/resonance-source-map.png" alt="" />
-            <span className="source-label source-label-left">SoundCloud</span>
-            <span className="source-label source-label-right">Яндекс Музыка</span>
-          </div>
+          <QueueCinema />
 
           <div className="feature-row">
             <article data-reveal>
@@ -205,6 +197,47 @@ function App() {
           </div>
         </section>
 
+        <LyricsCinema />
+
+        <section className="rooms-section" id="rooms">
+          <div className="section-heading" data-reveal>
+            <div>
+              <p className="eyebrow">Слушать вместе</p>
+              <h2>Одна очередь.<br /><em>Все</em> синхронно.</h2>
+            </div>
+            <p>
+              Комната синхронизирует воспроизведение у каждого участника:
+              пауза, перемотка и живая очередь общие. Слушайте одновременно,
+              где бы вы ни находились.
+            </p>
+          </div>
+
+          <RoomsCinema />
+
+          <div className="rooms-after">
+            <div className="feature-row feature-row-stack">
+              <article data-reveal>
+                <span><Radio size={24} /></span>
+                <h3>Живая синхронизация</h3>
+                <p>Пауза, перемотка и смена трека мгновенно применяются у всех участников комнаты.</p>
+              </article>
+              <article data-reveal>
+                <span><Link2 size={24} /></span>
+                <h3>Приглашение ссылкой</h3>
+                <p>Создатель комнаты делится ссылкой — друзья присоединяются в один клик.</p>
+              </article>
+              <article data-reveal>
+                <span><ListMusic size={24} /></span>
+                <h3>Общая очередь</h3>
+                <p>Очередь одна на всех: добавляйте треки из любого подключённого источника.</p>
+              </article>
+            </div>
+            <p className="rooms-note" data-reveal>Вход в комнаты доступен с тарифа Base, создание комнат — с Plus.</p>
+          </div>
+        </section>
+
+        <DemoSandbox />
+
         <section className="plans-section" id="plans">
           <div className="plans-heading" data-reveal>
             <div>
@@ -213,7 +246,8 @@ function App() {
             </div>
             <p>
               Оплаченный промокод вводится внутри Resonance и открывает выбранный
-              тариф на указанный срок. Подписка источника приобретается отдельно.
+              тариф на указанный срок. На Plus и Family подписки на музыкальные
+              сервисы не нужны.
             </p>
           </div>
 
@@ -221,9 +255,9 @@ function App() {
             <span className="plan-icon"><Clock3 size={24} /></span>
             <div>
               <p className="plan-kicker">Гостевой доступ</p>
-              <h3>24 часа · только SoundCloud</h3>
+              <h3>24 часа · SoundCloud и Spotify</h3>
             </div>
-            <p>Поиск и наш плеер, локальная библиотека и до трёх подборок Wave. Без облака и комнат.</p>
+            <p>Поиск и наш плеер, локальная библиотека и до трёх подборок Wave. Spotify звучит 30-секундными превью. Без облака и комнат.</p>
           </div>
 
           <div className="plans-grid">
@@ -234,8 +268,8 @@ function App() {
               </div>
               <h3>Для личного прослушивания</h3>
               <ul>
-                <li>SoundCloud и Яндекс Музыка</li>
-                <li>Облачная библиотека и импорт</li>
+                <li>SoundCloud, Яндекс Музыка, Spotify и VK Музыка</li>
+                <li>Облачная библиотека и импорт плейлистов — включая Spotify и VK</li>
                 <li>Стандартная Wave</li>
                 <li>Вход в комнаты · 2 устройства</li>
               </ul>
@@ -248,6 +282,7 @@ function App() {
               <h3>Для музыки без компромиссов</h3>
               <ul>
                 <li>Всё из Base</li>
+                <li>Подписка на музыкальные сервисы не нужна</li>
                 <li>Wave обычным языком и музыкальная память</li>
                 <li>Создание и вход в комнаты</li>
                 <li>До 10 устройств</li>
@@ -261,6 +296,7 @@ function App() {
               <h3>Для пяти отдельных аккаунтов</h3>
               <ul>
                 <li>Всё из Plus</li>
+                <li>Подписки на музыкальные сервисы включены</li>
                 <li>Владелец и до 4 участников</li>
                 <li>Отдельные библиотеки и настройки</li>
                 <li>До 10 устройств на участника</li>
@@ -303,6 +339,61 @@ function App() {
           </div>
         </section>
 
+        <section className="steps-section" id="start">
+          <div className="steps-heading" data-reveal>
+            <p className="eyebrow">Как начать</p>
+            <h2>Три шага<br /><em>до музыки.</em></h2>
+          </div>
+          <ol className="steps-grid">
+            <li data-reveal>
+              <span className="step-index">01</span>
+              <h3>Установи Resonance</h3>
+              <p>Setup EXE или Portable ZIP для Windows, APK для Android, IPA для iOS.</p>
+            </li>
+            <li data-reveal>
+              <span className="step-index">02</span>
+              <h3>Подключи источники</h3>
+              <p>Войди в SoundCloud, Яндекс Музыку, Spotify или VK — их каталоги появятся в едином поиске.</p>
+            </li>
+            <li data-reveal>
+              <span className="step-index">03</span>
+              <h3>Слушай</h3>
+              <p>Живая очередь, синхронные тексты, комнаты и Wave — в одном нативном плеере.</p>
+            </li>
+          </ol>
+        </section>
+
+        <section className="faq-section" id="faq">
+          <div className="faq-layout">
+            <div className="faq-heading" data-reveal>
+              <p className="eyebrow">Вопросы и ответы</p>
+              <h2>Коротко<br /><em>о главном.</em></h2>
+            </div>
+            <div className="faq-list">
+              <details data-reveal>
+                <summary>Нужна ли подписка на источники — SoundCloud, Яндекс, Spotify, VK? <Plus size={18} /></summary>
+                <p>На тарифах Plus и Family подписка на источники не нужна — музыка уже включена. На Base войди в свои аккаунты, чтобы каталоги появились в едином поиске: SoundCloud и Spotify работают даже без своих ключей, а Яндекс Музыка и VK — по твоему токену. А без подписки работает гостевой доступ: 24 часа поиска и прослушивания SoundCloud и Spotify-превью.</p>
+              </details>
+              <details data-reveal>
+                <summary>Как открывается платный тариф? <Plus size={18} /></summary>
+                <p>Промокод приобретается отдельно и вводится внутри Resonance: он открывает выбранный тариф на указанный срок. На Plus и выше подписка на музыкальные сервисы уже включена; на Base она приобретается у провайдера источника.</p>
+              </details>
+              <details data-reveal>
+                <summary>Что умеет Wave? <Plus size={18} /></summary>
+                <p>Wave собирает очередь по описанию настроения и перестраивает её на лету: «спокойнее», «больше нового», «без этого артиста». Только реальные треки из подключённых каталогов — без выдуманных названий.</p>
+              </details>
+              <details data-reveal>
+                <summary>Как работают комнаты? <Plus size={18} /></summary>
+                <p>Создатель комнаты получает ссылку-приглашение, а воспроизведение синхронизировано у всех участников. Вход в комнаты доступен с тарифа Base, создание комнат — с Plus.</p>
+              </details>
+              <details data-reveal>
+                <summary>Что с приватностью? <Plus size={18} /></summary>
+                <p>Прокси остаётся на сервере: клиент передаёт только переключатель его использования. Токены сервисов хранятся в защищённом хранилище устройства и отправляются только для выполнения запроса.</p>
+              </details>
+            </div>
+          </div>
+        </section>
+
         <section className="final-cta" data-reveal>
           <Layers3 size={32} />
           <h2>Твои сервисы.<br /><em>Один Resonance.</em></h2>
@@ -317,6 +408,14 @@ function App() {
 
       <footer>
         <a className="brand" href="#top"><span className="brand-mark"><Volume2 size={17} /></span>Resonance</a>
+        <nav className="footer-nav" aria-label="Разделы лендинга">
+          <a href="#features">Возможности</a>
+          <a href="#rooms">Комнаты</a>
+          <a href="#demo">Демо</a>
+          <a href="#plans">Подписки</a>
+          <a href="#privacy">Приватность</a>
+          <a href="#faq">FAQ</a>
+        </nav>
         <span>© 2026 WebCord</span>
         <span>Windows · Android · iOS</span>
       </footer>

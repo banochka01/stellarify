@@ -43,6 +43,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _providers = <MusicProvider>{
     MusicProvider.soundcloud,
     MusicProvider.yandex,
+    MusicProvider.spotify,
+    MusicProvider.vk,
   };
   final _tokens = <MusicProvider, TextEditingController>{
     for (final provider in MusicProvider.values)
@@ -406,7 +408,7 @@ class _WelcomeStep extends StatelessWidget {
               spacing: 12,
               runSpacing: 12,
               children: [
-                _FeaturePill(Icons.hub_rounded, '3 источника'),
+                _FeaturePill(Icons.hub_rounded, '5 источников'),
                 _FeaturePill(Icons.lock_rounded, 'Токены защищены'),
                 _FeaturePill(Icons.queue_music_rounded, 'Импорт плейлистов'),
               ],
@@ -454,6 +456,8 @@ class _ProviderStep extends StatelessWidget {
                   for (final provider in [
                     MusicProvider.soundcloud,
                     MusicProvider.yandex,
+                    MusicProvider.spotify,
+                    MusicProvider.vk,
                   ])
                     SizedBox(
                       width: cardWidth,
@@ -469,8 +473,8 @@ class _ProviderStep extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           const Text(
-            'Воспроизведение — только в собственном плеере Resonance; Яндекс Музыка '
-            'и SoundCloud поддерживают нативное воспроизведение.',
+            'Воспроизведение — только в собственном плеере Resonance; SoundCloud, '
+            'Яндекс Музыка, Spotify (превью) и VK Музыка поддерживают нативное воспроизведение.',
             style: TextStyle(color: ResonanceColors.muted, fontSize: 12),
           ),
         ],
@@ -514,6 +518,8 @@ class _ConnectionStep extends StatelessWidget {
           for (final provider in [
             MusicProvider.soundcloud,
             MusicProvider.yandex,
+            MusicProvider.spotify,
+            MusicProvider.vk,
           ])
             if (providers.contains(provider))
               Padding(
@@ -612,8 +618,8 @@ class _PersonalizationStep extends StatelessWidget {
             keyboardType: TextInputType.url,
             decoration: const InputDecoration(
               prefixIcon: Icon(Icons.link_rounded),
-              labelText: 'Ссылка на плейлист Яндекс Музыки или YouTube',
-              hintText: 'https://music.yandex.ru/users/…/playlists/…',
+              labelText: 'Ссылка на плейлист Spotify, VK, Яндекса или YouTube',
+              hintText: 'https://open.spotify.com/playlist/…',
             ),
           ),
           if (error != null) ...[
@@ -902,18 +908,24 @@ String _providerName(MusicProvider provider) => switch (provider) {
   MusicProvider.yandex => 'Яндекс Музыка',
   MusicProvider.soundcloud => 'SoundCloud',
   MusicProvider.youtube => 'YouTube Music',
+  MusicProvider.spotify => 'Spotify',
+  MusicProvider.vk => 'VK Музыка',
 };
 
 String _providerDescription(MusicProvider provider) => switch (provider) {
   MusicProvider.yandex => 'Каталог, плейлисты и нативное воспроизведение.',
   MusicProvider.soundcloud => 'Ремиксы, независимые артисты и нативный звук.',
   MusicProvider.youtube => 'Только импорт метаданных, без воспроизведения.',
+  MusicProvider.spotify => 'Каталог и импорт; нативно звучат 30-секундные превью.',
+  MusicProvider.vk => 'Каталог, плейлисты и нативное воспроизведение.',
 };
 
 String _credentialLabel(MusicProvider provider) => switch (provider) {
   MusicProvider.yandex => 'OAuth-токен Яндекс Музыки',
   MusicProvider.soundcloud => 'SoundCloud Client ID или OAuth-токен',
   MusicProvider.youtube => 'Ключ YouTube Data API',
+  MusicProvider.spotify => 'OAuth-токен Spotify',
+  MusicProvider.vk => 'Токен VK API с доступом к аудио',
 };
 
 String _credentialHint(MusicProvider provider) => switch (provider) {
@@ -922,18 +934,25 @@ String _credentialHint(MusicProvider provider) => switch (provider) {
     'Можно пропустить, если доступен серверный режим.',
   MusicProvider.youtube =>
     'Внешний плеер не используется. Доступен только импорт метаданных.',
+  MusicProvider.spotify =>
+    'Можно пропустить, если на сервере настроены клиентские ключи.',
+  MusicProvider.vk => 'Токен должен иметь права audio.*; хранится на устройстве.',
 };
 
 IconData _providerIcon(MusicProvider provider) => switch (provider) {
   MusicProvider.yandex => Icons.album_rounded,
   MusicProvider.soundcloud => Icons.cloud_rounded,
   MusicProvider.youtube => Icons.smart_display_rounded,
+  MusicProvider.spotify => Icons.graphic_eq_rounded,
+  MusicProvider.vk => Icons.radio_rounded,
 };
 
 Color _providerColor(MusicProvider provider) => switch (provider) {
   MusicProvider.yandex => ResonanceColors.yandex,
   MusicProvider.soundcloud => ResonanceColors.soundcloud,
   MusicProvider.youtube => ResonanceColors.youtube,
+  MusicProvider.spotify => ResonanceColors.spotify,
+  MusicProvider.vk => ResonanceColors.vk,
 };
 
 String _qualityLabel(AudioQuality quality) => switch (quality) {

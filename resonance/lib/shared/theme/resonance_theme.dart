@@ -15,6 +15,8 @@ abstract final class ResonanceColors {
   static const youtube = Color(0xFFFF5A63);
   static const yandex = Color(0xFFFFD84A);
   static const soundcloud = Color(0xFFFF783E);
+  static const spotify = Color(0xFF1DB954);
+  static const vk = Color(0xFF4C8EF9);
 }
 
 abstract final class ResonanceTheme {

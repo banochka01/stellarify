@@ -21,7 +21,12 @@ class SearchScreen extends ConsumerStatefulWidget {
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
-  final _enabledProviders = {MusicProvider.yandex, MusicProvider.soundcloud};
+  final _enabledProviders = {
+    MusicProvider.yandex,
+    MusicProvider.soundcloud,
+    MusicProvider.spotify,
+    MusicProvider.vk,
+  };
   Timer? _debounce;
   List<UnifiedTrack> _tracks = const [];
   bool _loading = false;
@@ -163,13 +168,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   children: [
                     _FilterPill(
                       label: 'Все',
-                      selected: _enabledProviders.length == 2,
+                      selected: _enabledProviders.length == 4,
                       onTap: _setAllProviders,
                     ),
                     const SizedBox(width: 8),
                     for (final provider in [
                       MusicProvider.yandex,
                       MusicProvider.soundcloud,
+                      MusicProvider.spotify,
+                      MusicProvider.vk,
                     ]) ...[
                       _FilterPill(
                         label: _providerName(provider),
@@ -225,7 +232,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     setState(() {
       _enabledProviders
         ..clear()
-        ..addAll([MusicProvider.yandex, MusicProvider.soundcloud]);
+        ..addAll([
+          MusicProvider.yandex,
+          MusicProvider.soundcloud,
+          MusicProvider.spotify,
+          MusicProvider.vk,
+        ]);
     });
     _search(_controller.text);
   }
@@ -241,6 +253,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     MusicProvider.yandex => 'Яндекс',
     MusicProvider.soundcloud => 'SoundCloud',
     MusicProvider.youtube => 'YouTube',
+    MusicProvider.spotify => 'Spotify',
+    MusicProvider.vk => 'VK Музыка',
   };
 
   String _cleanError(Object error) =>

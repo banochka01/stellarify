@@ -28,7 +28,7 @@ test("guest expires exactly at 24h; retries and registration do not reset; bound
   const token = randomBytes(32).toString("base64url");
   const first = store.guest(token);
   assert.equal(first.tier, "guest");
-  assert.deepEqual(first.providers, ["soundcloud"]);
+  assert.deepEqual(first.providers, ["soundcloud", "spotify"]);
   assert.equal(first.capabilities["rooms.join"], false);
   advance(.5);
   assert.equal(store.guest(token).expiresAt, first.expiresAt);

@@ -24,6 +24,13 @@ final class ExternalUrlValidator {
       'cf-media.sndcdn.com',
       'media.sndcdn.com',
     },
+    MusicProvider.spotify: {
+      'open.spotify.com',
+      'play.spotify.com',
+      'api.spotify.com',
+      'cf.scdn.co',
+    },
+    MusicProvider.vk: {'vk.com', 'www.vk.com', 'm.vk.com', 'vk.ru'},
   };
 
   bool isAllowed(Uri uri, MusicProvider provider) {

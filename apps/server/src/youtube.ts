@@ -10,7 +10,7 @@ import {
 type FetchLike = typeof fetch;
 
 export type ImportedPlaylist = {
-  provider: "youtube" | "yandex";
+  provider: "youtube" | "yandex" | "spotify" | "vk";
   externalId: string;
   title: string;
   artworkUrl?: string;

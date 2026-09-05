@@ -10,7 +10,7 @@ export type ProviderCapability = {
   id: Exclude<ProviderId, "unknown">;
   name: string;
   importMode: "api" | "link";
-  playbackMode: "sdk" | "embed" | "external";
+  playbackMode: "sdk" | "embed" | "external" | "api";
   status: "ready" | "credentials-required" | "link-only";
   note: string;
 };
@@ -20,9 +20,9 @@ export const providerCapabilities: ProviderCapability[] = [
     id: "spotify",
     name: "Spotify",
     importMode: "api",
-    playbackMode: "sdk",
+    playbackMode: "api",
     status: "credentials-required",
-    note: "OAuth и Premium нужны для полного воспроизведения."
+    note: "Поиск и импорт по официальному API; воспроизведение 30-секундных превью. Полный трек требует Spotify Premium и официального клиента."
   },
   {
     id: "soundcloud",
@@ -43,17 +43,17 @@ export const providerCapabilities: ProviderCapability[] = [
   {
     id: "yandex",
     name: "Яндекс Музыка",
-    importMode: "link",
-    playbackMode: "external",
-    status: "link-only",
-    note: "Пока сохраняем ссылки и открываем официальный клиент."
+    importMode: "api",
+    playbackMode: "api",
+    status: "credentials-required",
+    note: "Поиск, импорт и нативное воспроизведение по OAuth-токену пользователя."
   },
   {
     id: "vk",
     name: "VK Музыка",
-    importMode: "link",
-    playbackMode: "external",
-    status: "link-only",
-    note: "Пока сохраняем ссылки и открываем официальный клиент."
+    importMode: "api",
+    playbackMode: "api",
+    status: "credentials-required",
+    note: "Поиск, импорт и воспроизведение по токену VK с доступом к аудио."
   }
 ];

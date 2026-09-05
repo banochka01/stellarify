@@ -31,16 +31,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _yandexTokenController = TextEditingController();
   final _soundCloudTokenController = TextEditingController();
   final _youtubeTokenController = TextEditingController();
+  final _spotifyTokenController = TextEditingController();
+  final _vkTokenController = TextEditingController();
   final _apiController = TextEditingController();
   final _hasToken = <MusicProvider, bool>{
     MusicProvider.yandex: false,
     MusicProvider.soundcloud: false,
     MusicProvider.youtube: false,
+    MusicProvider.spotify: false,
+    MusicProvider.vk: false,
   };
   final _obscureToken = <MusicProvider, bool>{
     MusicProvider.yandex: true,
     MusicProvider.soundcloud: true,
     MusicProvider.youtube: true,
+    MusicProvider.spotify: true,
+    MusicProvider.vk: true,
   };
   final _tokenMessages = <MusicProvider, String>{};
   final _serverCredential = <MusicProvider, bool>{};
@@ -70,6 +76,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _yandexTokenController.dispose();
     _soundCloudTokenController.dispose();
     _youtubeTokenController.dispose();
+    _spotifyTokenController.dispose();
+    _vkTokenController.dispose();
     _apiController.dispose();
     super.dispose();
   }
@@ -80,6 +88,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       repository.read(MusicProvider.yandex),
       repository.read(MusicProvider.soundcloud),
       repository.read(MusicProvider.youtube),
+      repository.read(MusicProvider.spotify),
+      repository.read(MusicProvider.vk),
     ]);
     final proxyEnabled = await ref
         .read(soundCloudProxyPreferenceProvider)
@@ -98,6 +108,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _hasToken[MusicProvider.yandex] = tokens[0]?.isNotEmpty == true;
       _hasToken[MusicProvider.soundcloud] = tokens[1]?.isNotEmpty == true;
       _hasToken[MusicProvider.youtube] = tokens[2]?.isNotEmpty == true;
+      _hasToken[MusicProvider.spotify] = tokens[3]?.isNotEmpty == true;
+      _hasToken[MusicProvider.vk] = tokens[4]?.isNotEmpty == true;
       _serverCredential.addAll(serverCredentials);
       _proxyEnabled = proxyEnabled;
       _quality = onboarding.quality;
@@ -215,12 +227,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     MusicProvider.yandex => 'Яндекс Музыка',
     MusicProvider.soundcloud => 'SoundCloud',
     MusicProvider.youtube => 'YouTube Music',
+    MusicProvider.spotify => 'Spotify',
+    MusicProvider.vk => 'VK Музыка',
   };
 
   String _credentialName(MusicProvider provider) => switch (provider) {
     MusicProvider.yandex => 'OAuth-токен Яндекс Музыки',
     MusicProvider.soundcloud => 'SoundCloud Client ID',
     MusicProvider.youtube => 'YouTube Data API key',
+    MusicProvider.spotify => 'OAuth-токен Spotify',
+    MusicProvider.vk => 'Токен VK API',
   };
 
   String _qualityName(AudioQuality quality) => switch (quality) {
@@ -673,6 +689,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _buildTokenConnection(
           provider: MusicProvider.soundcloud,
           controller: _soundCloudTokenController,
+        ),
+        const SizedBox(height: 12),
+        _buildTokenConnection(
+          provider: MusicProvider.spotify,
+          controller: _spotifyTokenController,
+        ),
+        const SizedBox(height: 12),
+        _buildTokenConnection(
+          provider: MusicProvider.vk,
+          controller: _vkTokenController,
         ),
         const SizedBox(height: 12),
         Card(

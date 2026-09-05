@@ -20,7 +20,9 @@ export function capabilities(tier: Tier) {
   const premium = tier === "plus" || tier === "family";
   return {
     "playback.soundcloud": tier !== "none",
+    "playback.spotify": tier !== "none",
     "playback.yandex": paid,
+    "playback.vk": paid,
     "library.cloudSync": paid,
     "library.import": paid,
     "wave.standard": tier !== "none",
@@ -117,7 +119,7 @@ export class SubscriptionStore {
     if (familyOwnerId) rights["family.manage"] = false;
     return {
       tier, expiresAt: expiry ? new Date(expiry).toISOString() : null,
-      capabilities: rights, providers: tier === "none" ? [] : tier === "guest" ? ["soundcloud"] : ["soundcloud", "yandex"],
+      capabilities: rights, providers: tier === "none" ? [] : tier === "guest" ? ["soundcloud", "spotify"] : ["soundcloud", "yandex", "spotify", "vk"],
       deviceLimit: tier === "base" ? 2 : tier === "plus" || tier === "family" ? 10 : 1,
       familyOwnerId,
       scheduled: periods.filter(p => p.starts_at > now).map(p => ({ plan: p.plan, startsAt: new Date(p.starts_at).toISOString(), expiresAt: new Date(p.ends_at).toISOString() })),

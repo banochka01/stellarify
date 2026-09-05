@@ -1,4 +1,4 @@
-export type ProviderName = "soundcloud" | "yandex" | "youtube";
+export type ProviderName = "soundcloud" | "yandex" | "youtube" | "spotify" | "vk";
 export type AudioQuality = "low" | "medium" | "high" | "lossless";
 
 export interface ProviderAccess {
@@ -24,6 +24,8 @@ export interface ResolvedStream {
   bitrate?: number;
   expiresAt?: string;
   headers?: Record<string, string>;
+  /** Marks short official previews (Spotify 30s) so clients can label them. */
+  preview?: boolean;
 }
 
 export interface MusicProviderAdapter {

@@ -9,6 +9,8 @@ final class SourceSelectionPolicy {
             const [
               MusicProvider.yandex,
               MusicProvider.soundcloud,
+              MusicProvider.vk,
+              MusicProvider.spotify,
               MusicProvider.youtube,
             ],
       );

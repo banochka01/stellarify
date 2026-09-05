@@ -192,6 +192,10 @@ class _SourceList extends StatelessWidget {
         _SourceItem(label: 'Яндекс', provider: MusicProvider.yandex),
         SizedBox(height: 12),
         _SourceItem(label: 'SoundCloud', provider: MusicProvider.soundcloud),
+        SizedBox(height: 12),
+        _SourceItem(label: 'Spotify', provider: MusicProvider.spotify),
+        SizedBox(height: 12),
+        _SourceItem(label: 'VK Музыка', provider: MusicProvider.vk),
       ],
     );
   }

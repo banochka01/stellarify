@@ -10,7 +10,7 @@ import { createAccountRouter } from "./account-api.js";
 import { AccountStore } from "./account-store.js";
 import { AccountError } from "./account-store.js";
 import { AccessControl, accessError, createSubscriptionRouter } from "./subscription-api.js";
-import { SubscriptionStore, SubscriptionError, hashSecret } from "./subscriptions.js";
+import { SubscriptionStore, SubscriptionError, hashSecret, type Capability } from "./subscriptions.js";
 import { parseImportPayload } from "./importer.js";
 import { PlaylistImportService } from "./playlist-import.js";
 import { LyricsError, LyricsService } from "./lyrics.js";
@@ -22,6 +22,8 @@ import {
   isSoundCloudRelayTicket,
   SoundCloudAudioRelay
 } from "./soundcloud-audio-relay.js";
+import { SpotifyAdapter } from "./spotify.js";
+import { VkAdapter } from "./vk.js";
 import { YandexAdapter } from "./yandex.js";
 import { YouTubeAdapter } from "./youtube.js";
 import { WaveService, WaveSessionError } from "./wave.js";
@@ -48,12 +50,19 @@ const soundCloudAudioRelay = new SoundCloudAudioRelay(
 );
 const yandex = new YandexAdapter(process.env.YANDEX_MUSIC_TOKEN);
 const youtube = new YouTubeAdapter(process.env.YOUTUBE_API_KEY);
+const spotify = new SpotifyAdapter({
+  clientId: process.env.SPOTIFY_CLIENT_ID,
+  clientSecret: process.env.SPOTIFY_CLIENT_SECRET
+});
+const vk = new VkAdapter(process.env.VK_ACCESS_TOKEN);
 const gateway = new ProviderGateway([
   soundCloud,
   yandex,
-  youtube
+  youtube,
+  spotify,
+  vk
 ]);
-const playlistImports = new PlaylistImportService(yandex, youtube);
+const playlistImports = new PlaylistImportService(yandex, youtube, spotify, vk);
 const lyrics = LyricsService.fromEnvironment();
 const accountStore = new AccountStore(
   process.env.AUTH_DB_PATH || "./data/resonance.sqlite",
@@ -78,11 +87,21 @@ app.use("/api/v1/account/library", accessControl.middleware("library.cloudSync")
 app.use("/api/v1/account", createAccountRouter(accountStore));
 
 // Enforce before any provider traffic, including legacy clients and alternate import paths.
+const playbackCapabilityByProvider: Record<string, Capability> = {
+  soundcloud: "playback.soundcloud",
+  yandex: "playback.yandex",
+  spotify: "playback.spotify",
+  vk: "playback.vk"
+};
+const catalogProviders = new Set(["soundcloud", "yandex", "youtube", "spotify", "vk"]);
 app.use(["/api/v1/catalog/search", "/api/v1/playback/resolve", "/api/v1/auth/validate"], (request, response, next) => {
   const provider = request.method === "GET" ? request.query.provider : request.body?.provider;
+  const resolving = request.path.endsWith("/playback/resolve");
   try {
-    if (provider !== "soundcloud" && provider !== "yandex") throw new SubscriptionError("NATIVE_SOURCE_REQUIRED", "Источник не поддерживает собственный плеер Resonance", 400);
-    accessControl.require(request, provider === "soundcloud" ? "playback.soundcloud" : "playback.yandex");
+    if (typeof provider !== "string" || !catalogProviders.has(provider)) throw new SubscriptionError("NATIVE_SOURCE_REQUIRED", "Источник не поддерживает собственный плеер Resonance", 400);
+    const capability = playbackCapabilityByProvider[provider];
+    if (resolving && !capability) throw new SubscriptionError("NATIVE_SOURCE_REQUIRED", "Источник не поддерживает собственный плеер Resonance", 400);
+    accessControl.require(request, capability ?? "wave.standard");
     next();
   } catch (error) { accessError(response, error); }
 });
