@@ -62,6 +62,9 @@ Resonance/stellarify — мульти-источниковый музыкаль�
    починен тест онбординг-дефолтов: spotify/vk добавлены в дефолтный набор
    провайдеров `OnboardingPreferences` (04583ce). Старые версии 1.2.0/1.3.0
    в downloads сохранены как откат.
+8. **Лендинг обновлён до 1.4** (5e6d1e8): release-note в hero больше не
+   пишет «1.3 Lyrics Network»; деплой статики — tar dist → scp в incoming →
+   swap `/opt/resonance/landing` (старая копия: incoming/landing-prev).
 
 ## Задачи следующей сессии (по приоритету)
 
