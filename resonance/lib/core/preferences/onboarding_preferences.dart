@@ -5,9 +5,11 @@ final class OnboardingSettings {
   const OnboardingSettings({
     this.completed = false,
     this.providers = const {
+      MusicProvider.youtube,
       MusicProvider.yandex,
       MusicProvider.soundcloud,
-      MusicProvider.youtube,
+      MusicProvider.spotify,
+      MusicProvider.vk,
     },
     this.quality = AudioQuality.high,
   });
@@ -51,9 +53,11 @@ final class OnboardingPreferences {
       completed: values[0] == 'true',
       providers: providers.isEmpty
           ? const {
+              MusicProvider.youtube,
               MusicProvider.yandex,
               MusicProvider.soundcloud,
-              MusicProvider.youtube,
+              MusicProvider.spotify,
+              MusicProvider.vk,
             }
           : providers,
       quality: quality,
