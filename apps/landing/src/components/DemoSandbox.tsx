@@ -1,45 +1,44 @@
 import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { Check, Link2, Music, Pause, Play, SkipBack, SkipForward, Sparkles } from "lucide-react";
+import { SESSION_TRACKS, type SessionTrack } from "../session";
 
-type Track = {
-  title: string;
-  artist: string;
-  source: "SoundCloud" | "Яндекс Музыка" | "Spotify" | "VK Музыка";
-  duration: number;
-};
+type Track = SessionTrack;
+
+const byTitle = (title: string) =>
+  SESSION_TRACKS.find((track) => track.title.startsWith(title)) as SessionTrack;
 
 const POOLS = {
   calm: [
-    { title: "Halcyon", artist: "Salt Harvest", source: "SoundCloud", duration: 254 },
-    { title: "Тихий свет", artist: "Муры", source: "Яндекс Музыка", duration: 198 },
-    { title: "Low Tide", artist: "Marén", source: "SoundCloud", duration: 302 },
-    { title: "Стеклянный воздух", artist: "Полночь", source: "Spotify", duration: 241 },
-    { title: "Amber Room", artist: "Odyl", source: "SoundCloud", duration: 276 },
-    { title: "Мягкий шум", artist: "Тихо", source: "VK Музыка", duration: 187 }
+    byTitle("Night, Blooming Jasmine"),
+    byTitle("так совпало"),
+    byTitle("Noir by anoufie"),
+    byTitle("Тревога"),
+    byTitle("1cePillow"),
+    byTitle("crush")
   ],
   fresh: [
-    { title: "Новое утро", artist: "Светлана Га", source: "Яндекс Музыка", duration: 203 },
-    { title: "First Light", artist: "Kavara", source: "Spotify", duration: 245 },
-    { title: "Свежий ветер", artist: "Аэро", source: "VK Музыка", duration: 219 },
-    { title: "Neon Bloom", artist: "Ilya Ra", source: "SoundCloud", duration: 261 },
-    { title: "Сонце", artist: "Далёко", source: "Яндекс Музыка", duration: 232 },
-    { title: "Studio Floor", artist: "Matcha", source: "SoundCloud", duration: 248 }
+    byTitle("crush"),
+    byTitle("Выходной"),
+    byTitle("Surround Sound"),
+    byTitle("Can't Tell Me Nothing"),
+    byTitle("так совпало"),
+    byTitle("Night, Blooming Jasmine")
   ],
   instrumental: [
-    { title: "Glasswork", artist: "Ensemble 12", source: "SoundCloud", duration: 287 },
-    { title: "Без слов", artist: "Ноты Тишины", source: "VK Музыка", duration: 224 },
-    { title: "Piano Dust", artist: "Oren", source: "Spotify", duration: 195 },
-    { title: "Струны", artist: "Квартет А", source: "Яндекс Музыка", duration: 268 },
-    { title: "Tape Loops", artist: "Ferric", source: "SoundCloud", duration: 312 },
-    { title: "Метроном", artist: "Часы", source: "Яндекс Музыка", duration: 176 }
+    byTitle("Noir by anoufie"),
+    byTitle("1cePillow"),
+    byTitle("так совпало"),
+    byTitle("Тревога"),
+    byTitle("Night, Blooming Jasmine"),
+    byTitle("crush")
   ],
   mixed: [
-    { title: "Halcyon", artist: "Salt Harvest", source: "SoundCloud", duration: 254 },
-    { title: "Новое утро", artist: "Светлана Га", source: "Яндекс Музыка", duration: 203 },
-    { title: "Glasswork", artist: "Ensemble 12", source: "VK Музыка", duration: 287 },
-    { title: "Тихий свет", artist: "Муры", source: "Spotify", duration: 198 },
-    { title: "Neon Bloom", artist: "Ilya Ra", source: "SoundCloud", duration: 261 },
-    { title: "Струны", artist: "Квартет А", source: "Яндекс Музыка", duration: 268 }
+    byTitle("crush"),
+    byTitle("Выходной"),
+    byTitle("Surround Sound"),
+    byTitle("так совпало"),
+    byTitle("Can't Tell Me Nothing"),
+    byTitle("Noir by anoufie")
   ]
 } satisfies Record<string, Track[]>;
 
@@ -53,14 +52,14 @@ const CHIPS: { label: string; pool: PoolKey }[] = [
 ];
 
 const LYRICS = [
-  { at: 0.02, text: "Ночь собирает свет в карманы," },
-  { at: 0.14, text: "город тише на полтона," },
-  { at: 0.27, text: "мы держим волну на границе сна —" },
-  { at: 0.4, text: "она ведёт, и очередь верна." },
-  { at: 0.55, text: "Строка за нотой не отстаёт," },
-  { at: 0.68, text: "и Wave поймёт, чего ты ждёшь." },
-  { at: 0.82, text: "А если станет тихо совсем —" },
-  { at: 0.92, text: "скажи «громче». Это не проблема." }
+  { at: 0.02, text: "Город гудит на низкой частоте," },
+  { at: 0.14, text: "фары режут ночь пополам." },
+  { at: 0.27, text: "Каждый трек ложится на ритм шагов —" },
+  { at: 0.4, text: "и очередь ловит тебя, как эхо." },
+  { at: 0.55, text: "Строка загорается раньше бита," },
+  { at: 0.68, text: "ни одной не теряя." },
+  { at: 0.82, text: "А если бросишь «побыстрее» —" },
+  { at: 0.92, text: "ночь ускорится. Она слышит." }
 ];
 
 const BASE_PROMPT = "вечерний фокус для работы";
@@ -225,7 +224,11 @@ export function DemoSandbox() {
                     String(i + 1).padStart(2, "0")
                   )}
                 </span>
-                <span className="queue-row-cover"><Music size={17} /></span>
+                {item.cover ? (
+                  <img className="queue-row-cover queue-row-cover-img" src={item.cover} alt="" loading="lazy" />
+                ) : (
+                  <span className="queue-row-cover" style={{ background: item.tint }}><Music size={17} /></span>
+                )}
                 <span>
                   <span className="queue-row-title">{item.title}</span>
                   <span className="queue-row-artist">{item.artist}</span>
@@ -237,10 +240,15 @@ export function DemoSandbox() {
         </div>
 
         <div className="demo-pane">
-          <div className="demo-player-cover"><Music size={44} /></div>
+          <div
+            className="demo-player-cover"
+            style={track.cover ? { backgroundImage: `url(${track.cover})`, backgroundSize: "cover", backgroundPosition: "center" } : { background: track.tint }}
+          >
+            {track.cover ? null : <Music size={44} />}
+          </div>
           <span className="queue-source" data-source={track.source}>{track.source}</span>
           <h3 className="demo-player-title">{track.title}</h3>
-          <p className="demo-player-artist">{track.artist} · Demo</p>
+          <p className="demo-player-artist">{track.artist}</p>
           <div className="demo-controls">
             <button
               className="demo-btn"

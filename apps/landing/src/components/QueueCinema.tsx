@@ -2,18 +2,19 @@ import { useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Music, Sparkles } from "lucide-react";
+import { SESSION_TRACKS, type SessionTrack } from "../session";
 
 gsap.registerPlugin(ScrollTrigger);
 
 const PROMPT = "вечерний фокус: спокойнее и немного нового";
 
-const TRACKS = [
-  { title: "Halcyon", artist: "Salt Harvest", source: "SoundCloud" },
-  { title: "Тихий свет", artist: "Муры", source: "Яндекс Музыка" },
-  { title: "Low Tide", artist: "Marén", source: "Spotify" },
-  { title: "Стеклянный воздух", artist: "Полночь", source: "VK Музыка" },
-  { title: "Amber Room", artist: "Odyl", source: "SoundCloud" },
-  { title: "Сонце", artist: "Далёко", source: "Яндекс Музыка" }
+const TRACKS: SessionTrack[] = [
+  SESSION_TRACKS[0],
+  SESSION_TRACKS[1],
+  SESSION_TRACKS[2],
+  SESSION_TRACKS[3],
+  SESSION_TRACKS[5],
+  SESSION_TRACKS[7]
 ];
 
 export function QueueCinema() {
@@ -105,7 +106,11 @@ export function QueueCinema() {
                       String(i + 1).padStart(2, "0")
                     )}
                   </span>
-                  <span className="queue-row-cover"><Music size={17} /></span>
+                  {track.cover ? (
+                    <img className="queue-row-cover queue-row-cover-img" src={track.cover} alt="" loading="lazy" />
+                  ) : (
+                    <span className="queue-row-cover" style={{ background: track.tint }}><Music size={17} /></span>
+                  )}
                   <span>
                     <span className="queue-row-title">{track.title}</span>
                     <span className="queue-row-artist">{track.artist}</span>

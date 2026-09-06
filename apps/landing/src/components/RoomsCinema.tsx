@@ -77,17 +77,17 @@ export function RoomsCinema() {
           </div>
           <div className="room-tracks">
             <div className="room-track room-track-a">
-              <span className="room-mock-cover" />
+              <span className="room-mock-cover" style={{ backgroundImage: "url(/assets/covers/tak-sovpalo.jpg)", backgroundSize: "cover", backgroundPosition: "center" }} />
               <div>
-                <p className="room-mock-title">Low Tide</p>
-                <p className="room-mock-artist">Marén · SoundCloud</p>
+                <p className="room-mock-title">так совпало</p>
+                <p className="room-mock-artist">wavescale · Яндекс Музыка</p>
               </div>
             </div>
             <div className="room-track room-track-b">
-              <span className="room-mock-cover" />
+              <span className="room-mock-cover" style={{ backgroundImage: "url(/assets/covers/vyhodnoy.jpg)", backgroundSize: "cover", backgroundPosition: "center" }} />
               <div>
-                <p className="room-mock-title">Стеклянный воздух</p>
-                <p className="room-mock-artist">Полночь · Spotify</p>
+                <p className="room-mock-title">Выходной</p>
+                <p className="room-mock-artist">MONATIK · VK Музыка</p>
               </div>
             </div>
           </div>
