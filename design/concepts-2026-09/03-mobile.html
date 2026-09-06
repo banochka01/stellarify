@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Resonance — концепт мобильного плеера</title>
+<style>
+  :root{
+    --ink:#070706; --paper:#eee9de; --muted:#938f87;
+    --line:rgba(238,233,222,.14); --coral:#f05a49; --amber:#e8a05d; --wine:#7a2c26;
+  }
+  *{box-sizing:border-box;margin:0}
+  html,body{height:100%}
+  body{display:grid;place-items:center;background:#1a1a1c;font-family:"Inter","Segoe UI",Arial,sans-serif}
+  .phone{width:390px;height:844px;border-radius:54px;border:10px solid #000;position:relative;overflow:hidden;
+    box-shadow:0 60px 140px rgba(0,0,0,.7);
+    background:
+      radial-gradient(120% 70% at 50% 0%, rgba(122,44,38,.65), transparent 60%),
+      radial-gradient(90% 50% at 50% 100%, rgba(232,160,93,.22), transparent 55%),
+      linear-gradient(180deg,#160d0b,#070706 70%);
+    color:var(--paper);display:flex;flex-direction:column;align-items:center;padding:64px 26px 34px}
+  .grain{position:absolute;inset:0;opacity:.3;mix-blend-mode:overlay;pointer-events:none;
+    background-image:repeating-conic-gradient(rgba(255,255,255,.012) 0% .0001%, transparent .0002% .0003%)}
+  .statusbar{position:absolute;top:18px;left:0;right:0;display:flex;justify-content:space-between;
+    padding:0 30px;font-size:13px;font-weight:600;color:var(--paper)}
+  .notch{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:120px;height:30px;
+    background:#000;border-radius:99px}
+  .head{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted)}
+  .head .ctx{display:flex;align-items:center;gap:8px}
+  .live{width:7px;height:7px;border-radius:50%;background:var(--coral);box-shadow:0 0 12px var(--coral)}
+  .cover{width:min(78vw,310px);aspect-ratio:1;border-radius:22px;margin-top:34px;
+    background:
+      radial-gradient(60% 45% at 30% 25%, #d8863f, transparent 65%),
+      conic-gradient(from 40deg at 60% 60%, #8a342c, #401511 40%, #a55a33 70%, #8a342c);
+    box-shadow:0 40px 110px rgba(0,0,0,.65), 0 0 80px rgba(232,160,93,.2)}
+  .meta{width:100%;margin-top:30px}
+  .track{font-size:24px;font-weight:800}
+  .row{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
+  .artist{color:var(--muted);font-size:14px}
+  .badge{font-size:10.5px;border:1px solid var(--line);border-radius:6px;padding:2px 7px;color:var(--amber)}
+  .bar{display:flex;align-items:center;gap:10px;margin-top:22px;font-size:11.5px;color:var(--muted)}
+  .rail{flex:1;height:4px;border-radius:99px;background:rgba(238,233,222,.14);position:relative}
+  .rail i{position:absolute;inset:0 64% 0 0;background:linear-gradient(90deg,var(--coral),var(--amber));border-radius:99px}
+  .lyr{margin-top:26px;width:100%;text-align:center;font-size:17px;line-height:1.5;font-weight:600}
+  .lyr .on{color:var(--paper);text-shadow:0 0 36px rgba(232,160,93,.4)}
+  .lyr span{display:block;color:rgba(238,233,222,.26);margin-top:8px}
+  .dock{margin-top:auto;width:100%;display:flex;justify-content:center;align-items:center;gap:26px}
+  .ctl{width:50px;height:50px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;
+    color:var(--paper);background:rgba(238,233,222,.04);font-size:16px}
+  .ctl.play{width:72px;height:72px;background:var(--paper);color:var(--ink);border:none;font-size:22px;
+    box-shadow:0 16px 50px rgba(238,233,222,.2)}
+  .tabbar{width:100%;display:flex;justify-content:space-around;margin-top:26px;padding-top:16px;
+    border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+  .tabbar .on{color:var(--coral)}
+  .tabbar div{display:flex;flex-direction:column;align-items:center;gap:4px}
+  .tabbar i{font-style:normal;font-size:16px}
+</style>
+</head>
+<body>
+<div class="phone"><div class="grain"></div>
+  <div class="notch"></div>
+  <div class="statusbar"><span>21:47</span><span>▮▮▮ ⌁ ▰</span></div>
+
+  <div class="head">
+    <span class="ctx"><i class="live"></i>Комната · 4</span>
+    <span>⋯</span>
+  </div>
+
+  <div class="cover"></div>
+
+  <div class="meta">
+    <div class="track">Tadow</div>
+    <div class="row"><span class="artist">Masego, FKJ</span><span class="badge">SPOTIFY</span></div>
+    <div class="bar"><span>1:21</span><div class="rail"><i></i></div><span>5:01</span></div>
+  </div>
+
+  <div class="lyr">
+    <span class="on">I saw her and she hit me like</span>
+    <span>Saw that thing so beautiful</span>
+  </div>
+
+  <div class="dock">
+    <div class="ctl">⇄</div>
+    <div class="ctl">◀</div>
+    <div class="ctl play">▶</div>
+    <div class="ctl">▶</div>
+    <div class="ctl">♥</div>
+  </div>
+
+  <div class="tabbar">
+    <div><i>◉</i>Сейчас</div>
+    <div><i>≡</i>Очередь</div>
+    <div><i>✦</i>Wave</div>
+    <div><i>⌂</i>Библиотека</div>
+  </div>
+</div>
+</body>
+</html>

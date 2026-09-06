@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Resonance — концепт десктоп-клиента (Stage + Комнаты)</title>
+<style>
+  :root{
+    --ink:#070706; --paper:#eee9de; --muted:#938f87;
+    --line:rgba(238,233,222,.14); --coral:#f05a49; --amber:#e8a05d; --wine:#7a2c26;
+  }
+  *{box-sizing:border-box;margin:0}
+  html,body{height:100%}
+  body{font-family:"Inter","Segoe UI",Arial,sans-serif;color:var(--paper);background:#000;overflow:hidden}
+  .window{position:relative;height:100vh;display:flex;flex-direction:column;
+    background:
+      radial-gradient(110% 80% at 30% 35%, rgba(122,44,38,.50), transparent 62%),
+      radial-gradient(80% 60% at 75% 80%, rgba(232,160,93,.16), transparent 55%),
+      linear-gradient(155deg,#140c0a, #070706 60%);
+  }
+  .grain{position:fixed;inset:0;opacity:.3;mix-blend-mode:overlay;pointer-events:none;
+    background-image:repeating-conic-gradient(rgba(255,255,255,.012) 0% .0001%, transparent .0002% .0003%)}
+  /* top bar */
+  .top{display:flex;align-items:center;gap:14px;padding:16px 22px 0;font-size:13px;color:var(--muted)}
+  .pill{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);
+    border-radius:999px;padding:6px 14px;background:rgba(7,7,6,.4)}
+  .live{width:7px;height:7px;border-radius:50%;background:var(--coral);box-shadow:0 0 12px var(--coral)}
+  .top .title{font-weight:600;color:var(--paper)}
+  .top .spacer{flex:1}
+  .avatars{display:flex}
+  .av{width:26px;height:26px;border-radius:50%;border:2px solid rgba(7,7,6,.8);margin-left:-8px;
+    background:linear-gradient(135deg,#a55a33,#5d221c)}
+  .av:nth-child(2){background:linear-gradient(135deg,#e8a05d,#7a2c26)}
+  .av:nth-child(3){background:linear-gradient(135deg,#938f87,#3c3a36)}
+  .av:nth-child(4){background:linear-gradient(135deg,#f05a49,#401511)}
+  /* main split */
+  .main{flex:1;display:grid;grid-template-columns:minmax(320px,460px) 1fr 340px;gap:48px;
+    padding:12px 48px 0;align-items:center;min-height:0}
+  .left{display:flex;flex-direction:column;align-items:center}
+  .cover{width:min(30vw,380px);aspect-ratio:1;border-radius:18px;
+    background:
+      radial-gradient(60% 45% at 30% 25%, #d8863f, transparent 65%),
+      conic-gradient(from 40deg at 60% 60%, #8a342c, #401511 40%, #a55a33 70%, #8a342c);
+    box-shadow:0 50px 140px rgba(0,0,0,.65), 0 0 90px rgba(232,160,93,.18)}
+  .meta{width:100%;margin-top:26px}
+  .track{font-size:26px;font-weight:800;letter-spacing:-.01em}
+  .artist{color:var(--muted);margin-top:6px;font-size:14.5px;display:flex;align-items:center;gap:8px}
+  .badge{font-size:11px;border:1px solid var(--line);border-radius:6px;padding:2px 7px;color:var(--amber)}
+  .bar{display:flex;align-items:center;gap:12px;margin-top:18px;font-size:12px;color:var(--muted)}
+  .bar .rail{flex:1;height:4px;border-radius:99px;background:rgba(238,233,222,.12);position:relative}
+  .bar .rail i{position:absolute;inset:0 64% 0 0;background:linear-gradient(90deg,var(--coral),var(--amber));border-radius:99px}
+  /* lyrics center */
+  .lyr{display:flex;flex-direction:column;gap:26px;font-size:24px;line-height:1.3;font-weight:600;min-width:0}
+  .lyr span{color:rgba(238,233,222,.26)}
+  .lyr .on{color:var(--paper);font-size:30px;text-shadow:0 0 50px rgba(232,160,93,.4)}
+  .lyr .near{color:rgba(238,233,222,.5)}
+  /* queue right */
+  .queue{align-self:stretch;display:flex;flex-direction:column;padding:8px 0 24px;min-height:0}
+  .qcard{border:1px solid var(--line);border-radius:20px;background:rgba(7,7,6,.55);
+    backdrop-filter:blur(14px);padding:20px;display:flex;flex-direction:column;min-height:0;flex:1}
+  .qhead{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--muted)}
+  .qhead b{color:var(--paper);font-size:15px}
+  .add{border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:12.5px;color:var(--paper)}
+  .item{display:flex;gap:12px;align-items:center;padding:11px 6px;border-radius:12px;margin-top:6px}
+  .item.me{background:rgba(240,90,73,.10);border:1px solid rgba(240,90,73,.25)}
+  .thumb{width:42px;height:42px;border-radius:9px;flex:none;
+    background:conic-gradient(from 120deg,#8a342c,#401511 45%,#a55a33)}
+  .item:nth-child(3) .thumb{background:conic-gradient(from 300deg,#2c4a8a,#111b40 45%,#5a7ecb)}
+  .item:nth-child(4) .thumb{background:conic-gradient(from 30deg,#2c8a4e,#0f2b18 45%,#6bcb8f)}
+  .item:nth-child(5) .thumb{background:conic-gradient(from 220deg,#8a7a2c,#2b2411 45%,#cbba6b)}
+  .t{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .a{font-size:12px;color:var(--muted);margin-top:3px}
+  .mid{flex:1;min-width:0}
+  .votes{display:flex;flex-direction:column;align-items:center;gap:4px;margin-left:4px}
+  .vote{font-size:12.5px;color:var(--amber);font-weight:700}
+  .vbtn{width:26px;height:26px;border-radius:8px;border:1px solid var(--line);
+    display:grid;place-items:center;color:var(--muted);font-size:12px}
+  .item.me .vbtn{border-color:rgba(240,90,73,.5);color:var(--coral)}
+  .next{margin-top:auto;padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+  .next b{color:var(--paper)}
+  /* transport */
+  .dock{display:flex;justify-content:center;gap:22px;align-items:center;padding:10px 0 26px}
+  .ctl{width:52px;height:52px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;
+    color:var(--paper);background:rgba(238,233,222,.04);font-size:17px}
+  .ctl.play{width:66px;height:66px;background:var(--paper);color:var(--ink);border:none;font-size:20px;
+    box-shadow:0 14px 44px rgba(238,233,222,.18)}
+</style>
+</head>
+<body>
+<div class="window"><div class="grain"></div>
+  <div class="top">
+    <span class="pill"><i class="live"></i><span class="title">Комната «Ночной эфир»</span> · 4 слушателя</span>
+    <span class="pill">🔒 Приватная</span>
+    <div class="spacer"></div>
+    <div class="avatars"><i class="av"></i><i class="av"></i><i class="av"></i><i class="av"></i></div>
+  </div>
+
+  <div class="main">
+    <div class="left">
+      <div class="cover"></div>
+      <div class="meta">
+        <div class="track">Tadow</div>
+        <div class="artist">Masego, FKJ <span class="badge">SPOTIFY</span></div>
+        <div class="bar"><span>1:21</span><div class="rail"><i></i></div><span>5:01</span></div>
+      </div>
+    </div>
+
+    <div class="lyr">
+      <span>Oh, oh</span>
+      <span class="on">I saw her and she hit me like</span>
+      <span class="near">Saw that thing so beautiful</span>
+      <span>She just hit my heart, oh</span>
+      <span>Full force and she got me like</span>
+      <span>I be like</span>
+    </div>
+
+    <div class="queue">
+      <div class="qcard">
+        <div class="qhead"><b>Очередь зала</b><span class="add">+ Трек</span></div>
+        <div class="item me">
+          <div class="thumb"></div>
+          <div class="mid"><div class="t">Empty Streets</div><div class="a"> você · добавил banochka</div></div>
+          <div class="votes"><span class="vote">▲ 7</span><span class="vbtn">▲</span></div>
+        </div>
+        <div class="item">
+          <div class="thumb"></div>
+          <div class="mid"><div class="t">Nightcall</div><div class="a">Kavinsky · добавил mars</div></div>
+          <div class="votes"><span class="vote">▲ 4</span><span class="vbtn">▲</span></div>
+        </div>
+        <div class="item">
+          <div class="thumb"></div>
+          <div class="mid"><div class="t">Колыбельная</div><div class="a">Икра · добавила lena</div></div>
+          <div class="votes"><span class="vote">▲ 2</span><span class="vbtn">▲</span></div>
+        </div>
+        <div class="next">Следующий трек выберет <b>голос зала</b></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dock">
+    <div class="ctl">⇄</div>
+    <div class="ctl">◀</div>
+    <div class="ctl play">▶</div>
+    <div class="ctl">▶</div>
+    <div class="ctl">♫</div>
+  </div>
+</div>
+</body>
+</html>

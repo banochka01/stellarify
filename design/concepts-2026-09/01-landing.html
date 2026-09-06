@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Resonance — концепт лендинга</title>
+<style>
+  :root{
+    --ink:#070706; --paper:#eee9de; --muted:#938f87;
+    --line:rgba(238,233,222,.14); --coral:#f05a49;
+    --amber:#e8a05d; --wine:#7a2c26;
+  }
+  *{box-sizing:border-box;margin:0}
+  html,body{height:100%}
+  body{
+    font-family:"Inter","Segoe UI",Arial,sans-serif; color:var(--paper);
+    background:var(--ink); overflow:hidden;
+  }
+  /* === амбиентный фон: «свет» от обложки, как в Visual Stage === */
+  .ambient{position:fixed;inset:0;z-index:0;
+    background:
+      radial-gradient(120% 90% at 78% 30%, rgba(122,44,38,.55), transparent 60%),
+      radial-gradient(90% 70% at 15% 85%, rgba(232,160,93,.20), transparent 55%),
+      radial-gradient(60% 50% at 60% 10%, rgba(240,90,73,.12), transparent 60%),
+      linear-gradient(160deg,#120b09 0%, #070706 55%, #0a0705 100%);
+  }
+  .grain{position:fixed;inset:0;z-index:1;opacity:.35;mix-blend-mode:overlay;
+    background-image:repeating-conic-gradient(rgba(255,255,255,.012) 0% .0001%, transparent .0002% .0003%);
+  }
+  .page{position:relative;z-index:2;height:100vh;display:flex;flex-direction:column;padding:0 72px}
+  /* nav */
+  nav{display:flex;align-items:center;gap:34px;padding:26px 0 0;font-size:14px}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.02em;margin-right:auto}
+  .logo .mark{width:26px;height:26px;border-radius:8px;
+    background:conic-gradient(from 210deg, var(--coral), var(--amber), var(--wine), var(--coral));
+    box-shadow:0 0 24px rgba(240,90,73,.45)}
+  nav a{color:var(--muted);text-decoration:none}
+  nav a.hot{color:var(--paper)}
+  .nav-cta{border:1px solid var(--line);border-radius:999px;padding:8px 18px;color:var(--paper)!important}
+  /* hero grid */
+  .hero{flex:1;display:grid;grid-template-columns:1.05fr .95fr;gap:64px;align-items:center;min-height:0}
+  .eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:12px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--amber);margin-bottom:26px}
+  .eyebrow::before{content:"";width:34px;height:1px;background:var(--amber)}
+  h1{font-size:clamp(44px,4.6vw,72px);line-height:1.03;font-weight:800;letter-spacing:-.02em}
+  h1 em{font-style:normal;color:transparent;background:linear-gradient(100deg,var(--coral),var(--amber));
+    -webkit-background-clip:text;background-clip:text}
+  .sub{margin-top:24px;max-width:520px;color:var(--muted);font-size:17px;line-height:1.65}
+  .sub b{color:var(--paper);font-weight:600}
+  .providers{display:flex;gap:10px;margin-top:26px;flex-wrap:wrap}
+  .chip{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--paper);
+    border:1px solid var(--line);border-radius:999px;padding:7px 14px;background:rgba(238,233,222,.04)}
+  .dot{width:8px;height:8px;border-radius:50%}
+  .actions{display:flex;gap:14px;margin-top:36px}
+  .btn{display:inline-flex;align-items:center;gap:10px;text-decoration:none;border-radius:14px;
+    padding:15px 26px;font-size:15px;font-weight:600}
+  .btn.primary{background:var(--coral);color:#1a0b08;box-shadow:0 12px 40px rgba(240,90,73,.35)}
+  .btn.ghost{border:1px solid var(--line);color:var(--paper)}
+  .note{margin-top:30px;font-size:12.5px;color:var(--muted)}
+  /* player mock */
+  .stage{position:relative;height:min(72vh,640px);border-radius:24px;overflow:hidden;
+    border:1px solid rgba(238,233,222,.10);
+    background:linear-gradient(150deg,rgba(122,44,38,.35),rgba(7,7,6,.6) 55%),
+      radial-gradient(80% 60% at 70% 20%, rgba(232,160,93,.25), transparent 60%);
+    box-shadow:0 40px 120px rgba(0,0,0,.55);
+    display:grid;grid-template-columns:200px 1fr;gap:28px;padding:32px;align-items:center}
+  .cover{width:200px;height:200px;border-radius:14px;
+    background:
+      radial-gradient(60% 45% at 30% 25%, #d8863f, transparent 65%),
+      conic-gradient(from 40deg at 60% 60%, #8a342c, #401511 40%, #a55a33 70%, #8a342c);
+    box-shadow:0 24px 60px rgba(0,0,0,.6)}
+  .track{font-weight:700;font-size:19px;margin-top:18px}
+  .artist{color:var(--muted);font-size:13.5px;margin-top:6px}
+  .lyr{display:flex;flex-direction:column;gap:20px;font-size:21px;line-height:1.35;min-width:0}
+  .lyr span{color:rgba(238,233,222,.28);font-weight:600;transition:.3s}
+  .lyr .on{color:var(--paper);font-size:25px;text-shadow:0 0 40px rgba(232,160,93,.35)}
+  .lyr .near{color:rgba(238,233,222,.55)}
+  .progress{grid-column:1/-1;height:4px;border-radius:99px;background:rgba(238,233,222,.12);position:relative}
+  .progress i{position:absolute;inset:0 62% 0 0;background:linear-gradient(90deg,var(--coral),var(--amber));border-radius:99px}
+  .rooms{position:absolute;right:22px;top:22px;display:flex;align-items:center;gap:9px;font-size:12.5px;
+    border:1px solid var(--line);border-radius:999px;padding:7px 14px;background:rgba(7,7,6,.55);backdrop-filter:blur(8px)}
+  .live{width:7px;height:7px;border-radius:50%;background:var(--coral);box-shadow:0 0 12px var(--coral)}
+</style>
+</head>
+<body>
+<div class="ambient"></div><div class="grain"></div>
+<div class="page">
+  <nav>
+    <div class="logo"><span class="mark"></span>Resonance</div>
+    <a href="#">Возможности</a><a href="#">Комнаты</a><a href="#">Wave</a><a href="#">Поддержка</a>
+    <a class="nav-cta" href="#">Скачать</a>
+  </nav>
+  <div class="hero">
+    <div>
+      <span class="eyebrow">Версия 1.4 · уже в проде</span>
+      <h1>Вся музыка мира —<br><em>в одном плеере</em></h1>
+      <p class="sub">Resonance ищет и играет в <b>Яндекс Музыке, SoundCloud, YouTube, Spotify и VK</b>,
+        собирает плейлисты и звучит нативно — без вкладок браузера и пяти приложений.</p>
+      <div class="providers">
+        <span class="chip"><i class="dot" style="background:#ffdb4d"></i>Яндекс</span>
+        <span class="chip"><i class="dot" style="background:#ff5500"></i>SoundCloud</span>
+        <span class="chip"><i class="dot" style="background:#f05a49"></i>YouTube</span>
+        <span class="chip"><i class="dot" style="background:#1db954"></i>Spotify</span>
+        <span class="chip"><i class="dot" style="background:#728bda"></i>VK Музыка</span>
+      </div>
+      <div class="actions">
+        <a class="btn primary" href="#">Скачать для Windows</a>
+        <a class="btn ghost" href="#">Android APK</a>
+        <a class="btn ghost" href="#">iOS IPA</a>
+      </div>
+      <p class="note">Windows Setup EXE · Portable ZIP · Android debug-signed · iOS unsigned</p>
+    </div>
+    <div class="stage">
+      <div>
+        <div class="cover"></div>
+        <div class="track">Tadow</div>
+        <div class="artist">Masego, FKJ</div>
+      </div>
+      <div class="lyr">
+        <span>Oh, oh</span>
+        <span class="on">I saw her and she hit me like</span>
+        <span class="near">Saw that thing so beautiful</span>
+        <span>She just hit my heart, oh</span>
+        <span>Full force and she got me like</span>
+      </div>
+      <div class="rooms"><i class="live"></i>В комнате: 4 слушателя</div>
+      <div class="progress"><i></i></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
