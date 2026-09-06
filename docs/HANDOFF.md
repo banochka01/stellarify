@@ -66,6 +66,31 @@ Resonance/stellarify — мульти-источниковый музыкаль�
    пишет «1.3 Lyrics Network»; деплой статики — tar dist → scp в incoming →
    swap `/opt/resonance/landing` (старая копия: incoming/landing-prev).
 
+## Сводка: сессия 2026-09-06, вторая (релиз бинарников) — не повторять
+
+1. Клиент 1.3.0+18 → **1.4.0+19** (pubspec.yaml), NSIS-дефолты обновлены (db997eb).
+2. Собраны и залиты в `/opt/resonance/downloads`: Windows Setup EXE,
+   Portable ZIP, Android APK (все через `K:/SDK/flutter_fresh`; гочяки — см.
+   раздел «Окружение»). Артефакты также лежат в `J:/bankafy/artifacts/resonance-1.4.0/`.
+3. Все 4 nginx-алиаса `/downloads/*` переключены на 1.4.0, проверены по HTTP
+   (размеры и SHA-256 совпадают с локальными артефактами). Старые версии
+   1.2.0/1.3.0 в downloads — откат, не удалять без нужды.
+4. iOS 1.4.0 собран через GitHub Actions (`.github/workflows/ios-unsigned.yml`,
+   триггер — push в main с изменениями в `resonance/**`; мониторинг и скачивание
+   артефакта — REST API с токеном из `git credential fill` для github.com, gh CLI
+   не установлен). Попутно починен упавший CI-тест: spotify/vk добавлены в
+   дефолт онбординга `OnboardingPreferences` (04583ce) — это был реальный баг 1.4.
+   Локальный `flutter test` с K:-SDK работает для чистых Dart-тестов (падает
+   только на native assets).
+5. Лендинг: release-note в hero обновлён с «1.3 Lyrics Network» на 1.4 (5e6d1e8),
+   dist задеплоен swap-ом в `/opt/resonance/landing` (старая копия:
+   `/opt/resonance/incoming/landing-prev`).
+6. Тексты анонса обновления — в этом же коммите, файл `docs/ANNOUNCEMENT-1.4.md`.
+
+Проверено в проде: `/api/health` ok, `/api/v1/playback/providers` — 5 провайдеров,
+все 4 канала `/downloads/*` отдают 1.4.0, лендинг пишет 1.4. Коммиты:
+db997eb, 04583ce, 141349e, 5e6d1e8, 00f517b (+ текущий). Push в GitHub работает.
+
 ## Задачи следующей сессии (по приоритету)
 
 1. ~~Пересобрать бинарники клиентов~~ — **сделано 2026-09-06, все 4 платформы
