@@ -17,6 +17,19 @@ export type Track = {
   liked?: boolean;
 };
 
+export type RoomQueueEntry = {
+  id: string;
+  track: {
+    id: string;
+    title: string;
+    artist: string;
+    album?: string;
+  };
+  addedBy: { id: string; name: string };
+  votes: number;
+  voters: string[];
+};
+
 export type RoomState = {
   code: string;
   hostId: string;
@@ -33,6 +46,7 @@ export type RoomState = {
     updatedAt: number;
     version: number;
   };
+  queue?: RoomQueueEntry[];
 };
 
 export type ImportedSource = {

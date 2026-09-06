@@ -369,6 +369,15 @@ button.track-row:hover, button.track-row.current { background: rgba(255,255,255,
 .avatar-2 { background: linear-gradient(145deg, #4e9c8f, #254941); }
 .avatar-3 { background: linear-gradient(145deg, #c76d77, #5d3039); }
 .pulse-dot { width: 6px; height: 6px; border-radius: 50%; background: #73df9a; }
+.room-queue { margin-top: 24px; }
+.queue-entry { min-height: 44px; display: flex; align-items: center; gap: 9px; border-top: 1px solid var(--line); }
+.queue-entry > div { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.queue-entry strong { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.queue-entry small { color: #686975; font-size: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.queue-vote { min-width: 34px; height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: #797a85; font-size: 10px; font-weight: 700; cursor: pointer; transition: .2s ease; }
+.queue-vote:hover { border-color: rgba(162,117,255,.5); color: #c9b2f7; }
+.queue-vote.voted { border-color: rgba(162,117,255,.55); background: rgba(162,117,255,.14); color: #c9b2f7; }
+.queue-entry .icon-button { width: 26px; height: 26px; }
 .sync-note { display: flex; gap: 10px; margin-top: 23px; padding: 13px; color: #797a85; background: rgba(162,117,255,.07); border-radius: 10px; }
 .sync-note svg { color: #a981f5; flex: 0 0 auto; }
 .sync-note p { margin: 0; font-size: 9px; line-height: 1.55; }

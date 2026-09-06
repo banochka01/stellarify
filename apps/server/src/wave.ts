@@ -4,7 +4,7 @@ import { ProviderGateway } from "./provider-gateway.js";
 import { YandexAdapter } from "./yandex.js";
 import { WavePersonalizer, type WaveIntent, type WavePersonalization } from "./wave-personalizer.js";
 
-export type WaveProviderName = "soundcloud" | "yandex";
+export type WaveProviderName = "soundcloud" | "yandex" | "spotify" | "vk";
 export type WaveAccess = Partial<Record<WaveProviderName, ProviderAccess>>;
 export type WaveFeedbackType = "started" | "finished" | "skipped" | "liked" | "disliked";
 

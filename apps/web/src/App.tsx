@@ -76,12 +76,16 @@ export function App() {
   const [connected, setConnected] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
   const [notice, setNotice] = useState("");
+  const [socketId, setSocketId] = useState("");
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
     const socket = io(apiUrl, { transports: ["websocket", "polling"] });
     socketRef.current = socket;
-    socket.on("connect", () => setConnected(true));
+    socket.on("connect", () => {
+      setConnected(true);
+      setSocketId(socket.id ?? "");
+    });
     socket.on("disconnect", () => setConnected(false));
     socket.on("room:state", (nextRoom: RoomState) => {
       setRoom(nextRoom);
@@ -150,6 +154,38 @@ export function App() {
 
   const imported = (sources: ImportedSource[]) => {
     setNotice(`Добавлено источников: ${sources.length}`);
+  };
+
+  const queueEmit = (event: string, payload: Record<string, unknown>) => {
+    if (!room) return;
+    socketRef.current?.emit(event, { code: room.code, ...payload }, (result: { ok: boolean; error?: string }) => {
+      if (result && !result.ok) setNotice(result.error || "Не удалось выполнить действие");
+    });
+  };
+
+  const queueAddCurrent = () => {
+    if (!room || !currentTrack) return;
+    const externalUrls: Record<string, string> = {
+      spotify: `https://open.spotify.com/track/${currentTrack.id}`,
+      vk: `https://vk.com/audio1_${currentTrack.id.replace(/\D/g, "") || "1"}`,
+      soundcloud: `https://soundcloud.com/${encodeURIComponent(currentTrack.artist)}/${encodeURIComponent(currentTrack.title)}`,
+      yandex: `https://music.yandex.ru/album/1/track/1`,
+      youtube: `https://music.youtube.com/watch?v=00000000000`
+    };
+    queueEmit("room:queue-add", {
+      track: {
+        id: `${currentTrack.provider}:${currentTrack.id}`,
+        title: currentTrack.title,
+        artist: currentTrack.artist,
+        album: currentTrack.album,
+        sources: [{
+          provider: currentTrack.provider,
+          externalId: currentTrack.id,
+          externalUrl: externalUrls[currentTrack.provider] ?? externalUrls.soundcloud!
+        }]
+      }
+    });
+    setNotice("Трек предложен в очередь");
   };
 
   return (
@@ -359,7 +395,20 @@ export function App() {
       </footer>
 
       {importOpen && <ImportModal apiUrl={apiUrl} onClose={() => setImportOpen(false)} onImported={imported} />}
-      {roomOpen && <RoomPanel connected={connected} room={room} onClose={() => setRoomOpen(false)} onCreate={createRoom} onJoin={joinRoom} />}
+      {roomOpen && (
+        <RoomPanel
+          connected={connected}
+          room={room}
+          myId={socketId}
+          onClose={() => setRoomOpen(false)}
+          onCreate={createRoom}
+          onJoin={joinRoom}
+          onQueueAddCurrent={queueAddCurrent}
+          onQueueVote={(entryId) => queueEmit("room:queue-vote", { entryId })}
+          onQueueRemove={(entryId) => queueEmit("room:queue-remove", { entryId })}
+          onQueuePlayNext={() => queueEmit("room:queue-next", {})}
+        />
+      )}
       {notice && <div className="toast">{notice}</div>}
     </div>
   );

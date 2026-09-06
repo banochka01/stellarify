@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type { Server, Socket } from "socket.io";
 
 type Participant = {
@@ -34,22 +34,48 @@ type RoomTrack = {
   preferredProvider?: "youtube" | "yandex" | "soundcloud";
 };
 
+type QueueEntry = {
+  id: string;
+  track: RoomTrack;
+  addedBy: { id: string; name: string };
+  votes: Set<string>;
+  addedAt: number;
+};
+
 type Room = {
   code: string;
   hostId: string;
   participants: Map<string, Participant>;
   playback: PlaybackState;
+  queue: QueueEntry[];
 };
 
 const rooms = new Map<string, Room>();
 
+const queueLimit = 50;
+
 const createCode = () => randomBytes(3).toString("hex").toUpperCase();
+
+const publicQueueEntry = (entry: QueueEntry) => ({
+  id: entry.id,
+  track: entry.track,
+  addedBy: entry.addedBy,
+  votes: entry.votes.size,
+  voters: [...entry.votes],
+  addedAt: entry.addedAt
+});
+
+const orderedQueue = (room: Room) =>
+  [...room.queue]
+    .sort((a, b) => b.votes.size - a.votes.size || a.addedAt - b.addedAt)
+    .map(publicQueueEntry);
 
 const publicRoom = (room: Room) => ({
   code: room.code,
   hostId: room.hostId,
   participants: [...room.participants.values()].map(({ id, name, joinedAt }) => ({ id, name, joinedAt })),
-  playback: room.playback
+  playback: room.playback,
+  queue: orderedQueue(room)
 });
 
 const normalizeName = (value: unknown) => {
@@ -57,7 +83,7 @@ const normalizeName = (value: unknown) => {
   return value.trim().slice(0, 32) || "Слушатель";
 };
 
-const providers = new Set(["youtube", "yandex", "soundcloud"]);
+const providers = new Set(["youtube", "yandex", "soundcloud", "spotify", "vk"]);
 const shortString = (value: unknown, length = 256) =>
   typeof value === "string" ? value.trim().slice(0, length) : "";
 
@@ -116,6 +142,11 @@ const normalizeTrack = (value: unknown): RoomTrack | null => {
 const leaveRooms = (io: Server, socket: Socket) => {
   for (const [code, room] of rooms) {
     if (!room.participants.delete(socket.id)) continue;
+    // Drop the departing listener's votes and their queue entries.
+    room.queue = room.queue.filter((entry) => {
+      entry.votes.delete(socket.id);
+      return entry.addedBy.id !== socket.id || entry.votes.size > 0;
+    });
     socket.leave(code);
     if (room.participants.size === 0) {
       rooms.delete(code);
@@ -126,6 +157,12 @@ const leaveRooms = (io: Server, socket: Socket) => {
     }
     io.to(code).emit("room:state", publicRoom(room));
   }
+};
+
+const findRoomForParticipant = (socket: Socket, code: string) => {
+  const room = rooms.get(code);
+  if (!room || !room.participants.has(socket.id)) return undefined;
+  return room;
 };
 
 export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (create: boolean) => void) {
@@ -155,7 +192,8 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
         positionMs: 0,
         updatedAt: Date.now(),
         version: 0
-      }
+      },
+      queue: []
     };
 
     rooms.set(code, room);
@@ -212,6 +250,111 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
 
     io.to(code).emit("room:state", publicRoom(room));
     acknowledge?.({ ok: true });
+  });
+
+  socket.on("room:queue-add", (payload, acknowledge) => {
+    const code =
+      typeof payload?.code === "string" ? payload.code.trim().toUpperCase() : "";
+    const room = findRoomForParticipant(socket, code);
+    if (!room) {
+      acknowledge?.({ ok: false, error: "Комната не найдена" });
+      return;
+    }
+    const track = normalizeTrack(payload?.track);
+    if (!track) {
+      acknowledge?.({ ok: false, error: "Некорректный трек" });
+      return;
+    }
+    if (room.queue.some((entry) => entry.track.id === track.id)) {
+      acknowledge?.({ ok: false, error: "Трек уже в очереди" });
+      return;
+    }
+    if (room.queue.length >= queueLimit) {
+      acknowledge?.({ ok: false, error: "Очередь переполнена" });
+      return;
+    }
+    const participant = room.participants.get(socket.id)!;
+    room.queue.push({
+      id: randomUUID(),
+      track,
+      addedBy: { id: socket.id, name: participant.name },
+      votes: new Set([socket.id]),
+      addedAt: Date.now()
+    });
+    io.to(code).emit("room:state", publicRoom(room));
+    acknowledge?.({ ok: true });
+  });
+
+  socket.on("room:queue-vote", (payload, acknowledge) => {
+    const code =
+      typeof payload?.code === "string" ? payload.code.trim().toUpperCase() : "";
+    const entryId = typeof payload?.entryId === "string" ? payload.entryId.trim().slice(0, 64) : "";
+    const room = findRoomForParticipant(socket, code);
+    const entry = room?.queue.find((item) => item.id === entryId);
+    if (!room || !entry) {
+      acknowledge?.({ ok: false, error: "Трек очереди не найден" });
+      return;
+    }
+    if (!entry.votes.delete(socket.id)) {
+      if (entry.addedBy.id !== socket.id) entry.votes.add(socket.id);
+    }
+    io.to(code).emit("room:state", publicRoom(room));
+    acknowledge?.({ ok: true });
+  });
+
+  socket.on("room:queue-remove", (payload, acknowledge) => {
+    const code =
+      typeof payload?.code === "string" ? payload.code.trim().toUpperCase() : "";
+    const entryId = typeof payload?.entryId === "string" ? payload.entryId.trim().slice(0, 64) : "";
+    const room = findRoomForParticipant(socket, code);
+    if (!room) {
+      acknowledge?.({ ok: false, error: "Комната не найдена" });
+      return;
+    }
+    const index = room.queue.findIndex((item) => item.id === entryId);
+    if (index < 0) {
+      acknowledge?.({ ok: false, error: "Трек очереди не найден" });
+      return;
+    }
+    const entry = room.queue[index]!;
+    if (room.hostId !== socket.id && entry.addedBy.id !== socket.id) {
+      acknowledge?.({ ok: false, error: "Удалять может ведущий или добавивший" });
+      return;
+    }
+    room.queue.splice(index, 1);
+    io.to(code).emit("room:state", publicRoom(room));
+    acknowledge?.({ ok: true });
+  });
+
+  socket.on("room:queue-next", (payload, acknowledge) => {
+    const code =
+      typeof payload?.code === "string" ? payload.code.trim().toUpperCase() : "";
+    const room = findRoomForParticipant(socket, code);
+    if (!room) {
+      acknowledge?.({ ok: false, error: "Комната не найдена" });
+      return;
+    }
+    if (room.hostId !== socket.id) {
+      acknowledge?.({ ok: false, error: "Только ведущий управляет комнатой" });
+      return;
+    }
+    const [next] = [...room.queue].sort(
+      (a, b) => b.votes.size - a.votes.size || a.addedAt - b.addedAt
+    );
+    if (!next) {
+      acknowledge?.({ ok: false, error: "Очередь пуста" });
+      return;
+    }
+    room.queue = room.queue.filter((entry) => entry.id !== next.id);
+    room.playback = {
+      track: next.track,
+      paused: false,
+      positionMs: 0,
+      updatedAt: Date.now(),
+      version: room.playback.version + 1
+    };
+    io.to(code).emit("room:state", publicRoom(room));
+    acknowledge?.({ ok: true, trackId: next.track.id });
   });
 
   socket.on("room:leave", (_payload, acknowledge) => {

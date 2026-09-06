@@ -261,7 +261,7 @@ const waveRequestSchema = z.object({
   prompt: z.string().trim().max(500).optional(),
   seedQueries: z.array(z.string().trim().min(1).max(200)).max(20).default([]),
   excludedTerms: z.array(z.string().trim().min(1).max(80)).max(10).default([]),
-  enabledProviders: z.array(z.enum(["soundcloud", "yandex"])).min(1).max(2).default(["soundcloud", "yandex"]),
+  enabledProviders: z.array(z.enum(["soundcloud", "yandex", "spotify", "vk"])).min(1).max(4).default(["soundcloud", "yandex"]),
   discovery: z.number().min(0).max(1).default(.3),
   mood: z.enum(["fun", "active", "calm", "sad", "all"]).default("all"),
   language: z.enum(["not-russian", "russian", "any"]).default("any"),
@@ -271,13 +271,13 @@ const waveFeedbackSchema = z.object({
   eventId: z.string().uuid(),
   type: z.enum(["started", "finished", "skipped", "liked", "disliked"]),
   trackId: z.string().trim().min(1).max(200),
-  provider: z.enum(["soundcloud", "yandex"]),
+  provider: z.enum(["soundcloud", "yandex", "spotify", "vk"]),
   batchId: z.string().trim().min(1).max(200).optional(),
   playedDurationMs: z.number().int().min(0).max(24 * 60 * 60 * 1000).default(0)
 });
 const waveCheckpointSchema = z.object({
   trackId: z.string().trim().min(1).max(200),
-  provider: z.enum(["soundcloud", "yandex"]),
+  provider: z.enum(["soundcloud", "yandex", "spotify", "vk"]),
   positionMs: z.number().int().min(0).max(24 * 60 * 60 * 1000)
 }).strict();
 
@@ -547,8 +547,8 @@ function providerAccess(request: express.Request) {
 }
 
 function waveAccess(request: express.Request) {
-  const result: Partial<Record<"soundcloud" | "yandex", ProviderAccess>> = {};
-  for (const provider of ["soundcloud", "yandex"] as const) {
+  const result: Partial<Record<"soundcloud" | "yandex" | "spotify" | "vk", ProviderAccess>> = {};
+  for (const provider of ["soundcloud", "yandex", "spotify", "vk"] as const) {
     const token = request.header(`x-${provider}-token`)?.trim();
     if (token && token.length <= 4096 && !/[\r\n]/.test(token)) {
       result[provider] = {

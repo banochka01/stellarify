@@ -36,7 +36,7 @@ export type LibraryOperation =
 
 export type WaveListeningSignal = {
   type: "started" | "finished" | "skipped" | "liked" | "disliked";
-  provider: "soundcloud" | "yandex";
+  provider: "soundcloud" | "yandex" | "spotify" | "vk";
   trackId: string;
   title: string;
   artist: string;

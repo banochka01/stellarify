@@ -27,7 +27,7 @@ const safeHttpsUrl = z.string().url().max(2_048).refine((value) => {
 }, "Expected a credential-free HTTPS URL");
 
 const sourceSchema = z.object({
-  provider: z.enum(["youtube", "yandex", "soundcloud"]),
+  provider: z.enum(["youtube", "yandex", "soundcloud", "spotify", "vk"]),
   externalId: z.string().trim().min(1).max(300),
   externalUrl: safeHttpsUrl,
   metadata: z.record(z.string(), z.unknown()).optional()
@@ -43,7 +43,7 @@ const trackSchema = z.object({
   duration: z.number().int().min(0).max(24 * 60 * 60 * 1_000).nullable().optional(),
   artworkUrl: safeHttpsUrl.nullable().optional(),
   sources: z.array(sourceSchema).max(8),
-  preferredProvider: z.enum(["youtube", "yandex", "soundcloud"]).nullable().optional()
+  preferredProvider: z.enum(["youtube", "yandex", "soundcloud", "spotify", "vk"]).nullable().optional()
 }).strict();
 
 const operationSchema = z.discriminatedUnion("type", [

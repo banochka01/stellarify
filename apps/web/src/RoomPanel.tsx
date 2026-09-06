@@ -1,21 +1,31 @@
-import { Copy, Headphones, Radio, Users, X } from "lucide-react";
+import { Copy, Headphones, ListPlus, Play, Radio, ThumbsUp, Trash2, Users, X } from "lucide-react";
 import { useState } from "react";
 import type { RoomState } from "./types";
 
 type RoomPanelProps = {
   connected: boolean;
   room: RoomState | null;
+  myId: string;
   onClose: () => void;
   onCreate: (name: string) => void;
   onJoin: (code: string, name: string) => void;
+  onQueueAddCurrent: () => void;
+  onQueueVote: (entryId: string) => void;
+  onQueueRemove: (entryId: string) => void;
+  onQueuePlayNext: () => void;
 };
 
 export function RoomPanel({
   connected,
   room,
+  myId,
   onClose,
   onCreate,
-  onJoin
+  onJoin,
+  onQueueAddCurrent,
+  onQueueVote,
+  onQueueRemove,
+  onQueuePlayNext
 }: RoomPanelProps) {
   const [name, setName] = useState("Stellar");
   const [code, setCode] = useState("");
@@ -68,6 +78,46 @@ export function RoomPanel({
                 <span className="pulse-dot" />
               </div>
             ))}
+          </div>
+
+          <div className="room-queue">
+            <div className="section-line">
+              <span>Общая очередь</span>
+              <span>{room.queue?.length ?? 0}</span>
+            </div>
+            {(room.queue ?? []).map((entry) => {
+              const voted = entry.voters.includes(myId);
+              const canRemove = room.hostId === myId || entry.addedBy.id === myId;
+              return (
+                <div className="queue-entry" key={entry.id}>
+                  <button
+                    className={`queue-vote ${voted ? "voted" : ""}`}
+                    onClick={() => onQueueVote(entry.id)}
+                    aria-label={voted ? "Убрать голос" : "Голосовать за трек"}
+                  >
+                    <ThumbsUp size={14} fill={voted ? "currentColor" : "none"} />
+                    {entry.votes}
+                  </button>
+                  <div>
+                    <strong>{entry.track.title}</strong>
+                    <small>{entry.track.artist} · добавил {entry.addedBy.name}</small>
+                  </div>
+                  {room.hostId === myId && (
+                    <button className="icon-button" onClick={onQueuePlayNext} aria-label="Играть следующим">
+                      <Play size={15} />
+                    </button>
+                  )}
+                  {canRemove && (
+                    <button className="icon-button" onClick={() => onQueueRemove(entry.id)} aria-label="Убрать из очереди">
+                      <Trash2 size={15} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            <button className="secondary-button wide" onClick={onQueueAddCurrent}>
+              <ListPlus size={17} /> Предложить текущий трек
+            </button>
           </div>
 
           <div className="sync-note">
