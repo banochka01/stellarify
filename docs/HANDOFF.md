@@ -65,6 +65,16 @@ Resonance/stellarify — мульти-источниковый музыкаль�
 8. **Лендинг обновлён до 1.4** (5e6d1e8): release-note в hero больше не
    пишет «1.3 Lyrics Network»; деплой статики — tar dist → scp в incoming →
    swap `/opt/resonance/landing` (старая копия: incoming/landing-prev).
+9. **Лендинг: кинематографичный hero** (9322180, задеплоено 2026-09-06):
+   правая колонка — живой «Stage» (`apps/landing/src/components/HeroStage.tsx`),
+   ротация 4 реальных треков (Knucks & Venna — Alpha House, OG Buda & Scally
+   Milano — Большие бабки, SLIME & FACE — Подруга Подруг, MONATIK — Выходной)
+   с GSAP-переходами и амбиентным свечением под палитру трека. Обложки —
+   реальные (из Apple Music/iTunes lookup, `public/assets/covers/*.jpg`),
+   лого провайдеров — Simple Icons + Wikimedia (`public/assets/logos/*.svg`),
+   очередь «Далее в сессии» кликабельна, внизу marquee с треками. SSH на VPS
+   флапает (порт 22 таймаутами, сам сайт жив) — при деплое ретраить каждые
+   ~90 сек, восстанавливается.
 
 ## Сводка: сессия 2026-09-06, вторая (релиз бинарников) — не повторять
 
