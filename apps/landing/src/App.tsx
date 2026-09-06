@@ -22,10 +22,10 @@ import {
   Volume2
 } from "lucide-react";
 import { DemoSandbox } from "./components/DemoSandbox";
+import { HeroStage } from "./components/HeroStage";
 import { LyricsCinema } from "./components/LyricsCinema";
 import { QueueCinema } from "./components/QueueCinema";
 import { RoomsCinema } from "./components/RoomsCinema";
-import { WaveCanvas } from "./components/WaveCanvas";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -48,7 +48,7 @@ function App() {
           desktop: "(min-width: 900px)"
         },
         ({ conditions }) => {
-          const { reduce, desktop } = conditions as {
+          const { reduce } = conditions as {
             reduce: boolean;
             desktop: boolean;
           };
@@ -65,16 +65,15 @@ function App() {
             stagger: 0.09,
             ease: "power3.out"
           });
-          gsap.from(".hero-wave", {
+          gsap.from(".stage-card", {
             autoAlpha: 0,
-            scale: 0.92,
-            rotation: -5,
-            duration: 1.35,
+            y: 56,
+            duration: 1.15,
+            delay: 0.25,
             ease: "power3.out"
           });
-          gsap.to(".hero-wave", {
-            rotation: desktop ? 4 : 2,
-            yPercent: -3,
+          gsap.to(".stage-card", {
+            yPercent: -5,
             ease: "none",
             scrollTrigger: {
               trigger: ".hero",
@@ -139,6 +138,13 @@ function App() {
               Опиши настроение обычными словами. Wave поймёт контекст, учтёт
               твой вкус и соберёт живую очередь из подключённых источников.
             </p>
+            <div className="provider-chips">
+              <span className="provider-chip"><img src="/assets/logos/yandex-music.svg" alt="" width={16} height={16} />Яндекс Музыка</span>
+              <span className="provider-chip"><img src="/assets/logos/soundcloud.svg" alt="" width={16} height={16} />SoundCloud</span>
+              <span className="provider-chip"><img src="/assets/logos/youtube.svg" alt="" width={16} height={16} />YouTube</span>
+              <span className="provider-chip"><img src="/assets/logos/spotify.svg" alt="" width={16} height={16} />Spotify</span>
+              <span className="provider-chip"><img src="/assets/logos/vk.svg" alt="" width={16} height={16} />VK Музыка</span>
+            </div>
             <div className="hero-actions">
               <a className="button button-primary" href={downloads.windows}>
                 <Download size={18} /> Windows Setup EXE
@@ -156,7 +162,19 @@ function App() {
             <p className="release-note">Resonance 1.4 Spotify & VK Music · Поиск, импорт плейлистов и воспроизведение · Windows Setup EXE · Android debug-signed · iOS unsigned</p>
           </div>
           <div className="hero-visual">
-            <WaveCanvas />
+            <HeroStage />
+          </div>
+          <div className="stage-marquee" aria-hidden>
+            <div className="stage-marquee-track">
+              {[0, 1].map((copy) => (
+                <span className="stage-marquee-run" key={copy}>
+                  <b>Alpha House</b><i>Knucks &amp; Venna</i>
+                  <b>Большие бабки</b><i>OG Buda &amp; Scally Milano</i>
+                  <b>Подруга Подруг</b><i>SLIME &amp; FACE</i>
+                  <b>Выходной</b><i>MONATIK</i>
+                </span>
+              ))}
+            </div>
           </div>
           <a className="scroll-cue" href="#features" aria-label="К возможностям">
             <ArrowDown size={26} />
