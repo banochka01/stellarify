@@ -48,9 +48,14 @@ class LibraryScreen extends ConsumerWidget {
                             ),
                           ),
                           const SizedBox(height: 10),
-                          Text(
-                            'Медиатека',
-                            style: Theme.of(context).textTheme.displaySmall,
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Медиатека',
+                              maxLines: 1,
+                              style: Theme.of(context).textTheme.displaySmall,
+                            ),
                           ),
                         ],
                       ),
@@ -102,6 +107,11 @@ class LibraryScreen extends ConsumerWidget {
       builder: (dialogContext) => const ImportPlaylistDialog(),
     );
     if (url == null || url.isEmpty || !context.mounted) return;
+    // Диалог загрузки открывается на ROOT-навигаторе (useRootNavigator),
+    // а контекст экрана библиотеки принадлежит навигатору ShellRoute:
+    // Navigator.pop(context) попнул бы единственную страницу shell'а и
+    // валил go_router (чёрный экран). Закрываем диалог через root.
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
     unawaited(
       showDialog<void>(
         context: context,
@@ -117,7 +127,7 @@ class LibraryScreen extends ConsumerWidget {
           .read(libraryControllerProvider.notifier)
           .importPlaylist(imported);
       if (!context.mounted) return;
-      Navigator.pop(context);
+      rootNavigator.pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -127,7 +137,7 @@ class LibraryScreen extends ConsumerWidget {
       );
     } catch (error) {
       if (!context.mounted) return;
-      Navigator.pop(context);
+      rootNavigator.pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(error.toString().replaceFirst(RegExp(r'^\w+: '), '')),

@@ -21,8 +21,18 @@ class OnboardingGate extends ConsumerWidget {
     return settings.when(
       data: (value) => value.completed
           ? child
-          : OnboardingScreen(
-              onCompleted: () => ref.invalidate(onboardingSettingsProvider),
+          // Онбординг рендерится выше Navigator'а, где Overlay недоступен:
+          // даём ему собственный Overlay, чтобы Tooltip и подобные виджеты
+          // не падали (в release это выглядит как чёрный экран).
+          : Overlay(
+              initialEntries: [
+                OverlayEntry(
+                  builder: (_) => OnboardingScreen(
+                    onCompleted: () =>
+                        ref.invalidate(onboardingSettingsProvider),
+                  ),
+                ),
+              ],
             ),
       loading: () => const _StartupSplash(),
       error: (_, _) => child,

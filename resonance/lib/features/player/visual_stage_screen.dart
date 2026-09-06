@@ -88,7 +88,11 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
           children: [
             _StageBackground(
               track: track,
-              showVideo: effectiveMode == VisualStageMode.video && hasVideo,
+              video: hasVideo
+                  ? (effectiveMode == VisualStageMode.video
+                        ? _StageVideo.bright
+                        : _StageVideo.dimmed)
+                  : _StageVideo.none,
             ),
             const DecoratedBox(
               decoration: BoxDecoration(
@@ -134,25 +138,44 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
   }
 }
 
+enum _StageVideo { none, dimmed, bright }
+
 class _StageBackground extends ConsumerWidget {
-  const _StageBackground({required this.track, required this.showVideo});
+  const _StageBackground({required this.track, required this.video});
 
   final UnifiedTrack track;
-  final bool showVideo;
+  final _StageVideo video;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.watch(playbackVideoControllerProvider);
-    if (showVideo && controller != null) {
-      return AnimatedOpacity(
-        opacity: 1,
-        duration: ResonanceMotion.standard,
-        child: Video(
-          controller: controller,
-          controls: NoVideoControls,
-          fit: BoxFit.cover,
-          fill: const Color(0xFF050505),
-        ),
+    if (video != _StageVideo.none && controller != null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          AnimatedOpacity(
+            opacity: 1,
+            duration: ResonanceMotion.standard,
+            child: Video(
+              controller: controller,
+              controls: NoVideoControls,
+              fit: BoxFit.cover,
+              fill: const Color(0xFF050505),
+            ),
+          ),
+          // Слои поверх клипа: затемнение, чтобы обложка, текст и кнопки
+          // оставались читаемыми (в режиме клипа — минимальное).
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: Color.fromRGBO(
+                0,
+                0,
+                0,
+                video == _StageVideo.dimmed ? 0.62 : 0.28,
+              ),
+            ),
+          ),
+        ],
       );
     }
     final artwork = track.artworkUrl;
@@ -264,7 +287,8 @@ class _DesktopStage extends StatelessWidget {
       children: [
         Expanded(
           flex: 8,
-          child: Align(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
             alignment: Alignment.center,
             child: _StageIdentity(
               track: track,
@@ -293,7 +317,10 @@ class _MobileStage extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
     child: Column(
       children: [
-        _StageIdentity(track: track, compact: true),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: _StageIdentity(track: track, compact: true),
+        ),
         const SizedBox(height: 18),
         Expanded(
           child: _FullscreenLyrics(track: track, position: state.position),
@@ -313,10 +340,13 @@ class _StageIdentity extends StatelessWidget {
   Widget build(BuildContext context) {
     final viewport = MediaQuery.sizeOf(context);
     final short = viewport.height < 600;
-    final width = min(
-      viewport.width * .32,
-      short ? viewport.height * .15 : (compact ? 220.0 : 440.0),
-    );
+    // Обложка должна занимать заметную часть экрана: до 440px на десктопе,
+    // ~60% ширины в портрете и до 40% высоты в сжатых (ландшафт) сценариях.
+    final width = short
+        ? min(viewport.height * .32, 260.0)
+        : compact
+        ? min(viewport.width * .58, 300.0)
+        : min(viewport.width * .3, 440.0);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -324,14 +354,14 @@ class _StageIdentity extends StatelessWidget {
           tag: 'stage-art-${track.id}',
           child: TrackArtwork(track: track, size: width, borderRadius: 24),
         ),
-        SizedBox(height: short ? 12 : 22),
+        SizedBox(height: short ? 14 : 22),
         Text(
           track.title,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: short ? 20 : (compact ? 24 : 34),
+            fontSize: short ? 24 : (compact ? 26 : 34),
             height: 1.05,
             fontWeight: FontWeight.w800,
             letterSpacing: -1.1,

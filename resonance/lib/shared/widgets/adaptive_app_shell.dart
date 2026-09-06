@@ -42,7 +42,7 @@ class AdaptiveAppShell extends StatelessWidget {
     final desktop = width >= 900;
     if (!desktop) {
       return Scaffold(
-        body: SafeArea(bottom: false, child: child),
+        body: SafeArea(bottom: false, child: _TabSwitcher(index: _selectedIndex, child: child)),
         bottomNavigationBar: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -92,12 +92,65 @@ class AdaptiveAppShell extends StatelessWidget {
                   selectedIndex: _selectedIndex,
                   onSelected: (index) => _navigate(context, index),
                 ),
-                Expanded(child: child),
+                Expanded(child: _TabSwitcher(index: _selectedIndex, child: child)),
               ],
             ),
           ),
           const PlayerBar(compact: false),
         ],
+      ),
+    );
+  }
+}
+
+class _TabSwitcher extends StatefulWidget {
+  const _TabSwitcher({required this.index, required this.child});
+
+  final int index;
+  final Widget child;
+
+  @override
+  State<_TabSwitcher> createState() => _TabSwitcherState();
+}
+
+class _TabSwitcherState extends State<_TabSwitcher>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 300),
+  )..value = 1;
+
+  @override
+  void didUpdateWidget(_TabSwitcher oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.index != widget.index) {
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) return widget.child;
+    final animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+    // Анимируем только вход новой вкладки: удержание уходящей в дереве
+    // дублирует GlobalKey'и страниц go_router и ломает навигацию.
+    return FadeTransition(
+      opacity: animation,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.012),
+          end: Offset.zero,
+        ).animate(animation),
+        child: widget.child,
       ),
     );
   }
