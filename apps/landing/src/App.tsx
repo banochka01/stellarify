@@ -153,7 +153,7 @@ function App() {
                 <Apple size={18} /> Unsigned IPA
               </a>
             </div>
-            <p className="release-note">Resonance 1.3 Lyrics Network · Несколько Lyrics-источников · Windows Setup EXE · Android debug-signed · iOS unsigned</p>
+            <p className="release-note">Resonance 1.4 Spotify & VK Music · Поиск, импорт плейлистов и воспроизведение · Windows Setup EXE · Android debug-signed · iOS unsigned</p>
           </div>
           <div className="hero-visual">
             <WaveCanvas />
