@@ -3,13 +3,13 @@ Unicode true
 !include "x64.nsh"
 
 !ifndef APP_VERSION
-  !define APP_VERSION "1.4.0"
+  !define APP_VERSION "1.4.1"
 !endif
 !ifndef BUILD_DIR
   !define BUILD_DIR "..\..\build\windows\x64\runner\Release"
 !endif
 !ifndef OUTPUT_DIR
-  !define OUTPUT_DIR "..\..\..\artifacts\resonance-1.4.0"
+  !define OUTPUT_DIR "..\..\..\artifacts\resonance-1.4.1"
 !endif
 
 Name "Resonance"

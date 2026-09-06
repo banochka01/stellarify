@@ -167,12 +167,27 @@ class _StageBackground extends ConsumerWidget {
               child: Image.network(
                 artwork.toString(),
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                errorBuilder: (_, _, _) => _ambientGradient(track),
               ),
             ),
-          ),
+          )
+        else
+          _ambientGradient(track),
         const DecoratedBox(decoration: BoxDecoration(color: Color(0x99000000))),
       ],
+    );
+  }
+
+  Widget _ambientGradient(UnifiedTrack track) {
+    final colors = ArtworkFallback.gradientFor(track);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [colors.first.withValues(alpha: 0.55), colors.last],
+        ),
+      ),
     );
   }
 }

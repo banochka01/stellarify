@@ -97,38 +97,10 @@ class LibraryScreen extends ConsumerWidget {
   }
 
   Future<void> _importPlaylist(BuildContext context, WidgetRef ref) async {
-    final controller = TextEditingController();
     final url = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Перенести плейлист'),
-        content: SizedBox(
-          width: 520,
-          child: TextField(
-            controller: controller,
-            autofocus: true,
-            keyboardType: TextInputType.url,
-            decoration: const InputDecoration(
-              labelText: 'Ссылка Яндекс Музыки или YouTube',
-              hintText: 'https://music.yandex.ru/users/…/playlists/…',
-              prefixIcon: Icon(Icons.link_rounded),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Отмена'),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('Перенести'),
-          ),
-        ],
-      ),
+      builder: (dialogContext) => const ImportPlaylistDialog(),
     );
-    controller.dispose();
     if (url == null || url.isEmpty || !context.mounted) return;
     unawaited(
       showDialog<void>(
@@ -545,6 +517,55 @@ class _ErrorState extends StatelessWidget {
           OutlinedButton(onPressed: onRetry, child: const Text('Повторить')),
         ],
       ),
+    );
+  }
+}
+
+class ImportPlaylistDialog extends StatefulWidget {
+  const ImportPlaylistDialog({super.key});
+
+  @override
+  State<ImportPlaylistDialog> createState() => _ImportPlaylistDialogState();
+}
+
+class _ImportPlaylistDialogState extends State<ImportPlaylistDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Перенести плейлист'),
+      content: SizedBox(
+        width: 520,
+        child: TextField(
+          controller: _controller,
+          autofocus: true,
+          keyboardType: TextInputType.url,
+          onSubmitted: (value) =>
+              Navigator.pop(context, value.trim()),
+          decoration: const InputDecoration(
+            labelText: 'Ссылка на плейлист',
+            hintText: 'https://music.yandex.ru/users/…/playlists/…',
+            prefixIcon: Icon(Icons.link_rounded),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Отмена'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _controller.text.trim()),
+          child: const Text('Перенести'),
+        ),
+      ],
     );
   }
 }
