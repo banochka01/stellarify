@@ -19,6 +19,15 @@ Resonance/stellarify — мульти-источниковый музыкаль�
 - Flutter SDK НЕ в PATH: `J:\SDK\flutter\bin\flutter.bat analyze` работает,
   а `flutter test` падает на env-проблеме native assets («Invalid SDK hash»,
   package objective_c) — это НЕ баг кода, чинить отдельной сессией.
+- **Сборка клиента требует `K:\SDK\flutter_fresh`** (Flutter 3.44.4, Dart 3.12.2):
+  `J:\SDK\flutter` (Dart 3.12.1) не резолвит pubspec (нужно ^3.12.2).
+  Android SDK: `K:\SDK\android-sdk` (= `J:\SDK\android-sdk` дублирует).
+  Грабли: при переносе репо между дисками чистить `build/windows` (мёртвый
+  CMakeCache) и `windows/flutter/ephemeral/.plugin_symlinks` (мёртвые джанкшены).
+  Артефакты собираются в `J:/bankafy/artifacts/resonance-<ver>/` скриптом
+  `resonance/tool/build_windows_installer.ps1` (+ portable ZIP из содержимого
+  `build/windows/x64/runner/Release`), APK — `flutter build apk --release`
+  (debug-ключ, имя `Resonance-android-<ver>-release-debug-signed.apk`).
 - FTP-бэкап: `/root/backup-to-ftp.sh` на сервере, cron 03:30, хранилище
   принимает только lftp (rclone ломается на 550 MDTM). Лог:
   `/var/log/backup-to-ftp.log`. Креды в `/root/.ftp-backup.env`.
@@ -44,15 +53,17 @@ Resonance/stellarify — мульти-источниковый музыкаль�
 4. Бэкап на FTP + чистка сервера (FunPay-боты и jarvis удалены — так решил юзер).
 5. `docs/ROADMAP.md` — дорожная карта, коммиты `917427b`, `ad4108c` на main.
 6. 68 тестов сервера проходят, `npm run check`/`build` зелёные.
+7. **Бинарники клиентов 1.4.0 в проде** (2026-09-06): Windows Setup EXE +
+   Portable ZIP + Android APK собраны (клиент поднят до 1.4.0+19), залиты в
+   `/opt/resonance/downloads`, nginx-алиасы `/downloads/{windows,windows-portable,android}`
+   переключены на 1.4.0 и проверены по HTTP. iOS-сборка осталась 1.3.0 —
+   на Windows не собрать (нужен macOS); старые версии 1.2.0/1.3.0 в downloads
+   сохранены как откат.
 
 ## Задачи следующей сессии (по приоритету)
 
-1. **Пересобрать бинарники клиентов** — в `/opt/resonance/downloads` лежат
-   сборки 1.3.0, а сервер уже раздаёт 1.4.0: пользователи получат апдейт,
-   которого нет. Нужно: `flutter build` Windows (Setup EXE/Portable ZIP) и
-   APK, залить в `/opt/resonance/downloads`, проверить HTTP-заголовки
-   `/downloads/*`. Артефакты Flutter-сборки Windows собираются локально
-   (`J:/bankafy/resonance/windows`), Android требует SDK (`J:/SDK/android-sdk`).
+1. ~~Пересобрать бинарники клиентов~~ — **сделано 2026-09-06** (см. п.7 выше).
+   Остаток: iOS-сборка 1.4.0, когда будет macOS.
 2. **Комнаты 2.0 фаза 2**: UI очереди в Flutter-клиенте (экран комнат —
    `lib/features/rooms/`, API-события уже на сервере), приватные комнаты по
    ссылке, история сессий, реакции. Персистентность комнат требует Resonance ID (п.3).
