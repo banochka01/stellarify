@@ -2,7 +2,7 @@
 
 ## Version 2.0.0 — Library and Wave 2.0
 
-Status: release validation in progress on 2026-09-08.
+Status: released to production and publicly verified on 2026-09-08.
 
 - [x] One-action favorites and playlist transfer from Yandex, Spotify and VK
 - [x] Current Yandex Music share URL recognition, including playlist UUID links
@@ -13,7 +13,10 @@ Status: release validation in progress on 2026-09-08.
 - [x] Server-backed weekly listening report
 - [x] Resonance 2.0 landing showcase
 - [x] Desktop and mobile visual regression coverage
-- [ ] Production binaries and deployment
+- [x] Windows Setup/portable, Android APK and unsigned iOS production artifacts
+- [x] Atomic production deployment, rollback point and public HTTP 206 verification
+
+Rollback backup: `/opt/resonance/backups/release-2.0.0-20260908T052000Z`.
 
 ## Version 1.3.0 — Lyrics Network and Windows installer
 

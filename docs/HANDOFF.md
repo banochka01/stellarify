@@ -1,6 +1,6 @@
 # HANDOFF — инструкция для следующей сессии агента
 
-Дата: 2026-09-06. Прочти это до начала работы; детали окружения дублированы в
+Дата: 2026-09-08. Прочти это до начала работы; детали окружения дублированы в
 памяти проекта (`resonance-deploy`, `resonance-ftp-backup`).
 
 ## Контекст проекта
@@ -41,6 +41,28 @@ Resonance/stellarify — мульти-источниковый музыкаль�
   Коммиты на main, push не настроен.
 
 ## Что уже сделано (не переделывай!)
+
+### Resonance 2.0 Library — прод, 2026-09-08
+
+- Выпущен `2.0.0+22`: перенос всей медиатеки (лайки + плейлисты) из Яндекс
+  Музыки, Spotify и VK, актуальные share-URL Яндекса, визуально новая
+  медиатека, Wave 2.0 и недельная статистика. Music Graph и изменение
+  навигации намеренно не включались.
+- Лендинг получил секцию Library Cinema и адаптивный показ переноса/медиатеки.
+- Проверки: сервер 70/70, Flutter 66/66, visual goldens 9/9, `flutter analyze`
+  без замечаний, server/web/landing build зелёные, браузер без console errors.
+- Прод: контейнеры `resonance-api:20260908-library-2` healthy, client-version
+  `2.0.0`, четыре download-канала проверены HTTP 206. iOS CI run
+  `34188970434`, commit `b393e50`.
+- Бэкап отката: `/opt/resonance/backups/release-2.0.0-20260908T052000Z`;
+  дополнительно оставлен `/opt/resonance/backups/manual-20260906T071940Z`.
+- VPS агрессивно ограничивает новые SSH-сессии. Использовать
+  `-o IdentitiesOnly=yes -o PreferredAuthentications=publickey`; для больших
+  файлов стабильнее `scp -O` и пауза между соединениями. При деплое собирать
+  только service `api`: `api` и `promo-bot` используют один image tag, поэтому
+  параллельный `docker compose build api promo-bot` даёт коллизию экспорта.
+- Удалена dangling-ссылка `/etc/nginx/sites-enabled/study.webcordes.ru`, которая
+  указывала на отсутствующий файл и блокировала `nginx -t`/reload.
 
 1. **Релиз 1.4 в проде** — Spotify и VK Музыка везде: серверные адаптеры
    (`apps/server/src/spotify.ts`, `vk.ts`), Flutter-клиент (enum `MusicProvider`,
