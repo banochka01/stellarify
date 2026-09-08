@@ -24,6 +24,7 @@ import {
 import { DemoSandbox } from "./components/DemoSandbox";
 import { HeroStage } from "./components/HeroStage";
 import { LyricsCinema } from "./components/LyricsCinema";
+import { LibraryCinema } from "./components/LibraryCinema";
 import { QueueCinema } from "./components/QueueCinema";
 import { RoomsCinema } from "./components/RoomsCinema";
 
@@ -135,8 +136,8 @@ function App() {
             <p className="eyebrow">Музыка без переключений</p>
             <h1>Музыка<br /><em>живёт</em><br />здесь.</h1>
             <p className="hero-lead">
-              Опиши настроение обычными словами. Wave поймёт контекст, учтёт
-              твой вкус и соберёт живую очередь из подключённых источников.
+              Перенеси любимые треки и плейлисты целиком. Новая медиатека и
+              Wave 2.0 соберут весь твой музыкальный мир в одном месте.
             </p>
             <div className="provider-chips">
               <span className="provider-chip"><img src="/assets/logos/yandex-music.svg" alt="" width={16} height={16} />Яндекс Музыка</span>
@@ -159,7 +160,7 @@ function App() {
                 <Apple size={18} /> Unsigned IPA
               </a>
             </div>
-            <p className="release-note">Resonance 1.4 Spotify & VK Music · Поиск, импорт плейлистов и воспроизведение · Windows Setup EXE · Android debug-signed · iOS unsigned</p>
+            <p className="release-note">Resonance 2.0 Library · Полный перенос медиатеки · Wave Mixes · Windows Setup EXE · Android debug-signed · iOS unsigned</p>
           </div>
           <div className="hero-visual">
             <HeroStage />
@@ -214,6 +215,8 @@ function App() {
             </article>
           </div>
         </section>
+
+        <LibraryCinema />
 
         <LyricsCinema />
 

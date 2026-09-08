@@ -72,12 +72,20 @@ class WaveProfile {
     required this.favoritesCount,
     required this.playlistTracksCount,
     required this.topArtists,
+    this.weekTracks = 0,
+    this.weekFinished = 0,
+    this.weekDiscoveries = 0,
+    this.weekMinutes = 0,
   });
 
   final int feedbackCount;
   final int favoritesCount;
   final int playlistTracksCount;
   final List<String> topArtists;
+  final int weekTracks;
+  final int weekFinished;
+  final int weekDiscoveries;
+  final int weekMinutes;
 
   int get signalCount => feedbackCount + favoritesCount + playlistTracksCount;
 }
@@ -122,7 +130,7 @@ class WaveController extends StateNotifier<WaveState> {
         data: {
           if (prompt.trim().isNotEmpty) 'prompt': prompt.trim(),
           'seedQueries': seeds,
-          'enabledProviders': ['soundcloud', 'yandex'],
+          'enabledProviders': ['soundcloud', 'yandex', 'spotify', 'vk'],
           'discovery': discovery,
           'mood': mood,
           'language': language,
@@ -201,6 +209,13 @@ class WaveController extends StateNotifier<WaveState> {
           topArtists: (data['topArtists'] as List? ?? const [])
               .map((value) => value.toString())
               .toList(growable: false),
+          weekTracks: ((data['week'] as Map?)?['tracks'] as num?)?.toInt() ?? 0,
+          weekFinished:
+              ((data['week'] as Map?)?['finished'] as num?)?.toInt() ?? 0,
+          weekDiscoveries:
+              ((data['week'] as Map?)?['discoveries'] as num?)?.toInt() ?? 0,
+          weekMinutes:
+              ((data['week'] as Map?)?['minutes'] as num?)?.toInt() ?? 0,
         ),
       );
     } on Object {

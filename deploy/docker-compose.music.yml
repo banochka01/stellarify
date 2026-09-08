@@ -6,7 +6,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.server
-    image: resonance-api:20260906-rooms-queue
+    image: resonance-api:20260908-library-2
     container_name: resonance-promo-bot
     command: [node, dist/promo-bot-main.js]
     restart: unless-stopped
@@ -33,7 +33,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.server
-    image: resonance-api:20260906-rooms-queue
+    image: resonance-api:20260908-library-2
     container_name: resonance-api
     restart: unless-stopped
     env_file:

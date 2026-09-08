@@ -173,3 +173,40 @@ test("imports a Yandex playlist preserving track order", async () => {
   assert.equal(playlist.title, "В дорогу");
   assert.deepEqual(playlist.tracks.map((track) => track.id), ["2", "1"]);
 });
+
+test("imports liked tracks and every owned Yandex playlist", async () => {
+  let initialized = false;
+  const adapter = new YandexAdapter("server-token", () => ({
+    async init() { initialized = true; },
+    async search() { return null; },
+    async tracksDownloadInfo() { return []; },
+    async usersLikesTracks() { return { tracks: [{ id: 10 }] }; },
+    async usersPlaylistsList() {
+      return [{ kind: 7, uid: 42, title: "В дорогу" }];
+    },
+    async usersPlaylists(kind, owner) {
+      assert.equal(kind, 7);
+      assert.equal(owner, 42);
+      return {
+        kind: 7,
+        uid: 42,
+        title: "В дорогу",
+        tracks: [{
+          id: 11,
+          track: { id: 11, title: "Road", available: true, artists: [{ name: "Artist" }] }
+        }]
+      };
+    },
+    async tracks(ids) {
+      assert.deepEqual(ids, [10]);
+      return [{ id: 10, title: "Liked", available: true, artists: [{ name: "Artist" }] }];
+    }
+  }));
+
+  const library = await adapter.importLibrary({ token: "user-token" });
+
+  assert.equal(initialized, true);
+  assert.deepEqual(library.favorites.map((track) => track.id), ["10"]);
+  assert.equal(library.playlists[0]?.title, "В дорогу");
+  assert.deepEqual(library.playlists[0]?.tracks.map((track) => track.id), ["11"]);
+});

@@ -117,6 +117,38 @@ final class LibrarySyncService {
         'trackId': trackId,
       });
 
+  Future<void> recordLibraryImport({
+    required List<UnifiedTrack> favorites,
+    required List<LocalPlaylistSnapshot> playlists,
+  }) async {
+    final session = await _sessions.read();
+    final userId = session?.user.id ?? await _sessions.readBoundUserId();
+    for (final track in favorites) {
+      await _enqueue(userId, {
+        'type': 'favoriteUpsert',
+        'track': track.toJson(),
+      });
+    }
+    for (final playlist in playlists) {
+      await _enqueue(userId, {
+        'type': 'playlistUpsert',
+        'playlistId': playlist.id,
+        'name': playlist.name,
+        'createdAt': playlist.createdAt.toUtc().toIso8601String(),
+      });
+      for (var position = 0; position < playlist.tracks.length; position++) {
+        await _enqueue(userId, {
+          'type': 'playlistTrackUpsert',
+          'playlistId': playlist.id,
+          'track': playlist.tracks[position].toJson(),
+          'position': position,
+        });
+      }
+    }
+    _syncRequested = true;
+    if (session != null) unawaited(_syncSilently());
+  }
+
   Future<void> _record(Map<String, dynamic> payload) async {
     final session = await _sessions.read();
     final userId = session?.user.id ?? await _sessions.readBoundUserId();
@@ -156,7 +188,7 @@ final class LibrarySyncService {
     }
   }
 
-  Future<void> _enqueue(String userId, Map<String, dynamic> payload) async {
+  Future<void> _enqueue(String? userId, Map<String, dynamic> payload) async {
     final id = const Uuid().v4();
     await _database.enqueueSyncOperation(
       id: id,

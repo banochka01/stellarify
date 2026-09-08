@@ -1,5 +1,6 @@
 import {
   type AudioQuality,
+  type ImportedProviderLibrary,
   type MusicProviderAdapter,
   type ProviderAccess,
   type ProviderTrack,
@@ -119,6 +120,60 @@ export class SpotifyAdapter implements MusicProviderAdapter {
       title: string(metadata.name) || "Spotify playlist",
       artworkUrl: pickImage(array(metadata.images)),
       tracks: tracks.slice(0, 500)
+    };
+  }
+
+  async importLibrary(access?: ProviderAccess): Promise<ImportedProviderLibrary> {
+    const token = requireSpotifyUserToken(access);
+    const profile = object(await this.requestJson(new URL(`${apiBase}/me`), token));
+    const favorites: ProviderTrack[] = [];
+    let favoritesUrl: string | undefined = `${apiBase}/me/tracks?limit=50`;
+    while (favoritesUrl && favorites.length < 1_500) {
+      const page = object(await this.requestJson(new URL(favoritesUrl), token));
+      for (const raw of array(page.items)) {
+        const track = mapSpotifyTrack(object(object(raw).track));
+        if (track) favorites.push(track);
+      }
+      favoritesUrl = string(page.next);
+    }
+
+    const summaries: Record<string, unknown>[] = [];
+    let playlistsUrl: string | undefined = `${apiBase}/me/playlists?limit=50`;
+    while (playlistsUrl && summaries.length < 50) {
+      const page = object(await this.requestJson(new URL(playlistsUrl), token));
+      summaries.push(...array(page.items).map(object));
+      playlistsUrl = string(page.next);
+    }
+    const selected = summaries.slice(0, 50);
+    const playlists: ImportedProviderLibrary["playlists"] = [];
+    let failedPlaylists = 0;
+    for (let offset = 0; offset < selected.length; offset += 4) {
+      const imported = await Promise.all(
+        selected.slice(offset, offset + 4).map(async (summary) => {
+          const id = string(summary.id);
+          if (!id) return undefined;
+          try {
+            const playlist = await this.importPlaylist(id, access);
+            return {
+              externalId: playlist.externalId,
+              title: playlist.title,
+              artworkUrl: playlist.artworkUrl,
+              tracks: playlist.tracks
+            };
+          } catch {
+            failedPlaylists += 1;
+            return undefined;
+          }
+        })
+      );
+      playlists.push(...imported.filter((item): item is NonNullable<typeof item> => item !== undefined));
+    }
+    return {
+      provider: "spotify",
+      title: string(profile.display_name) || "Моя музыка · Spotify",
+      favorites: favorites.slice(0, 1_500),
+      playlists,
+      truncated: Boolean(favoritesUrl || playlistsUrl || summaries.length > selected.length || failedPlaylists)
     };
   }
 
@@ -251,6 +306,18 @@ export class SpotifyAdapter implements MusicProviderAdapter {
     }
     return object(await response.json());
   }
+}
+
+function requireSpotifyUserToken(access?: ProviderAccess) {
+  const token = access?.token?.trim();
+  if (!token || token.length > 4_096 || /[\r\n]/.test(token)) {
+    throw new ProviderGatewayError(
+      "PROVIDER_AUTH_REQUIRED",
+      "Для переноса Spotify нужен пользовательский access token с доступом к медиатеке",
+      401
+    );
+  }
+  return token;
 }
 
 export function mapSpotifyTrack(raw: Record<string, unknown>): ProviderTrack | undefined {

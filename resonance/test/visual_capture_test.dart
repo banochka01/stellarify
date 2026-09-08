@@ -111,6 +111,68 @@ void main() {
     );
   });
 
+  testWidgets('desktop library visual', (tester) async {
+    _setViewport(tester, const Size(1440, 1024));
+    final tracks = [
+      _makeTrack(
+        provider: MusicProvider.yandex,
+        index: 30,
+        title: 'Tadow',
+        artist: 'Masego, FKJ',
+        album: 'Lady Lady',
+      ),
+      _makeTrack(
+        provider: MusicProvider.spotify,
+        index: 31,
+        title: 'Nightcall',
+        artist: 'Kavinsky',
+        album: 'OutRun',
+      ),
+      _makeTrack(
+        provider: MusicProvider.vk,
+        index: 32,
+        title: 'After Dark',
+        artist: 'Mr.Kitty',
+        album: 'Time',
+      ),
+      _makeTrack(
+        provider: MusicProvider.soundcloud,
+        index: 33,
+        title: 'Midnight City',
+        artist: 'M83',
+        album: 'Hurry Up, We’re Dreaming',
+      ),
+    ];
+    await database.createLocalPlaylist('visual-library', 'Ночной эфир');
+    for (final track in tracks) {
+      await database.addTrackToLocalPlaylist('visual-library', track);
+    }
+    await database.setFavorite(tracks.first, true);
+    await database.setFavorite(tracks[2], true);
+    resonanceRouter.go('/library');
+    await tester.pumpWidget(_testApp(database: database));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/resonance-library-desktop.png'),
+    );
+  });
+
+  testWidgets('mobile library visual', (tester) async {
+    _setViewport(tester, const Size(390, 844));
+    resonanceRouter.go('/library');
+    await tester.pumpWidget(_testApp(database: database));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Перенести'), findsOneWidget);
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/resonance-library-mobile.png'),
+    );
+    resonanceRouter.go('/');
+  });
+
   testWidgets('mobile search visual', (tester) async {
     _setViewport(tester, const Size(390, 844));
     resonanceRouter.go('/search');
@@ -419,6 +481,7 @@ UnifiedTrack _makeTrack({
   required int index,
   required String title,
   required String artist,
+  String? album,
 }) {
   return UnifiedTrack(
     id: '${provider.name}-$index',
@@ -426,6 +489,7 @@ UnifiedTrack _makeTrack({
     normalizedTitle: title.toLowerCase(),
     artist: artist,
     normalizedArtist: artist.toLowerCase(),
+    album: album,
     duration: Duration(minutes: 3, seconds: 12 + index * 9),
     sources: [
       TrackSource(

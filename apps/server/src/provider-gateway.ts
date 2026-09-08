@@ -17,6 +17,21 @@ export interface ProviderTrack {
   externalUrl: string;
 }
 
+export interface ImportedProviderPlaylist {
+  externalId: string;
+  title: string;
+  artworkUrl?: string;
+  tracks: ProviderTrack[];
+}
+
+export interface ImportedProviderLibrary {
+  provider: "yandex" | "spotify" | "vk";
+  title: string;
+  favorites: ProviderTrack[];
+  playlists: ImportedProviderPlaylist[];
+  truncated: boolean;
+}
+
 export interface ResolvedStream {
   streamUrl: string;
   protocol: "progressive" | "hls" | "dash";

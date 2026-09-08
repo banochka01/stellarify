@@ -1,6 +1,7 @@
 import { Client } from "@dvxch/yandex-music";
 import {
   type AudioQuality,
+  type ImportedProviderLibrary,
   type MusicProviderAdapter,
   type ProviderAccess,
   type ProviderTrack,
@@ -29,6 +30,7 @@ interface YandexDownloadInfoLike {
 }
 
 interface YandexClientLike {
+  init?(): Promise<unknown>;
   search(
     text: string,
     nocorrect?: boolean,
@@ -39,6 +41,8 @@ interface YandexClientLike {
   usersPlaylists?(kind: string | number, userId?: string | number): Promise<YandexPlaylistLike | YandexPlaylistLike[] | null>;
   playlist?(playlistUuid: string): Promise<YandexPlaylistLike | null>;
   tracks?(trackIds: Array<string | number> | string | number): Promise<YandexTrackLike[]>;
+  usersLikesTracks?(): Promise<{ tracks?: Array<YandexTrackLike & { track?: YandexTrackLike }> } | null>;
+  usersPlaylistsList?(): Promise<YandexPlaylistLike[]>;
   rotorWaveSettings?(): Promise<{ defaultStation?: { stationId?: string } } | null>;
   rotorStationSettings2?(
     station: string,
@@ -266,6 +270,66 @@ export class YandexAdapter implements MusicProviderAdapter {
     }
   }
 
+  async importLibrary(access?: ProviderAccess): Promise<ImportedProviderLibrary> {
+    const client = this.client(access);
+    if (!client.usersLikesTracks || !client.usersPlaylistsList || !client.usersPlaylists) {
+      throw new ProviderGatewayError(
+        "PROVIDER_NOT_SUPPORTED",
+        "Yandex library import is unavailable in this server build",
+        501
+      );
+    }
+    try {
+      await client.init?.();
+      const [liked, summaries] = await Promise.all([
+        client.usersLikesTracks(),
+        client.usersPlaylistsList()
+      ]);
+      const favorites = await materializeYandexTracks(
+        client,
+        liked?.tracks ?? [],
+        1_500
+      );
+      const selected = summaries.slice(0, 50);
+      const playlists = [];
+      let failedPlaylists = 0;
+      for (const summary of selected) {
+        const kind = summary.kind;
+        if (kind == null) continue;
+        try {
+          const raw = await client.usersPlaylists(kind, summary.uid);
+          const playlist = Array.isArray(raw) ? raw[0] : raw;
+          if (!playlist) continue;
+          const tracks = await materializeYandexTracks(
+            client,
+            playlist.tracks ?? [],
+            500
+          );
+          playlists.push({
+            externalId: playlist.playlistUuid || `${playlist.uid ?? "me"}:${kind}`,
+            title: playlist.title?.trim() || `Плейлист ${kind}`,
+            artworkUrl: yandexArtwork(playlist.coverUri || playlist.image),
+            tracks
+          });
+        } catch {
+          failedPlaylists += 1;
+        }
+      }
+      return {
+        provider: "yandex",
+        title: "Моя музыка · Яндекс",
+        favorites,
+        playlists,
+        truncated: summaries.length > selected.length ||
+          (liked?.tracks?.length ?? 0) > favorites.length ||
+          failedPlaylists > 0
+      };
+    } catch (error) {
+      if (error instanceof ProviderGatewayError) throw error;
+      throw mapYandexError(error);
+    }
+  }
+
   private client(access?: ProviderAccess) {
     const token = access?.token?.trim() || this.defaultToken?.trim();
     if (!token) {
@@ -284,6 +348,36 @@ export class YandexAdapter implements MusicProviderAdapter {
     }
     return this.clientFactory(token);
   }
+}
+
+async function materializeYandexTracks(
+  client: YandexClientLike,
+  references: Array<YandexTrackLike & { track?: YandexTrackLike }>,
+  limit: number
+) {
+  const selected = references.slice(0, limit);
+  const complete = new Map<string, YandexTrackLike>();
+  const missing: Array<string | number> = [];
+  for (const reference of selected) {
+    const track = reference.track ?? reference;
+    if (isPlayableTrack(track)) complete.set(String(track.id), track);
+    else if (reference.id != null) missing.push(reference.id);
+  }
+  if (missing.length && client.tracks) {
+    for (let offset = 0; offset < missing.length; offset += 100) {
+      const batch = await client.tracks(missing.slice(offset, offset + 100));
+      for (const track of batch) if (isPlayableTrack(track)) complete.set(String(track.id), track);
+    }
+  }
+  return selected.flatMap((reference) => {
+    const track = reference.track ?? complete.get(String(reference.id));
+    return track && isPlayableTrack(track) ? [mapTrack(track)] : [];
+  });
+}
+
+function yandexArtwork(value?: string) {
+  if (!value) return undefined;
+  return `https://${value.replace(/^https?:\/\//, "").replace("%%", "1000x1000")}`;
 }
 
 function isPlayableTrack(track: YandexTrackLike): track is YandexTrackLike & {

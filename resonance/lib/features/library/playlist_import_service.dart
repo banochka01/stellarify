@@ -12,10 +12,33 @@ class ImportedPlaylist {
     required this.name,
     required this.provider,
     required this.tracks,
+    this.externalId,
   });
   final String name;
   final MusicProvider provider;
   final List<UnifiedTrack> tracks;
+  final String? externalId;
+}
+
+class ImportedProviderLibrary {
+  const ImportedProviderLibrary({
+    required this.provider,
+    required this.title,
+    required this.favorites,
+    required this.playlists,
+    required this.truncated,
+  });
+
+  final MusicProvider provider;
+  final String title;
+  final List<UnifiedTrack> favorites;
+  final List<ImportedPlaylist> playlists;
+  final bool truncated;
+
+  int get trackCount => {
+    ...favorites.map((track) => track.id),
+    ...playlists.expand((playlist) => playlist.tracks).map((track) => track.id),
+  }.length;
 }
 
 class PlaylistImportService {
@@ -75,6 +98,7 @@ class PlaylistImportService {
         name: playlist['title'] as String? ?? 'Импортированный плейлист',
         provider: resolvedProvider,
         tracks: tracks,
+        externalId: playlist['externalId']?.toString(),
       );
     } on DioException catch (error) {
       final body = error.response?.data;
@@ -92,4 +116,95 @@ class PlaylistImportService {
       );
     }
   }
+
+  Future<ImportedProviderLibrary> importLibrary(MusicProvider provider) async {
+    if (!const {
+      MusicProvider.yandex,
+      MusicProvider.spotify,
+      MusicProvider.vk,
+    }.contains(provider)) {
+      throw const ProviderUnavailableException(
+        'Этот сервис пока не поддерживает перенос всей медиатеки.',
+      );
+    }
+    final token = await _tokens.read(provider);
+    if (token == null || token.trim().isEmpty) {
+      throw ProviderUnavailableException(
+        'Сначала подключите ${_providerTitle(provider)} в настройках.',
+      );
+    }
+    try {
+      final response = await _dio.postUri<Map<String, dynamic>>(
+        _baseUri().resolve('/api/v1/library/import'),
+        data: {'provider': provider.name},
+        options: Options(headers: {'X-Provider-Token': token}),
+      );
+      final raw = response.data?['library'];
+      if (raw is! Map) throw const FormatException('Missing library');
+      final library = Map<String, dynamic>.from(raw);
+      final resolvedProvider = MusicProvider.values
+          .where((item) => item.name == library['provider'])
+          .firstOrNull;
+      if (resolvedProvider == null) {
+        throw const FormatException('Unknown provider');
+      }
+      final favorites = _parseTracks(library['favorites'], resolvedProvider);
+      final playlists = (library['playlists'] as List? ?? const [])
+          .whereType<Map>()
+          .map((value) {
+            final playlist = Map<String, dynamic>.from(value);
+            return ImportedPlaylist(
+              name: playlist['title'] as String? ?? 'Импортированный плейлист',
+              provider: resolvedProvider,
+              tracks: _parseTracks(playlist['tracks'], resolvedProvider),
+              externalId: playlist['externalId']?.toString(),
+            );
+          })
+          .toList(growable: false);
+      return ImportedProviderLibrary(
+        provider: resolvedProvider,
+        title: library['title'] as String? ?? _providerTitle(resolvedProvider),
+        favorites: favorites,
+        playlists: playlists,
+        truncated: library['truncated'] == true,
+      );
+    } on DioException catch (error) {
+      final body = error.response?.data;
+      final message = body is Map && body['error'] is Map
+          ? (body['error'] as Map)['message']?.toString()
+          : null;
+      throw ProviderUnavailableException(
+        message ?? 'Не удалось перенести медиатеку.',
+        cause: error,
+      );
+    } on FormatException catch (error) {
+      throw ProviderUnavailableException(
+        'Сервер вернул некорректную медиатеку.',
+        cause: error,
+      );
+    }
+  }
+
+  List<UnifiedTrack> _parseTracks(Object? raw, MusicProvider provider) {
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((value) {
+          final json = Map<String, dynamic>.from(value);
+          return switch (provider) {
+            MusicProvider.youtube => youtubeTrackFromJson(json),
+            MusicProvider.yandex => yandexTrackFromJson(json),
+            _ => tokenTrackFromJson(provider, json),
+          };
+        })
+        .toList(growable: false);
+  }
 }
+
+String _providerTitle(MusicProvider provider) => switch (provider) {
+  MusicProvider.yandex => 'Яндекс Музыку',
+  MusicProvider.spotify => 'Spotify',
+  MusicProvider.vk => 'VK Музыку',
+  MusicProvider.soundcloud => 'SoundCloud',
+  MusicProvider.youtube => 'YouTube Music',
+};

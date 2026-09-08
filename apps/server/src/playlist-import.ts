@@ -1,4 +1,9 @@
-import { ProviderGatewayError, type ProviderAccess } from "./provider-gateway.js";
+import {
+  ProviderGatewayError,
+  type ImportedProviderLibrary,
+  type ProviderAccess,
+  type ProviderName
+} from "./provider-gateway.js";
 import { SpotifyAdapter } from "./spotify.js";
 import { VkAdapter, parseVkPlaylistReference } from "./vk.js";
 import { YandexAdapter } from "./yandex.js";
@@ -28,9 +33,15 @@ export class PlaylistImportService {
       if (users >= 0 && playlists > users && parts[users + 1] && parts[playlists + 1]) {
         return this.yandex.importPlaylist({ owner: parts[users + 1], kind: parts[playlists + 1] }, access);
       }
-      const uuidIndex = parts.indexOf("playlist");
+      const uuidIndex = parts.findIndex((part) => part === "playlist" || part === "playlists");
       if (uuidIndex >= 0 && parts[uuidIndex + 1]) return this.yandex.importPlaylist({ uuid: parts[uuidIndex + 1] }, access);
-      throw new ProviderGatewayError("TRACK_NOT_FOUND", "Yandex playlist URL is not recognized", 400);
+      const uuid = url.searchParams.get("uuid") || url.searchParams.get("playlistUuid");
+      if (uuid) return this.yandex.importPlaylist({ uuid }, access);
+      throw new ProviderGatewayError(
+        "TRACK_NOT_FOUND",
+        "Не удалось распознать ссылку Яндекс Музыки. Откройте плейлист и скопируйте ссылку через «Поделиться».",
+        400
+      );
     }
     if (host === "open.spotify.com" || host === "play.spotify.com") {
       if (!this.spotify) {
@@ -56,4 +67,38 @@ export class PlaylistImportService {
     }
     throw new ProviderGatewayError("PROVIDER_NOT_SUPPORTED", "This playlist provider is not supported", 400);
   }
+
+  async importLibrary(provider: ProviderName, access?: ProviderAccess): Promise<ImportedProviderLibrary> {
+    if (!access?.token?.trim()) {
+      throw new ProviderGatewayError(
+        "PROVIDER_AUTH_REQUIRED",
+        "Для переноса медиатеки нужен токен выбранного сервиса",
+        401
+      );
+    }
+    if (provider === "yandex") return capImportedLibrary(await this.yandex.importLibrary(access));
+    if (provider === "spotify" && this.spotify) {
+      return capImportedLibrary(await this.spotify.importLibrary(access));
+    }
+    if (provider === "vk" && this.vk) return capImportedLibrary(await this.vk.importLibrary(access));
+    throw new ProviderGatewayError(
+      "PROVIDER_NOT_SUPPORTED",
+      "Перенос всей медиатеки для этого сервиса пока недоступен",
+      400
+    );
+  }
+}
+
+const MAX_IMPORTED_PLAYLIST_TRACKS = 8_000;
+
+function capImportedLibrary(library: ImportedProviderLibrary): ImportedProviderLibrary {
+  let remaining = MAX_IMPORTED_PLAYLIST_TRACKS;
+  let truncated = library.truncated;
+  const playlists = library.playlists.map((playlist) => {
+    const tracks = playlist.tracks.slice(0, remaining);
+    if (tracks.length < playlist.tracks.length) truncated = true;
+    remaining -= tracks.length;
+    return { ...playlist, tracks };
+  });
+  return { ...library, playlists, truncated };
 }

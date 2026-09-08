@@ -105,7 +105,7 @@ app.use(["/api/v1/catalog/search", "/api/v1/playback/resolve", "/api/v1/auth/val
     next();
   } catch (error) { accessError(response, error); }
 });
-app.use(["/api/v1/playlists/import", "/api/import/preview"], accessControl.middleware("library.import"));
+app.use(["/api/v1/playlists/import", "/api/v1/library/import", "/api/import/preview"], accessControl.middleware("library.import"));
 app.use("/api/v1/wave", accessControl.middleware("wave.standard"));
 
 app.get("/api/health", (_request, response) => {
@@ -120,9 +120,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "1.3.0",
+    version: process.env.CLIENT_VERSION || "2.0.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Resonance 1.3 Lyrics Network: каскад источников текстов и Windows Setup EXE.",
+      "Resonance 2.0 Library: перенос медиатеки, новый визуальный каталог и Wave Mixes.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       windowsPortable: "https://music.webcordes.ru/downloads/windows-portable",
@@ -137,19 +137,19 @@ app.get("/api/providers", (_request, response) => {
 });
 
 const searchSchema = z.object({
-  provider: z.enum(["soundcloud", "yandex", "youtube"]),
+  provider: z.enum(["soundcloud", "yandex", "youtube", "spotify", "vk"]),
   q: z.string().trim().min(1).max(200),
   limit: z.coerce.number().int().min(1).max(50).default(20)
 });
 
 const resolveSchema = z.object({
-  provider: z.enum(["soundcloud", "yandex"]),
+  provider: z.enum(["soundcloud", "yandex", "spotify", "vk"]),
   externalId: z.string().trim().min(1).max(200),
   quality: z.enum(["low", "medium", "high", "lossless"]).default("high")
 });
 
 const authValidationSchema = z.object({
-  provider: z.enum(["soundcloud", "yandex", "youtube"])
+  provider: z.enum(["soundcloud", "yandex", "youtube", "spotify", "vk"])
 });
 
 const lyricsQuerySchema = z.object({
@@ -321,11 +321,19 @@ app.get("/api/v1/wave/profile", (request, response) => {
     for (const item of [...signals.favorites, ...signals.playlistTracks, ...signals.listening]) {
       artists.set(item.artist, (artists.get(item.artist) ?? 0) + 1);
     }
+    const weekStart = Date.now() - 7 * 24 * 60 * 60_000;
+    const week = signals.listening.filter((item) => Date.parse(item.createdAt) >= weekStart);
     response.json({
       feedbackCount: signals.listening.length,
       favoritesCount: signals.favorites.length,
       playlistTracksCount: signals.playlistTracks.length,
-      topArtists: [...artists.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([artist]) => artist)
+      topArtists: [...artists.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([artist]) => artist),
+      week: {
+        tracks: new Set(week.map((item) => `${item.provider}:${item.trackId}`)).size,
+        finished: week.filter((item) => item.type === "finished").length,
+        discoveries: week.filter((item) => item.type === "liked").length,
+        minutes: Math.round(week.reduce((total, item) => total + item.playedDurationMs, 0) / 60_000)
+      }
     });
   } catch (error) { sendWaveError(response, error); }
 });
@@ -445,6 +453,24 @@ const importSchema = z.object({
 
 const playlistImportSchema = z.object({
   url: z.string().trim().url().max(4_096)
+});
+
+const libraryImportSchema = z.object({
+  provider: z.enum(["yandex", "spotify", "vk"])
+}).strict();
+
+app.post("/api/v1/library/import", async (request, response) => {
+  const result = libraryImportSchema.safeParse(request.body);
+  if (!result.success) {
+    response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Выберите сервис для переноса" } });
+    return;
+  }
+  try {
+    const library = await playlistImports.importLibrary(result.data.provider, providerAccess(request));
+    response.json({ library });
+  } catch (error) {
+    sendGatewayError(response, error);
+  }
 });
 
 app.post("/api/v1/playlists/import", async (request, response) => {

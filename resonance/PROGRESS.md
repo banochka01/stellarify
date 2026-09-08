@@ -1,5 +1,20 @@
 # Progress
 
+## Version 2.0.0 — Library and Wave 2.0
+
+Status: release validation in progress on 2026-09-08.
+
+- [x] One-action favorites and playlist transfer from Yandex, Spotify and VK
+- [x] Current Yandex Music share URL recognition, including playlist UUID links
+- [x] Resilient partial imports with bounded library size
+- [x] Cinematic, responsive library redesign without navigation changes
+- [x] Recent tracks, albums, artists and full-library shuffle surfaces
+- [x] Wave 2.0 daily, road, night and discovery mixes
+- [x] Server-backed weekly listening report
+- [x] Resonance 2.0 landing showcase
+- [x] Desktop and mobile visual regression coverage
+- [ ] Production binaries and deployment
+
 ## Version 1.3.0 — Lyrics Network and Windows installer
 
 Status: released to production and publicly verified on 2026-09-03.

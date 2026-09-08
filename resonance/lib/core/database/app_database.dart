@@ -314,6 +314,20 @@ final class AppDatabase extends _$AppDatabase {
     return tracks;
   }
 
+  Future<List<UnifiedTrack>> loadStoredTracks({int limit = 2_000}) async {
+    final rows =
+        await (select(storedTracks)
+              ..orderBy([(table) => OrderingTerm.desc(table.updatedAt)])
+              ..limit(limit.clamp(1, 10_000)))
+            .get();
+    final tracks = <UnifiedTrack>[];
+    for (final row in rows) {
+      final track = await getUnifiedTrack(row.id);
+      if (track != null) tracks.add(track);
+    }
+    return tracks;
+  }
+
   Future<void> createLocalPlaylist(String id, String name) async {
     final trimmedName = name.trim();
     if (trimmedName.isEmpty) {

@@ -1,5 +1,6 @@
 import {
   type AudioQuality,
+  type ImportedProviderLibrary,
   type MusicProviderAdapter,
   type ProviderAccess,
   type ProviderTrack,
@@ -135,6 +136,59 @@ export class VkAdapter implements MusicProviderAdapter {
     };
   }
 
+  async importLibrary(access?: ProviderAccess): Promise<ImportedProviderLibrary> {
+    requireVkUserToken(access);
+    const favorites: ProviderTrack[] = [];
+    let offset = 0;
+    let total = Number.POSITIVE_INFINITY;
+    do {
+      const data = await this.call("audio.get", {
+        count: String(maxPageCount),
+        offset: String(offset)
+      }, access);
+      const response = object(data.response);
+      const items = array(response.items);
+      total = Number.isFinite(Number(response.count)) ? Number(response.count) : items.length;
+      for (const raw of items) {
+        const track = mapVkTrack(object(raw));
+        if (track) favorites.push(track);
+      }
+      offset += items.length;
+    } while (favorites.length < 1_500 && offset < total && offset > 0);
+
+    const playlistData = await this.call("audio.getPlaylists", {
+      count: "50",
+      offset: "0"
+    }, access);
+    const summaries = array(object(playlistData.response).items).slice(0, 50);
+    const playlists: ImportedProviderLibrary["playlists"] = [];
+    let failedPlaylists = 0;
+    for (const raw of summaries) {
+      const summary = object(raw);
+      const owner = String(summary.owner_id ?? "");
+      const playlist = String(summary.id ?? summary.playlist_id ?? "");
+      if (!/^-?\d+$/.test(owner) || !/^\d+$/.test(playlist)) continue;
+      try {
+        const imported = await this.importPlaylist({ owner, playlist }, access);
+        playlists.push({
+          externalId: imported.externalId,
+          title: string(summary.title) || imported.title,
+          artworkUrl: pickVkPlaylistArtwork(summary),
+          tracks: imported.tracks
+        });
+      } catch {
+        failedPlaylists += 1;
+      }
+    }
+    return {
+      provider: "vk",
+      title: "Моя музыка · VK",
+      favorites: favorites.slice(0, 1_500),
+      playlists,
+      truncated: offset < total || array(object(playlistData.response).items).length > summaries.length || failedPlaylists > 0
+    };
+  }
+
   private async call(
     method: string,
     parameters: Record<string, string>,
@@ -183,6 +237,22 @@ export class VkAdapter implements MusicProviderAdapter {
     }
     return payload;
   }
+}
+
+function requireVkUserToken(access?: ProviderAccess) {
+  const token = access?.token?.trim();
+  if (!token || token.length > 4_096 || /[\r\n]/.test(token)) {
+    throw new ProviderGatewayError(
+      "PROVIDER_AUTH_REQUIRED",
+      "Для переноса VK нужен пользовательский токен с доступом к аудио",
+      401
+    );
+  }
+}
+
+function pickVkPlaylistArtwork(raw: Record<string, unknown>) {
+  const photo = object(raw.photo);
+  return string(photo.photo_1200) || string(photo.photo_600) || string(photo.photo_300);
 }
 
 export function mapVkTrack(raw: Record<string, unknown>): ProviderTrack | undefined {

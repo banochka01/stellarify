@@ -593,24 +593,32 @@ class _WaveCommandCenterState extends ConsumerState<_WaveCommandCenter> {
 
   static const _scenes = [
     _WaveScene(
-      'Работа',
+      'Ваш день',
+      'Знакомое + немного нового',
       Icons.center_focus_strong_rounded,
-      'Спокойная музыка для глубокой работы, сначала знакомое',
+      'Мой персональный микс на сегодня: любимое и немного новых открытий',
+      Color(0xFFFF6A43),
     ),
     _WaveScene(
       'Дорога',
+      'Ритм без остановок',
       Icons.route_rounded,
       'Энергичная музыка в дорогу, постепенно добавляй новое',
+      Color(0xFF7B68EE),
     ),
     _WaveScene(
-      'Вечер',
+      'После полуночи',
+      'Тише, глубже, темнее',
       Icons.nightlight_round,
       'Тёплая спокойная музыка для позднего вечера',
+      Color(0xFF3A78FF),
     ),
     _WaveScene(
       'Открытия',
+      'За пределами привычного',
       Icons.explore_rounded,
       'Удиви меня новой музыкой рядом с моим вкусом',
+      Color(0xFF3ECF8E),
     ),
   ];
 
@@ -700,7 +708,7 @@ class _WaveCommandCenterState extends ConsumerState<_WaveCommandCenter> {
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    shared ? 'ОБЩАЯ RESONANCE WAVE' : 'RESONANCE WAVE',
+                    shared ? 'ОБЩАЯ RESONANCE WAVE 2.0' : 'RESONANCE WAVE 2.0',
                     style: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
@@ -745,24 +753,27 @@ class _WaveCommandCenterState extends ConsumerState<_WaveCommandCenter> {
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    for (final scene in _scenes) ...[
-                      ActionChip(
-                        avatar: Icon(scene.icon, size: 17),
-                        label: Text(scene.label),
-                        onPressed: wave.loading
-                            ? null
-                            : () => unawaited(_start(scene.prompt)),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                  ],
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 88,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _scenes.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 9),
+                  itemBuilder: (context, index) {
+                    final scene = _scenes[index];
+                    return _WaveMixCard(
+                      scene: scene,
+                      enabled: !wave.loading,
+                      onTap: () => unawaited(_start(scene.prompt)),
+                    );
+                  },
                 ),
               ),
+              if (profile != null && profile.weekTracks > 0) ...[
+                const SizedBox(height: 10),
+                _WaveWeekStrip(profile: profile),
+              ],
               AnimatedSize(
                 duration: ResonanceMotion.standard,
                 curve: ResonanceMotion.curve,
@@ -815,10 +826,158 @@ class _WaveCommandCenterState extends ConsumerState<_WaveCommandCenter> {
 }
 
 class _WaveScene {
-  const _WaveScene(this.label, this.icon, this.prompt);
+  const _WaveScene(
+    this.label,
+    this.subtitle,
+    this.icon,
+    this.prompt,
+    this.color,
+  );
   final String label;
+  final String subtitle;
   final IconData icon;
   final String prompt;
+  final Color color;
+}
+
+class _WaveMixCard extends StatelessWidget {
+  const _WaveMixCard({
+    required this.scene,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final _WaveScene scene;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    borderRadius: BorderRadius.circular(14),
+    child: InkWell(
+      onTap: enabled ? onTap : null,
+      borderRadius: BorderRadius.circular(14),
+      child: Ink(
+        width: 190,
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: scene.color.withValues(alpha: .42)),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              scene.color.withValues(alpha: .22),
+              const Color(0xFF111111),
+            ],
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(scene.icon, color: scene.color, size: 22),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    scene.label,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    scene.subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: ResonanceColors.muted,
+                      fontSize: 9,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _WaveWeekStrip extends StatelessWidget {
+  const _WaveWeekStrip({required this.profile});
+  final WaveProfile profile;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+    decoration: BoxDecoration(
+      color: ResonanceColors.surfaceHigh,
+      borderRadius: BorderRadius.circular(13),
+      border: Border.all(color: ResonanceColors.border),
+    ),
+    child: Row(
+      children: [
+        const Icon(
+          Icons.insights_rounded,
+          size: 18,
+          color: ResonanceColors.primary,
+        ),
+        const SizedBox(width: 9),
+        const Text(
+          'НЕДЕЛЯ',
+          style: TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.2,
+          ),
+        ),
+        const Spacer(),
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Row(
+              children: [
+                Text(
+                  '${profile.weekTracks} треков',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '${profile.weekMinutes} мин',
+                  style: const TextStyle(
+                    color: ResonanceColors.muted,
+                    fontSize: 10,
+                  ),
+                ),
+                if (profile.weekDiscoveries > 0) ...[
+                  const SizedBox(width: 12),
+                  Text(
+                    '+${profile.weekDiscoveries} любимых',
+                    style: const TextStyle(
+                      color: ResonanceColors.success,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _ReasonPill extends StatelessWidget {
