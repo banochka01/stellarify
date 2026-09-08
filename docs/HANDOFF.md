@@ -49,7 +49,7 @@ Resonance/stellarify — мульти-источниковый музыкаль�
   медиатека, Wave 2.0 и недельная статистика. Music Graph и изменение
   навигации намеренно не включались.
 - Лендинг получил секцию Library Cinema и адаптивный показ переноса/медиатеки.
-- Проверки: сервер 70/70, Flutter 66/66, visual goldens 9/9, `flutter analyze`
+- Проверки: сервер 70/70, Flutter 59/59, visual goldens 9/9, `flutter analyze`
   без замечаний, server/web/landing build зелёные, браузер без console errors.
 - Прод: контейнеры `resonance-api:20260908-library-2` healthy, client-version
   `2.0.0`, четыре download-канала проверены HTTP 206. iOS CI run
