@@ -5,6 +5,7 @@ import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/desktop_window_bar.dart';
 import 'package:resonance/shared/widgets/player_bar.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
+import 'package:resonance/shared/widgets/resonance_motion.dart';
 
 class AdaptiveAppShell extends StatelessWidget {
   const AdaptiveAppShell({
@@ -42,7 +43,10 @@ class AdaptiveAppShell extends StatelessWidget {
     final desktop = width >= 900;
     if (!desktop) {
       return Scaffold(
-        body: SafeArea(bottom: false, child: _TabSwitcher(index: _selectedIndex, child: child)),
+        body: SafeArea(
+          bottom: false,
+          child: _TabSwitcher(index: _selectedIndex, child: child),
+        ),
         bottomNavigationBar: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -92,7 +96,9 @@ class AdaptiveAppShell extends StatelessWidget {
                   selectedIndex: _selectedIndex,
                   onSelected: (index) => _navigate(context, index),
                 ),
-                Expanded(child: _TabSwitcher(index: _selectedIndex, child: child)),
+                Expanded(
+                  child: _TabSwitcher(index: _selectedIndex, child: child),
+                ),
               ],
             ),
           ),
@@ -117,13 +123,15 @@ class _TabSwitcherState extends State<_TabSwitcher>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 300),
+    duration: ResonanceMotion.entrance,
   )..value = 1;
+  int _direction = 1;
 
   @override
   void didUpdateWidget(_TabSwitcher oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.index != widget.index) {
+      _direction = widget.index >= oldWidget.index ? 1 : -1;
       _controller.forward(from: 0);
     }
   }
@@ -139,7 +147,7 @@ class _TabSwitcherState extends State<_TabSwitcher>
     if (MediaQuery.disableAnimationsOf(context)) return widget.child;
     final animation = CurvedAnimation(
       parent: _controller,
-      curve: Curves.easeOutCubic,
+      curve: ResonanceMotion.curve,
     );
     // Анимируем только вход новой вкладки: удержание уходящей в дереве
     // дублирует GlobalKey'и страниц go_router и ломает навигацию.
@@ -147,7 +155,7 @@ class _TabSwitcherState extends State<_TabSwitcher>
       opacity: animation,
       child: SlideTransition(
         position: Tween<Offset>(
-          begin: const Offset(0, 0.012),
+          begin: Offset(.018 * _direction, 0),
           end: Offset.zero,
         ).animate(animation),
         child: widget.child,
@@ -328,51 +336,74 @@ class _SidebarItem extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Tooltip(
         message: label,
-        child: Material(
-          color: selected ? const Color(0xFF191715) : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          child: InkWell(
+        child: ResonancePressable(
+          hoverScale: 1.01,
+          hoverOffset: Offset.zero,
+          child: Material(
+            color: selected ? const Color(0xFF191715) : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
-            onTap: onTap,
-            child: SizedBox(
-              height: 46,
-              child: Row(
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    width: 3,
-                    height: selected ? 24 : 8,
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? Theme.of(context).colorScheme.primary
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Icon(
-                    icon,
-                    size: 20,
-                    color: selected
-                        ? Theme.of(context).colorScheme.primary
-                        : ResonanceColors.muted,
-                  ),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Text(
-                      label,
-                      style: TextStyle(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onTap,
+              child: SizedBox(
+                height: 46,
+                child: Row(
+                  children: [
+                    AnimatedContainer(
+                      duration: ResonanceMotion.durationOf(
+                        context,
+                        ResonanceMotion.quick,
+                      ),
+                      curve: ResonanceMotion.curve,
+                      width: 3,
+                      height: selected ? 24 : 8,
+                      decoration: BoxDecoration(
                         color: selected
-                            ? ResonanceColors.text
-                            : ResonanceColors.muted,
-                        fontSize: 12,
-                        fontWeight: selected
-                            ? FontWeight.w700
-                            : FontWeight.w500,
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(99),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    AnimatedSwitcher(
+                      duration: ResonanceMotion.durationOf(
+                        context,
+                        ResonanceMotion.quick,
+                      ),
+                      transitionBuilder: (child, animation) =>
+                          ScaleTransition(scale: animation, child: child),
+                      child: Icon(
+                        icon,
+                        key: ValueKey(selected),
+                        size: 20,
+                        color: selected
+                            ? Theme.of(context).colorScheme.primary
+                            : ResonanceColors.muted,
+                      ),
+                    ),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: AnimatedDefaultTextStyle(
+                        duration: ResonanceMotion.durationOf(
+                          context,
+                          ResonanceMotion.quick,
+                        ),
+                        curve: ResonanceMotion.curve,
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          color: selected
+                              ? ResonanceColors.text
+                              : ResonanceColors.muted,
+                          fontSize: 12,
+                          fontWeight: selected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                        child: Text(label),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

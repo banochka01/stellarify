@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/features/auth/account_controller.dart';
 import 'package:resonance/features/auth/account_models.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/resonance_motion.dart';
 
 class AccountScreen extends ConsumerStatefulWidget {
   const AccountScreen({super.key});
@@ -78,39 +79,45 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
         const SizedBox(height: 22),
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 620),
-          child: account.when(
-            loading: () => const Card(
-              child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Center(child: CircularProgressIndicator()),
+          child: ResonanceAnimatedSwap(
+            child: KeyedSubtree(
+              key: ValueKey('${account.runtimeType}-$_registering'),
+              child: account.when(
+                loading: () => const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                ),
+                error: (error, _) => _AccountForm(
+                  emailController: _emailController,
+                  passwordController: _passwordController,
+                  confirmationController: _confirmationController,
+                  registering: _registering,
+                  obscure: _obscure,
+                  message: error is AccountApiException
+                      ? error.message
+                      : 'Не удалось подключиться к аккаунту.',
+                  onToggleMode: _toggleMode,
+                  onToggleObscure: () => setState(() => _obscure = !_obscure),
+                  onSubmit: _submit,
+                ),
+                data: (user) => user == null
+                    ? _AccountForm(
+                        emailController: _emailController,
+                        passwordController: _passwordController,
+                        confirmationController: _confirmationController,
+                        registering: _registering,
+                        obscure: _obscure,
+                        message: _validationMessage,
+                        onToggleMode: _toggleMode,
+                        onToggleObscure: () =>
+                            setState(() => _obscure = !_obscure),
+                        onSubmit: _submit,
+                      )
+                    : _ConnectedAccount(user: user),
               ),
             ),
-            error: (error, _) => _AccountForm(
-              emailController: _emailController,
-              passwordController: _passwordController,
-              confirmationController: _confirmationController,
-              registering: _registering,
-              obscure: _obscure,
-              message: error is AccountApiException
-                  ? error.message
-                  : 'Не удалось подключиться к аккаунту.',
-              onToggleMode: _toggleMode,
-              onToggleObscure: () => setState(() => _obscure = !_obscure),
-              onSubmit: _submit,
-            ),
-            data: (user) => user == null
-                ? _AccountForm(
-                    emailController: _emailController,
-                    passwordController: _passwordController,
-                    confirmationController: _confirmationController,
-                    registering: _registering,
-                    obscure: _obscure,
-                    message: _validationMessage,
-                    onToggleMode: _toggleMode,
-                    onToggleObscure: () => setState(() => _obscure = !_obscure),
-                    onSubmit: _submit,
-                  )
-                : _ConnectedAccount(user: user),
           ),
         ),
       ],

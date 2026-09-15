@@ -1,6 +1,6 @@
 {
-  "name": "stellarify",
-  "version": "0.1.0",
+  "name": "resonance-monorepo",
+  "version": "2.0.0",
   "private": true,
   "workspaces": [
     "apps/*"
@@ -9,8 +9,9 @@
     "dev": "concurrently -n web,server -c cyan,magenta \"npm run dev -w @stellarify/web\" \"npm run dev -w @stellarify/server\"",
     "dev:web": "npm run dev -w @stellarify/web",
     "dev:server": "npm run dev -w @stellarify/server",
-    "build": "npm run build -w @stellarify/server && npm run build -w @stellarify/web",
-    "check": "npm run check -w @stellarify/server && npm run check -w @stellarify/web",
+    "dev:landing": "npm run dev -w @resonance/landing",
+    "build": "npm run build -w @stellarify/server && npm run build -w @stellarify/web && npm run build -w @resonance/landing",
+    "check": "npm run check -w @stellarify/server && npm run check -w @stellarify/web && npm run check -w @resonance/landing",
     "test": "npm run test -w @stellarify/server",
     "native:dev": "npm run tauri -w @stellarify/web -- dev",
     "native:build": "npm run tauri -w @stellarify/web -- build",
@@ -24,4 +25,3 @@
     "node": ">=22"
   }
 }
-

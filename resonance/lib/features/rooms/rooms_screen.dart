@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/resonance_motion.dart';
 
 class RoomsScreen extends ConsumerStatefulWidget {
   const RoomsScreen({super.key});
@@ -26,8 +27,14 @@ class _RoomsScreenState extends ConsumerState<RoomsScreen> {
   Widget build(BuildContext context) {
     final room = ref.watch(roomControllerProvider);
     final controller = ref.read(roomControllerProvider.notifier);
+    final compact = MediaQuery.sizeOf(context).width < 650;
     return ListView(
-      padding: const EdgeInsets.all(32),
+      padding: EdgeInsets.fromLTRB(
+        compact ? 18 : 34,
+        compact ? 24 : 32,
+        compact ? 18 : 34,
+        130,
+      ),
       children: [
         const Text(
           'СЛУШАТЬ ВМЕСТЕ',
@@ -39,10 +46,10 @@ class _RoomsScreenState extends ConsumerState<RoomsScreen> {
           ),
         ),
         const SizedBox(height: 10),
-        const Text(
+        Text(
           'Одна комната. Один ритм.',
           style: TextStyle(
-            fontSize: 38,
+            fontSize: compact ? 34 : 42,
             fontWeight: FontWeight.w800,
             letterSpacing: -1.5,
           ),
@@ -59,20 +66,24 @@ class _RoomsScreenState extends ConsumerState<RoomsScreen> {
           ),
         ),
         const SizedBox(height: 28),
-        if (!room.inRoom)
-          _JoinPanel(
-            name: _name,
-            code: _code,
-            busy: room.busy,
-            onCreate: () => controller.create(_name.text),
-            onJoin: () => controller.join(_code.text, _name.text),
-          )
-        else
-          _ActiveRoom(
-            room: room,
-            isHost: controller.isHost,
-            onLeave: controller.leave,
+        ResonanceAnimatedSwap(
+          child: KeyedSubtree(
+            key: ValueKey(room.inRoom),
+            child: room.inRoom
+                ? _ActiveRoom(
+                    room: room,
+                    isHost: controller.isHost,
+                    onLeave: controller.leave,
+                  )
+                : _JoinPanel(
+                    name: _name,
+                    code: _code,
+                    busy: room.busy,
+                    onCreate: () => controller.create(_name.text),
+                    onJoin: () => controller.join(_code.text, _name.text),
+                  ),
           ),
+        ),
         if (room.error != null) ...[
           const SizedBox(height: 16),
           Text(

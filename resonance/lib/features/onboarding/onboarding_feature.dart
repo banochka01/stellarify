@@ -8,6 +8,7 @@ import 'package:resonance/core/preferences/appearance_preferences.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/resonance_motion.dart';
 
 class OnboardingGate extends ConsumerWidget {
   const OnboardingGate({required this.child, super.key});
@@ -200,7 +201,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   const SizedBox(height: 20),
                   Expanded(
                     child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 280),
+                      duration: ResonanceMotion.durationOf(
+                        context,
+                        ResonanceMotion.entrance,
+                      ),
+                      reverseDuration: ResonanceMotion.durationOf(
+                        context,
+                        ResonanceMotion.quick,
+                      ),
+                      switchInCurve: ResonanceMotion.curve,
+                      switchOutCurve: ResonanceMotion.exitCurve,
                       transitionBuilder: (child, animation) => FadeTransition(
                         opacity: animation,
                         child: SlideTransition(
@@ -211,7 +221,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                               ).animate(
                                 CurvedAnimation(
                                   parent: animation,
-                                  curve: Curves.easeOutCubic,
+                                  curve: ResonanceMotion.curve,
                                 ),
                               ),
                           child: child,
@@ -356,7 +366,11 @@ class _OnboardingHeader extends StatelessWidget {
         ...List.generate(4, (index) {
           final active = index <= step;
           return AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
+            duration: ResonanceMotion.durationOf(
+              context,
+              ResonanceMotion.standard,
+            ),
+            curve: ResonanceMotion.curve,
             width: index == step ? 30 : 8,
             height: 8,
             margin: const EdgeInsets.only(left: 6),
@@ -926,7 +940,8 @@ String _providerDescription(MusicProvider provider) => switch (provider) {
   MusicProvider.yandex => 'Каталог, плейлисты и нативное воспроизведение.',
   MusicProvider.soundcloud => 'Ремиксы, независимые артисты и нативный звук.',
   MusicProvider.youtube => 'Только импорт метаданных, без воспроизведения.',
-  MusicProvider.spotify => 'Каталог и импорт; нативно звучат 30-секундные превью.',
+  MusicProvider.spotify =>
+    'Каталог и импорт; нативно звучат 30-секундные превью.',
   MusicProvider.vk => 'Каталог, плейлисты и нативное воспроизведение.',
 };
 
@@ -946,7 +961,8 @@ String _credentialHint(MusicProvider provider) => switch (provider) {
     'Внешний плеер не используется. Доступен только импорт метаданных.',
   MusicProvider.spotify =>
     'Можно пропустить, если на сервере настроены клиентские ключи.',
-  MusicProvider.vk => 'Токен должен иметь права audio.*; хранится на устройстве.',
+  MusicProvider.vk =>
+    'Токен должен иметь права audio.*; хранится на устройстве.',
 };
 
 IconData _providerIcon(MusicProvider provider) => switch (provider) {

@@ -441,46 +441,51 @@ class _RecentTrack extends ConsumerWidget {
         (track.sources.isEmpty
             ? MusicProvider.soundcloud
             : track.sources.first.provider);
-    return InkWell(
-      onTap: () => unawaited(playTrackOrOpenOfficial(ref, track)),
-      child: Row(
-        children: [
-          TrackArtwork(
-            track: track,
-            size: 52,
-            borderRadius: 4,
-            fallbackAsset: 'assets/images/resonance_fallback_cover.png',
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  track.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  track.artist,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: ResonanceColors.muted,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                ProviderBadge(provider: provider, compact: true),
-              ],
+    return ResonancePressable(
+      hoverScale: 1.01,
+      hoverOffset: Offset.zero,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => unawaited(playTrackOrOpenOfficial(ref, track)),
+        child: Row(
+          children: [
+            TrackArtwork(
+              track: track,
+              size: 52,
+              borderRadius: 4,
+              fallbackAsset: 'assets/images/resonance_fallback_cover.png',
             ),
-          ),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    track.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    track.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: ResonanceColors.muted,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  ProviderBadge(provider: provider, compact: true),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -852,59 +857,62 @@ class _WaveMixCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.transparent,
-    borderRadius: BorderRadius.circular(14),
-    child: InkWell(
-      onTap: enabled ? onTap : null,
+  Widget build(BuildContext context) => ResonancePressable(
+    enabled: enabled,
+    child: Material(
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(14),
-      child: Ink(
-        width: 190,
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: scene.color.withValues(alpha: .42)),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              scene.color.withValues(alpha: .22),
-              const Color(0xFF111111),
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          width: 190,
+          padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: scene.color.withValues(alpha: .42)),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                scene.color.withValues(alpha: .22),
+                const Color(0xFF111111),
+              ],
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(scene.icon, color: scene.color, size: 22),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      scene.label,
+                      maxLines: 1,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      scene.subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: ResonanceColors.muted,
+                        fontSize: 9,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
-        ),
-        child: Row(
-          children: [
-            Icon(scene.icon, color: scene.color, size: 22),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    scene.label,
-                    maxLines: 1,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    scene.subtitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: ResonanceColors.muted,
-                      fontSize: 9,
-                      height: 1.25,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ),
       ),
     ),

@@ -10,6 +10,7 @@ import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/player/track_action.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
+import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -289,80 +290,84 @@ class _TrackResult extends ConsumerWidget {
             ?.favoriteIds
             .contains(track.id) ??
         false;
-    return Padding(
-      padding: EdgeInsets.zero,
-      child: ListTile(
-        minTileHeight: 70,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-        shape: const Border(top: BorderSide(color: ResonanceColors.border)),
-        leading: TrackArtwork(track: track, size: 48, borderRadius: 3),
-        title: Text(
-          track.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        subtitle: Text(
-          track.artist,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: ResonanceColors.muted),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ProviderBadge(provider: provider, compact: true),
-            const SizedBox(width: 4),
-            PopupMenuButton<String>(
-              tooltip: 'Действия',
-              onSelected: (value) {
-                if (value == 'favorite') {
-                  unawaited(
-                    ref
-                        .read(libraryControllerProvider.notifier)
-                        .toggleFavorite(track),
-                  );
-                } else if (value == 'playlist') {
-                  unawaited(showAddToPlaylistDialog(context, ref, track));
-                }
-              },
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                  value: 'favorite',
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      favorite
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                      color: favorite ? ResonanceColors.primary : null,
-                    ),
-                    title: Text(
-                      favorite ? 'Убрать из избранного' : 'В избранное',
+    return ResonancePressable(
+      hoverScale: 1.003,
+      hoverOffset: Offset.zero,
+      child: Padding(
+        padding: EdgeInsets.zero,
+        child: ListTile(
+          minTileHeight: 70,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+          shape: const Border(top: BorderSide(color: ResonanceColors.border)),
+          leading: TrackArtwork(track: track, size: 48, borderRadius: 3),
+          title: Text(
+            track.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          subtitle: Text(
+            track.artist,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: ResonanceColors.muted),
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ProviderBadge(provider: provider, compact: true),
+              const SizedBox(width: 4),
+              PopupMenuButton<String>(
+                tooltip: 'Действия',
+                onSelected: (value) {
+                  if (value == 'favorite') {
+                    unawaited(
+                      ref
+                          .read(libraryControllerProvider.notifier)
+                          .toggleFavorite(track),
+                    );
+                  } else if (value == 'playlist') {
+                    unawaited(showAddToPlaylistDialog(context, ref, track));
+                  }
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'favorite',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        favorite
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                        color: favorite ? ResonanceColors.primary : null,
+                      ),
+                      title: Text(
+                        favorite ? 'Убрать из избранного' : 'В избранное',
+                      ),
                     ),
                   ),
-                ),
-                const PopupMenuItem(
-                  value: 'playlist',
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.playlist_add_rounded),
-                    title: Text('Добавить в плейлист'),
+                  const PopupMenuItem(
+                    value: 'playlist',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.playlist_add_rounded),
+                      title: Text('Добавить в плейлист'),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            IconButton(
-              tooltip: 'Воспроизвести',
-              onPressed: () => unawaited(playTrackOrOpenOfficial(ref, track)),
-              icon: const Icon(
-                Icons.play_arrow_rounded,
-                color: ResonanceColors.primary,
+                ],
               ),
-            ),
-          ],
+              IconButton(
+                tooltip: 'Воспроизвести',
+                onPressed: () => unawaited(playTrackOrOpenOfficial(ref, track)),
+                icon: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: ResonanceColors.primary,
+                ),
+              ),
+            ],
+          ),
+          onTap: () => unawaited(playTrackOrOpenOfficial(ref, track)),
         ),
-        onTap: () => unawaited(playTrackOrOpenOfficial(ref, track)),
       ),
     );
   }

@@ -25,15 +25,13 @@ class NowPlayingScreen extends ConsumerWidget {
         const ResonancePlaybackState();
     final track = state.currentTrack ?? demoTrack;
     final next = _nextTrack(state);
-    final hasVideo =
-        ref.watch(playbackVideoAvailableProvider).valueOrNull ?? false;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Column(
           children: [
-            _Header(current: track, next: next, hasVideo: hasVideo),
+            _Header(current: track, next: next),
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -121,15 +119,10 @@ class NowPlayingScreen extends ConsumerWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({
-    required this.current,
-    required this.next,
-    required this.hasVideo,
-  });
+  const _Header({required this.current, required this.next});
 
   final UnifiedTrack current;
   final UnifiedTrack? next;
-  final bool hasVideo;
 
   @override
   Widget build(BuildContext context) {
@@ -174,14 +167,12 @@ class _Header extends StatelessWidget {
           ),
           const SizedBox(width: 24),
           IconButton(
-            tooltip: hasVideo ? 'Открыть клип' : 'У трека нет клипа',
-            onPressed: hasVideo
-                ? () => context.push('/stage?mode=video')
-                : null,
+            tooltip: 'Клип и видеофон на весь экран',
+            onPressed: () => context.push('/stage?mode=video'),
             icon: const Icon(Icons.videocam_rounded),
           ),
           IconButton(
-            tooltip: 'Lyrics на весь экран',
+            tooltip: 'Текст на весь экран',
             onPressed: () => context.push('/stage?mode=lyrics'),
             icon: const Icon(Icons.lyrics_rounded),
           ),

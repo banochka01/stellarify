@@ -49,4 +49,51 @@ void main() {
     );
     await tester.pumpAndSettle();
   });
+
+  testWidgets('pressable surface responds to pointer down and settles back', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Center(
+          child: ResonancePressable(child: SizedBox.square(dimension: 80)),
+        ),
+      ),
+    );
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(ResonancePressable)),
+    );
+    await tester.pump();
+    expect(
+      tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale,
+      lessThan(1),
+    );
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale, 1);
+  });
+
+  testWidgets('pressable surface has zero-duration motion when disabled', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(disableAnimations: true),
+          child: ResonancePressable(child: Text('Still')),
+        ),
+      ),
+    );
+
+    expect(
+      tester.widget<AnimatedScale>(find.byType(AnimatedScale)).duration,
+      Duration.zero,
+    );
+    expect(
+      tester.widget<AnimatedSlide>(find.byType(AnimatedSlide)).duration,
+      Duration.zero,
+    );
+  });
 }

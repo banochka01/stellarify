@@ -11,6 +11,7 @@ import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/library/library_transfer_dialog.dart';
 import 'package:resonance/features/player/track_action.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 
 class LibraryScreen extends ConsumerWidget {
@@ -91,14 +92,21 @@ class LibraryScreen extends ConsumerWidget {
                     ],
                   ),
                 const SizedBox(height: 34),
-                library.when(
-                  loading: () => const LinearProgressIndicator(minHeight: 2),
-                  error: (error, _) => _ErrorState(
-                    message: error.toString(),
-                    onRetry: () =>
-                        ref.read(libraryControllerProvider.notifier).refresh(),
+                ResonanceAnimatedSwap(
+                  child: KeyedSubtree(
+                    key: ValueKey(library.runtimeType),
+                    child: library.when(
+                      loading: () =>
+                          const LinearProgressIndicator(minHeight: 2),
+                      error: (error, _) => _ErrorState(
+                        message: error.toString(),
+                        onRetry: () => ref
+                            .read(libraryControllerProvider.notifier)
+                            .refresh(),
+                      ),
+                      data: (state) => _LibraryContent(state: state),
+                    ),
                   ),
-                  data: (state) => _LibraryContent(state: state),
                 ),
               ],
             ),
@@ -454,36 +462,38 @@ class _TrackShelf extends ConsumerWidget {
       separatorBuilder: (_, _) => const SizedBox(width: 13),
       itemBuilder: (context, index) {
         final track = tracks[index];
-        return SizedBox(
-          width: 144,
-          child: Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
-            child: InkWell(
-              onTap: () => unawaited(playTrackOrOpenOfficial(ref, track)),
+        return ResonancePressable(
+          child: SizedBox(
+            width: 144,
+            child: Material(
+              color: Colors.transparent,
               borderRadius: BorderRadius.circular(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TrackArtwork(track: track, size: 144, borderRadius: 14),
-                  const SizedBox(height: 10),
-                  Text(
-                    track.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    track.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: ResonanceColors.muted,
-                      fontSize: 11,
+              child: InkWell(
+                onTap: () => unawaited(playTrackOrOpenOfficial(ref, track)),
+                borderRadius: BorderRadius.circular(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TrackArtwork(track: track, size: 144, borderRadius: 14),
+                    const SizedBox(height: 10),
+                    Text(
+                      track.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 3),
+                    Text(
+                      track.artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: ResonanceColors.muted,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -617,61 +627,63 @@ class _PlaylistCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Material(
-      color: ResonanceColors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: ResonanceColors.border),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () => _openPlaylist(context, ref),
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.queue_music_rounded,
-                size: 32,
-                color: ResonanceColors.primary,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      playlist.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${playlist.trackCount} треков',
-                      style: const TextStyle(
-                        color: ResonanceColors.muted,
-                        fontSize: 12,
+    return ResonancePressable(
+      child: Material(
+        color: ResonanceColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: ResonanceColors.border),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => _openPlaylist(context, ref),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.queue_music_rounded,
+                  size: 32,
+                  color: ResonanceColors.primary,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        playlist.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
-                    ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${playlist.trackCount} треков',
+                        style: const TextStyle(
+                          color: ResonanceColors.muted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'delete') {
+                      unawaited(
+                        ref
+                            .read(libraryControllerProvider.notifier)
+                            .deletePlaylist(playlist.id),
+                      );
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'delete', child: Text('Удалить')),
                   ],
                 ),
-              ),
-              PopupMenuButton<String>(
-                onSelected: (value) {
-                  if (value == 'delete') {
-                    unawaited(
-                      ref
-                          .read(libraryControllerProvider.notifier)
-                          .deletePlaylist(playlist.id),
-                    );
-                  }
-                },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'delete', child: Text('Удалить')),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

@@ -70,6 +70,9 @@ abstract final class ResonanceTheme {
       dividerColor: palette.border,
       cardColor: palette.surface,
       splashFactory: InkSparkle.splashFactory,
+      hoverColor: palette.secondary.withValues(alpha: .055),
+      focusColor: palette.primary.withValues(alpha: .16),
+      highlightColor: palette.primary.withValues(alpha: .1),
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
           TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
@@ -103,18 +106,29 @@ abstract final class ResonanceTheme {
           side: BorderSide(color: palette.border),
         ),
       ),
-      navigationBarTheme: const NavigationBarThemeData(
+      navigationBarTheme: NavigationBarThemeData(
         height: 72,
-        backgroundColor: Color(0xFF0A0A09),
-        indicatorColor: Color(0x33FF5A36),
-        labelTextStyle: WidgetStatePropertyAll(
-          TextStyle(
+        elevation: 0,
+        backgroundColor: palette.surface,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: palette.primary.withValues(alpha: .2),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return TextStyle(
             fontSize: 10,
-            fontWeight: FontWeight.w700,
+            fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
             letterSpacing: .1,
+            color: selected ? ResonanceColors.text : ResonanceColors.muted,
+          );
+        }),
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            size: 21,
+            color: states.contains(WidgetState.selected)
+                ? palette.primary
+                : ResonanceColors.muted,
           ),
         ),
-        iconTheme: WidgetStatePropertyAll(IconThemeData(size: 21)),
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: ResonanceColors.background,
@@ -124,6 +138,24 @@ abstract final class ResonanceTheme {
       listTileTheme: ListTileThemeData(
         iconColor: ResonanceColors.text,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        minLeadingWidth: 40,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: ButtonStyle(
+          minimumSize: const WidgetStatePropertyAll(Size.square(44)),
+          iconSize: const WidgetStatePropertyAll(22),
+          overlayColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.pressed)) {
+              return palette.primary.withValues(alpha: .2);
+            }
+            if (states.contains(WidgetState.hovered) ||
+                states.contains(WidgetState.focused)) {
+              return palette.secondary.withValues(alpha: .1);
+            }
+            return null;
+          }),
+        ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
@@ -179,6 +211,70 @@ abstract final class ResonanceTheme {
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: palette.primary),
         ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFFF6B6B)),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 16,
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: palette.raised,
+        surfaceTintColor: Colors.transparent,
+        elevation: 24,
+        shadowColor: Colors.black.withValues(alpha: .55),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: palette.raised,
+        surfaceTintColor: Colors.transparent,
+        modalBarrierColor: Colors.black.withValues(alpha: .68),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        showDragHandle: true,
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: palette.raised,
+        contentTextStyle: const TextStyle(color: ResonanceColors.text),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: palette.raised,
+        surfaceTintColor: Colors.transparent,
+        elevation: 16,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      tooltipTheme: TooltipThemeData(
+        waitDuration: const Duration(milliseconds: 450),
+        decoration: BoxDecoration(
+          color: palette.raised,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: palette.border),
+        ),
+        textStyle: const TextStyle(color: ResonanceColors.text, fontSize: 12),
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: palette.primary,
+        linearTrackColor: palette.border,
+        circularTrackColor: palette.border,
+      ),
+      scrollbarTheme: ScrollbarThemeData(
+        thickness: const WidgetStatePropertyAll(5),
+        radius: const Radius.circular(99),
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.hovered)
+              ? palette.secondary.withValues(alpha: .48)
+              : palette.secondary.withValues(alpha: .24),
+        ),
+      ),
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: palette.primary,
+        selectionColor: palette.primary.withValues(alpha: .28),
+        selectionHandleColor: palette.primary,
       ),
     );
   }

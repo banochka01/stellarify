@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 
 abstract final class ResonanceMotion {
-  static const quick = Duration(milliseconds: 140);
-  static const standard = Duration(milliseconds: 220);
-  static const entrance = Duration(milliseconds: 320);
-  static const gentle = Duration(milliseconds: 420);
+  static const instant = Duration(milliseconds: 90);
+  static const quick = Duration(milliseconds: 160);
+  static const standard = Duration(milliseconds: 240);
+  static const entrance = Duration(milliseconds: 300);
+  static const gentle = Duration(milliseconds: 380);
   static const curve = Cubic(.16, 1, .3, 1);
+  static const exitCurve = Cubic(.4, 0, 1, 1);
+
+  static Duration durationOf(BuildContext context, Duration duration) =>
+      MediaQuery.maybeOf(context)?.disableAnimations ?? false
+      ? Duration.zero
+      : duration;
 }
 
 class ResonanceEntrance extends StatefulWidget {
@@ -90,7 +97,7 @@ class ResonanceAnimatedSwap extends StatelessWidget {
       duration: reduced ? Duration.zero : ResonanceMotion.standard,
       reverseDuration: reduced ? Duration.zero : ResonanceMotion.quick,
       switchInCurve: ResonanceMotion.curve,
-      switchOutCurve: Curves.easeInCubic,
+      switchOutCurve: ResonanceMotion.exitCurve,
       transitionBuilder: (child, animation) => FadeTransition(
         opacity: animation,
         child: SlideTransition(
@@ -118,7 +125,7 @@ class ResonanceTrackSwap extends StatelessWidget {
       duration: reduced ? Duration.zero : ResonanceMotion.gentle,
       reverseDuration: reduced ? Duration.zero : ResonanceMotion.quick,
       switchInCurve: ResonanceMotion.curve,
-      switchOutCurve: Curves.easeInCubic,
+      switchOutCurve: ResonanceMotion.exitCurve,
       layoutBuilder: (currentChild, previousChildren) => Stack(
         alignment: Alignment.center,
         children: [...previousChildren, ?currentChild],
@@ -131,6 +138,92 @@ class ResonanceTrackSwap extends StatelessWidget {
         ),
       ),
       child: child,
+    );
+  }
+}
+
+/// Adds the same subtle hover lift and tactile press response to interactive
+/// surfaces on mouse, touch, and stylus clients without taking over their tap
+/// semantics. The wrapped control remains responsible for its own action,
+/// focus, ripple, and disabled state.
+class ResonancePressable extends StatefulWidget {
+  const ResonancePressable({
+    required this.child,
+    this.enabled = true,
+    this.hoverScale = 1.006,
+    this.pressedScale = .982,
+    this.hoverOffset = const Offset(0, -.012),
+    super.key,
+  });
+
+  final Widget child;
+  final bool enabled;
+  final double hoverScale;
+  final double pressedScale;
+  final Offset hoverOffset;
+
+  @override
+  State<ResonancePressable> createState() => _ResonancePressableState();
+}
+
+class _ResonancePressableState extends State<ResonancePressable> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  void _setHovered(bool value) {
+    if (!widget.enabled || _hovered == value) return;
+    setState(() {
+      _hovered = value;
+      if (!value) _pressed = false;
+    });
+  }
+
+  void _setPressed(bool value) {
+    if (!widget.enabled || _pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  void didUpdateWidget(ResonancePressable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled && (_hovered || _pressed)) {
+      _hovered = false;
+      _pressed = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final duration = reduced ? Duration.zero : ResonanceMotion.quick;
+    final scale = _pressed
+        ? widget.pressedScale
+        : _hovered
+        ? widget.hoverScale
+        : 1.0;
+    final offset = _hovered && !_pressed ? widget.hoverOffset : Offset.zero;
+
+    return MouseRegion(
+      cursor: widget.enabled ? SystemMouseCursors.click : MouseCursor.defer,
+      onEnter: (_) => _setHovered(true),
+      onExit: (_) => _setHovered(false),
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => _setPressed(true),
+        onPointerUp: (_) => _setPressed(false),
+        onPointerCancel: (_) => _setPressed(false),
+        child: AnimatedSlide(
+          duration: duration,
+          curve: ResonanceMotion.curve,
+          offset: offset,
+          child: AnimatedScale(
+            duration: duration,
+            curve: ResonanceMotion.curve,
+            scale: scale,
+            child: RepaintBoundary(child: widget.child),
+          ),
+        ),
+      ),
     );
   }
 }

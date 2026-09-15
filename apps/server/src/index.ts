@@ -14,6 +14,7 @@ import { SubscriptionStore, SubscriptionError, hashSecret, type Capability } fro
 import { parseImportPayload } from "./importer.js";
 import { PlaylistImportService } from "./playlist-import.js";
 import { LyricsError, LyricsService } from "./lyrics.js";
+import { ClipService, createClipRouter } from "./clips.js";
 import { ProviderGateway, ProviderGatewayError, type ProviderAccess } from "./provider-gateway.js";
 import { providerCapabilities } from "./providers.js";
 import { registerRoomHandlers, roomWaveUserIds } from "./rooms.js";
@@ -82,6 +83,7 @@ const accessControl = new AccessControl(accountStore, subscriptionStore);
 app.disable("x-powered-by");
 app.use(cors({ origin: webOrigin }));
 app.use(express.json({ limit: "512kb" }));
+app.use("/api/v1/clips", createClipRouter(ClipService.fromEnvironment()));
 app.use("/api/v1/subscription", createSubscriptionRouter(accessControl));
 app.use("/api/v1/account/library", accessControl.middleware("library.cloudSync"));
 app.use("/api/v1/account", createAccountRouter(accountStore));
@@ -120,9 +122,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "2.0.0",
+    version: process.env.CLIENT_VERSION || "2.1.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Resonance 2.0 Library: перенос медиатеки, новый визуальный каталог и Wave Mixes.",
+      "Resonance 2.1 Visual Stage: новый полноэкранный плеер, видеофоны и серверные источники клипов.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       windowsPortable: "https://music.webcordes.ru/downloads/windows-portable",

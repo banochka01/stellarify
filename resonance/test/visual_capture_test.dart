@@ -14,6 +14,7 @@ import 'package:resonance/domain/entities/track_source.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/domain/providers/music_catalog_provider.dart';
 import 'package:resonance/features/lyrics/lyrics_service.dart';
+import 'package:resonance/features/player/clip_service.dart';
 import 'package:resonance/providers/common/provider_registry.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 
@@ -412,6 +413,7 @@ Widget _testApp({
 }) {
   return ProviderScope(
     overrides: [
+      stageClipsProvider.overrideWith((ref, track) async => []),
       appDatabaseProvider.overrideWithValue(database),
       if (registry != null)
         providerRegistryProvider.overrideWithValue(registry),
