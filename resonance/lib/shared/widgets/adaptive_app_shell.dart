@@ -20,6 +20,7 @@ class AdaptiveAppShell extends StatelessWidget {
   int get _selectedIndex => switch (location) {
     '/search' => 1,
     '/library' => 2,
+    '/graph' => 2,
     '/rooms' => 3,
     '/settings' => 4,
     '/account' => 4,

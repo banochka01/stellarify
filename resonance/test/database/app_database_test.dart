@@ -76,6 +76,24 @@ void main() {
     },
   );
 
+  test(
+    'imports a complete playlist atomically without duplicate tracks',
+    () async {
+      await database.createLocalPlaylistWithTracks('imported', ' Import ', [
+        _track('one'),
+        _track('two'),
+        _track('one'),
+      ]);
+
+      final summary = (await database.loadLocalPlaylistSummaries()).single;
+      final tracks = await database.loadLocalPlaylistTracks('imported');
+
+      expect(summary.name, 'Import');
+      expect(summary.trackCount, 2);
+      expect(tracks.map((track) => track.id), ['one', 'two']);
+    },
+  );
+
   test('keeps sync operations scoped and replaces the local library', () async {
     await database.enqueueSyncOperation(
       id: 'operation-1',

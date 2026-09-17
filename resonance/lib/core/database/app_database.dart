@@ -200,29 +200,32 @@ final class AppDatabase extends _$AppDatabase {
 
   Future<void> upsertUnifiedTrack(UnifiedTrack track) async {
     await transaction(() async {
-      await _upsertTrackRow(track);
-      await (delete(
+      await _upsertUnifiedTrackRows(track);
+    });
+  }
+
+  Future<void> _upsertUnifiedTrackRows(UnifiedTrack track) async {
+    await _upsertTrackRow(track);
+    await (delete(
+      storedTrackSources,
+    )..where((table) => table.trackId.equals(track.id))).go();
+    if (track.sources.isEmpty) return;
+    await batch((batch) {
+      batch.insertAll(
         storedTrackSources,
-      )..where((table) => table.trackId.equals(track.id))).go();
-      if (track.sources.isNotEmpty) {
-        await batch((batch) {
-          batch.insertAll(
-            storedTrackSources,
-            track.sources
-                .map(
-                  (source) => StoredTrackSourcesCompanion.insert(
-                    trackId: track.id,
-                    provider: source.provider,
-                    externalId: source.externalId,
-                    externalUrl: source.externalUrl.toString(),
-                    metadataJson: Value(jsonEncode(source.metadata)),
-                  ),
-                )
-                .toList(growable: false),
-            mode: InsertMode.insertOrReplace,
-          );
-        });
-      }
+        track.sources
+            .map(
+              (source) => StoredTrackSourcesCompanion.insert(
+                trackId: track.id,
+                provider: source.provider,
+                externalId: source.externalId,
+                externalUrl: source.externalUrl.toString(),
+                metadataJson: Value(jsonEncode(source.metadata)),
+              ),
+            )
+            .toList(growable: false),
+        mode: InsertMode.insertOrReplace,
+      );
     });
   }
 
@@ -390,6 +393,44 @@ final class AppDatabase extends _$AppDatabase {
     });
   }
 
+  /// Imports a complete playlist in one transaction. The previous per-track
+  /// path opened hundreds of nested transactions and could keep the blocking
+  /// import dialog visible for minutes on large playlists.
+  Future<void> createLocalPlaylistWithTracks(
+    String id,
+    String name,
+    List<UnifiedTrack> tracks,
+  ) async {
+    final trimmedName = name.trim();
+    if (trimmedName.isEmpty) {
+      throw ArgumentError.value(name, 'name', 'Playlist name cannot be empty');
+    }
+    await transaction(() async {
+      final now = DateTime.now().toUtc();
+      await into(localPlaylists).insert(
+        LocalPlaylistsCompanion.insert(
+          id: id,
+          name: trimmedName,
+          createdAt: Value(now),
+          updatedAt: Value(now),
+        ),
+      );
+      final seen = <String>{};
+      var position = 0;
+      for (final track in tracks) {
+        await _upsertUnifiedTrackRows(track);
+        if (!seen.add(track.id)) continue;
+        await into(localPlaylistTracks).insert(
+          LocalPlaylistTracksCompanion.insert(
+            playlistId: id,
+            trackId: track.id,
+            position: position++,
+          ),
+        );
+      }
+    });
+  }
+
   Future<List<UnifiedTrack>> loadLocalPlaylistTracks(String playlistId) async {
     final rows =
         await (select(localPlaylistTracks)
@@ -435,6 +476,28 @@ final class AppDatabase extends _$AppDatabase {
       ),
       mode: InsertMode.insertOrIgnore,
     );
+  }
+
+  Future<void> enqueueSyncOperations({
+    required String? userId,
+    required List<Map<String, dynamic>> operations,
+  }) async {
+    if (operations.isEmpty) return;
+    await batch((batch) {
+      batch.insertAll(
+        syncOutboxEntries,
+        operations
+            .map(
+              (operation) => SyncOutboxEntriesCompanion.insert(
+                id: operation['id'] as String,
+                userId: Value(userId),
+                operationJson: jsonEncode(operation),
+              ),
+            )
+            .toList(growable: false),
+        mode: InsertMode.insertOrIgnore,
+      );
+    });
   }
 
   Future<void> claimUnscopedSyncOperations(String userId) {
@@ -490,7 +553,7 @@ final class AppDatabase extends _$AppDatabase {
       await delete(favoriteTracks).go();
       await delete(localPlaylists).go();
       for (final track in snapshot.favorites) {
-        await upsertUnifiedTrack(track);
+        await _upsertUnifiedTrackRows(track);
         await into(favoriteTracks).insert(
           FavoriteTracksCompanion.insert(trackId: track.id),
           mode: InsertMode.insertOrIgnore,
@@ -507,7 +570,7 @@ final class AppDatabase extends _$AppDatabase {
         );
         for (var position = 0; position < playlist.tracks.length; position++) {
           final track = playlist.tracks[position];
-          await upsertUnifiedTrack(track);
+          await _upsertUnifiedTrackRows(track);
           await into(localPlaylistTracks).insert(
             LocalPlaylistTracksCompanion.insert(
               playlistId: playlist.id,

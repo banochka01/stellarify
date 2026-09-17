@@ -123,28 +123,84 @@ final class LibrarySyncService {
   }) async {
     final session = await _sessions.read();
     final userId = session?.user.id ?? await _sessions.readBoundUserId();
+    final operations = <Map<String, dynamic>>[];
     for (final track in favorites) {
-      await _enqueue(userId, {
-        'type': 'favoriteUpsert',
-        'track': track.toJson(),
-      });
+      operations.add(
+        _operation({'type': 'favoriteUpsert', 'track': track.toJson()}),
+      );
     }
     for (final playlist in playlists) {
-      await _enqueue(userId, {
-        'type': 'playlistUpsert',
-        'playlistId': playlist.id,
-        'name': playlist.name,
-        'createdAt': playlist.createdAt.toUtc().toIso8601String(),
-      });
-      for (var position = 0; position < playlist.tracks.length; position++) {
-        await _enqueue(userId, {
-          'type': 'playlistTrackUpsert',
+      operations.add(
+        _operation({
+          'type': 'playlistUpsert',
           'playlistId': playlist.id,
-          'track': playlist.tracks[position].toJson(),
-          'position': position,
-        });
+          'name': playlist.name,
+          'createdAt': playlist.createdAt.toUtc().toIso8601String(),
+        }),
+      );
+      for (var position = 0; position < playlist.tracks.length; position++) {
+        operations.add(
+          _operation({
+            'type': 'playlistTrackUpsert',
+            'playlistId': playlist.id,
+            'track': playlist.tracks[position].toJson(),
+            'position': position,
+          }),
+        );
       }
     }
+    await _database.enqueueSyncOperations(
+      userId: userId,
+      operations: operations,
+    );
+    _syncRequested = true;
+    if (session != null) unawaited(_syncSilently());
+  }
+
+  Future<void> recordPlaylistImport(LocalPlaylistSnapshot playlist) =>
+      recordLibraryImport(favorites: const [], playlists: [playlist]);
+
+  Future<void> recordLibraryReplacement({
+    required LocalLibrarySnapshot before,
+    required LocalLibrarySnapshot after,
+  }) async {
+    final session = await _sessions.read();
+    final userId = session?.user.id ?? await _sessions.readBoundUserId();
+    final operations = <Map<String, dynamic>>[
+      for (final favorite in before.favorites)
+        _operation({'type': 'favoriteDelete', 'trackId': favorite.id}),
+      for (final playlist in before.playlists)
+        _operation({'type': 'playlistDelete', 'playlistId': playlist.id}),
+    ];
+    for (final favorite in after.favorites) {
+      operations.add(
+        _operation({'type': 'favoriteUpsert', 'track': favorite.toJson()}),
+      );
+    }
+    for (final playlist in after.playlists) {
+      operations.add(
+        _operation({
+          'type': 'playlistUpsert',
+          'playlistId': playlist.id,
+          'name': playlist.name,
+          'createdAt': playlist.createdAt.toUtc().toIso8601String(),
+        }),
+      );
+      for (var position = 0; position < playlist.tracks.length; position++) {
+        operations.add(
+          _operation({
+            'type': 'playlistTrackUpsert',
+            'playlistId': playlist.id,
+            'track': playlist.tracks[position].toJson(),
+            'position': position,
+          }),
+        );
+      }
+    }
+    await _database.enqueueSyncOperations(
+      userId: userId,
+      operations: operations,
+    );
     _syncRequested = true;
     if (session != null) unawaited(_syncSilently());
   }
@@ -195,6 +251,11 @@ final class LibrarySyncService {
       userId: userId,
       operation: {'id': id, ...payload},
     );
+  }
+
+  Map<String, dynamic> _operation(Map<String, dynamic> payload) {
+    final id = const Uuid().v4();
+    return {'id': id, ...payload};
   }
 
   Future<void> _performSync(String userId) async {

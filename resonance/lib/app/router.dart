@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:resonance/features/auth/account_screen.dart';
 import 'package:resonance/features/home/home_screen.dart';
 import 'package:resonance/features/library/library_screen.dart';
+import 'package:resonance/features/music_graph/music_graph_screen.dart';
 import 'package:resonance/features/player/now_playing_screen.dart';
 import 'package:resonance/features/player/visual_stage_screen.dart';
 import 'package:resonance/features/rooms/rooms_screen.dart';
@@ -48,6 +49,11 @@ final resonanceRouter = GoRouter(
           path: '/library',
           name: 'library',
           builder: (context, state) => const LibraryScreen(),
+        ),
+        GoRoute(
+          path: '/graph',
+          name: 'music-graph',
+          builder: (context, state) => const MusicGraphScreen(),
         ),
         GoRoute(
           path: '/settings',

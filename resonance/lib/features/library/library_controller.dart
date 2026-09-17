@@ -3,6 +3,7 @@ import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/database/app_database.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/playlist_import_service.dart';
+import 'package:resonance/features/music_graph/music_graph.dart';
 import 'package:uuid/uuid.dart';
 
 final libraryControllerProvider =
@@ -15,11 +16,13 @@ final class LibraryState {
     this.favorites = const [],
     this.playlists = const [],
     this.tracks = const [],
+    this.graphTracks = const [],
   });
 
   final List<UnifiedTrack> favorites;
   final List<LocalPlaylistSummary> playlists;
   final List<UnifiedTrack> tracks;
+  final List<UnifiedTrack> graphTracks;
 
   Set<String> get favoriteIds => favorites.map((track) => track.id).toSet();
 }
@@ -79,19 +82,43 @@ final class LibraryController extends AsyncNotifier<LibraryState> {
   Future<String> importPlaylist(ImportedPlaylist imported) async {
     final id = const Uuid().v4();
     final sync = ref.read(librarySyncServiceProvider);
+    late LocalPlaylistSummary summary;
+    late List<UnifiedTrack> canonicalTracks;
     await sync.runLocalMutation(() async {
-      await _database.createLocalPlaylist(id, imported.name);
-      final summary = (await _database.loadLocalPlaylistSummaries()).firstWhere(
+      canonicalTracks = const MusicGraphBuilder().canonicalize(imported.tracks);
+      await _database.createLocalPlaylistWithTracks(
+        id,
+        imported.name,
+        canonicalTracks,
+      );
+      summary = (await _database.loadLocalPlaylistSummaries()).firstWhere(
         (playlist) => playlist.id == id,
       );
-      await sync.recordPlaylistUpsert(summary);
-      for (var position = 0; position < imported.tracks.length; position++) {
-        final track = imported.tracks[position];
-        await _database.addTrackToLocalPlaylist(id, track);
-        await sync.recordPlaylistTrack(id, track, position);
-      }
+      await sync.recordPlaylistImport(
+        LocalPlaylistSnapshot(
+          id: id,
+          name: summary.name,
+          createdAt: summary.createdAt,
+          tracks: canonicalTracks,
+        ),
+      );
     });
-    state = AsyncData(await _load());
+    final current = state.valueOrNull;
+    if (current == null) {
+      state = AsyncData(await _load());
+    } else {
+      state = AsyncData(
+        LibraryState(
+          favorites: current.favorites,
+          playlists: [
+            summary,
+            ...current.playlists.where((playlist) => playlist.id != id),
+          ],
+          tracks: _mergeTracks(current.tracks, canonicalTracks),
+          graphTracks: _mergeTracks(current.graphTracks, canonicalTracks),
+        ),
+      );
+    }
     return id;
   }
 
@@ -152,11 +179,87 @@ final class LibraryController extends AsyncNotifier<LibraryState> {
     return _database.loadLocalPlaylistTracks(playlistId);
   }
 
-  Future<LibraryState> _load() async => LibraryState(
-    favorites: await _database.loadFavoriteTracks(),
-    playlists: await _database.loadLocalPlaylistSummaries(),
-    tracks: await _database.loadStoredTracks(),
-  );
+  Future<MusicGraphCleanupResult> reconcileMusicGraph() async {
+    final sync = ref.read(librarySyncServiceProvider);
+    late MusicGraphCleanupResult result;
+    await sync.runLocalMutation(() async {
+      final before = await _database.loadLocalLibrarySnapshot();
+      final allTracks = <UnifiedTrack>[
+        ...before.favorites,
+        ...before.playlists.expand((playlist) => playlist.tracks),
+      ];
+      final graph = const MusicGraphBuilder().build(allTracks);
+      final favorites = <String, UnifiedTrack>{};
+      for (final track in before.favorites) {
+        final canonical = graph.canonicalFor(track);
+        favorites[canonical.id] = canonical;
+      }
+      final playlists = [
+        for (final playlist in before.playlists)
+          LocalPlaylistSnapshot(
+            id: playlist.id,
+            name: playlist.name,
+            createdAt: playlist.createdAt,
+            updatedAt: playlist.updatedAt,
+            tracks: _canonicalPlaylist(playlist.tracks, graph),
+          ),
+      ];
+      final after = LocalLibrarySnapshot(
+        favorites: favorites.values.toList(growable: false),
+        playlists: playlists,
+      );
+      await _database.replaceLocalLibrary(after);
+      await sync.recordLibraryReplacement(before: before, after: after);
+      result = MusicGraphCleanupResult(
+        mergedTracks: graph.duplicateCount,
+        canonicalTracks: graph.nodes.length,
+        sources: graph.sourceCount,
+      );
+    });
+    state = AsyncData(await _load());
+    return result;
+  }
+
+  Future<LibraryState> _load() async {
+    final snapshot = await _database.loadLocalLibrarySnapshot();
+    final graphTracks = <String, UnifiedTrack>{};
+    for (final track in snapshot.favorites) {
+      graphTracks[track.id] = track;
+    }
+    for (final track in snapshot.playlists.expand((item) => item.tracks)) {
+      graphTracks[track.id] = track;
+    }
+    return LibraryState(
+      favorites: snapshot.favorites,
+      playlists: await _database.loadLocalPlaylistSummaries(),
+      tracks: await _database.loadStoredTracks(),
+      graphTracks: graphTracks.values.toList(growable: false),
+    );
+  }
+}
+
+List<UnifiedTrack> _canonicalPlaylist(
+  List<UnifiedTrack> tracks,
+  MusicGraphSnapshot graph,
+) {
+  final result = <UnifiedTrack>[];
+  final seen = <String>{};
+  for (final track in tracks) {
+    final canonical = graph.canonicalFor(track);
+    if (seen.add(canonical.id)) result.add(canonical);
+  }
+  return result;
+}
+
+List<UnifiedTrack> _mergeTracks(
+  List<UnifiedTrack> current,
+  List<UnifiedTrack> added,
+) {
+  final tracks = <String, UnifiedTrack>{
+    for (final track in current) track.id: track,
+    for (final track in added) track.id: track,
+  };
+  return tracks.values.toList(growable: false);
 }
 
 final class LibraryImportResult {
@@ -171,4 +274,16 @@ final class LibraryImportResult {
   final int playlists;
   final int tracks;
   final bool truncated;
+}
+
+final class MusicGraphCleanupResult {
+  const MusicGraphCleanupResult({
+    required this.mergedTracks,
+    required this.canonicalTracks,
+    required this.sources,
+  });
+
+  final int mergedTracks;
+  final int canonicalTracks;
+  final int sources;
 }

@@ -6,9 +6,11 @@ import {
   ArrowRight,
   Apple,
   Clock3,
+  Combine,
   Download,
   FileText,
   Heart,
+  Network,
   Layers3,
   Link2,
   ListMusic,
@@ -119,6 +121,7 @@ function App() {
         </a>
         <nav aria-label="Основная навигация">
           <a href="#features">Возможности</a>
+          <a href="#graph">Music Graph</a>
           <a href="#rooms">Комнаты</a>
           <a href="#demo">Демо</a>
           <a href="#plans">Подписки</a>
@@ -136,8 +139,8 @@ function App() {
             <p className="eyebrow">Музыка без переключений</p>
             <h1>Музыка<br /><em>живёт</em><br />здесь.</h1>
             <p className="hero-lead">
-              Перенеси любимые треки и плейлисты целиком. Новая медиатека и
-              Wave 2.0 соберут весь твой музыкальный мир в одном месте.
+              Один трек, все его источники и связи. Music Graph очищает
+              медиатеку от дублей, а Wave 2.0 продолжает путь по музыке.
             </p>
             <div className="provider-chips">
               <span className="provider-chip"><img src="/assets/logos/yandex-music.svg" alt="" width={16} height={16} />Яндекс Музыка</span>
@@ -160,7 +163,7 @@ function App() {
                 <Apple size={18} /> Unsigned IPA
               </a>
             </div>
-            <p className="release-note">Resonance 2.0 Library · Полный перенос медиатеки · Wave Mixes · Windows Setup EXE · Android debug-signed · iOS unsigned</p>
+            <p className="release-note">Resonance 3.0 Music Graph · Умное объединение источников · Исправленный импорт · Windows Setup EXE · Android debug-signed · iOS unsigned</p>
           </div>
           <div className="hero-visual">
             <HeroStage />
@@ -217,6 +220,37 @@ function App() {
         </section>
 
         <LibraryCinema />
+
+        <section className="graph-section" id="graph">
+          <div className="section-heading" data-reveal>
+            <div>
+              <p className="eyebrow">Resonance 3.0</p>
+              <h2>Один трек.<br /><em>Все</em> его связи.</h2>
+            </div>
+            <p>
+              Music Graph узнаёт одну композицию в разных сервисах, сохраняет
+              все доступные источники и связывает музыку по артисту и альбому.
+            </p>
+          </div>
+          <div className="graph-showcase" data-reveal>
+            <div className="graph-orbit" aria-label="Пример музыкального графа">
+              <span className="graph-line graph-line-a" />
+              <span className="graph-line graph-line-b" />
+              <span className="graph-line graph-line-c" />
+              <button className="graph-node graph-node-main" type="button">
+                <Network size={28} /><b>Nightcall</b><small>2 источника</small>
+              </button>
+              <button className="graph-node graph-node-a" type="button"><span>Kavinsky</span></button>
+              <button className="graph-node graph-node-b" type="button"><span>OutRun</span></button>
+              <button className="graph-node graph-node-c" type="button"><span>Odd Look</span></button>
+            </div>
+            <div className="graph-copy">
+              <article><Combine size={22} /><div><h3>Без дублей</h3><p>Яндекс, Spotify и VK становятся источниками одной записи, а не тремя одинаковыми треками.</p></div></article>
+              <article><Network size={22} /><div><h3>Живое окружение</h3><p>Переходи от композиции к альбому и другим работам артиста прямо на карте.</p></div></article>
+              <article><ShieldCheck size={22} /><div><h3>Безопасное объединение</h3><p>Совпадение требует одинаковых названия, артиста и близкой длительности. Live и remix остаются отдельно.</p></div></article>
+            </div>
+          </div>
+        </section>
 
         <LyricsCinema />
 

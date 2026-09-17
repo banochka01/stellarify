@@ -7,6 +7,7 @@ import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_actions.dart';
 import 'package:resonance/features/library/library_controller.dart';
+import 'package:resonance/features/music_graph/music_graph.dart';
 import 'package:resonance/features/player/track_action.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
@@ -76,9 +77,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     try {
       final batches = await Future.wait(searches);
       if (!mounted || query != _controller.text.trim()) return;
-      final tracks = batches
-          .expand((batch) => batch.tracks)
-          .toList(growable: false);
+      final tracks = const MusicGraphBuilder().canonicalize(
+        batches.expand((batch) => batch.tracks),
+      );
       final failures = batches.where((batch) => batch.error != null).toList();
       setState(() {
         _tracks = tracks;

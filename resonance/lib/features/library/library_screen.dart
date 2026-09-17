@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/database/app_database.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
@@ -9,6 +10,7 @@ import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_actions.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/library/library_transfer_dialog.dart';
+import 'package:resonance/features/library/playlist_import_progress_dialog.dart';
 import 'package:resonance/features/player/track_action.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
@@ -53,6 +55,11 @@ class LibraryScreen extends ConsumerWidget {
           onPressed: () => _transferLibrary(context, ref),
           icon: const Icon(Icons.auto_awesome_rounded),
           label: Text(compact ? 'Перенести' : 'Перенести медиатеку'),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => context.go('/graph'),
+          icon: const Icon(Icons.hub_rounded),
+          label: Text(compact ? 'Граф' : 'Music Graph'),
         ),
         OutlinedButton.icon(
           onPressed: () => _importPlaylist(context, ref),
@@ -140,43 +147,33 @@ class LibraryScreen extends ConsumerWidget {
       builder: (dialogContext) => const ImportPlaylistDialog(),
     );
     if (url == null || url.isEmpty || !context.mounted) return;
-    // Диалог загрузки открывается на ROOT-навигаторе (useRootNavigator),
-    // а контекст экрана библиотеки принадлежит навигатору ShellRoute:
-    // Navigator.pop(context) попнул бы единственную страницу shell'а и
-    // валил go_router (чёрный экран). Закрываем диалог через root.
-    final rootNavigator = Navigator.of(context, rootNavigator: true);
-    unawaited(
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const Center(child: CircularProgressIndicator()),
+    final result = await showDialog<PlaylistImportOutcome>(
+      context: context,
+      useRootNavigator: true,
+      barrierDismissible: false,
+      builder: (_) => PlaylistImportProgressDialog(
+        run: () async {
+          final imported = await ref
+              .read(playlistImportServiceProvider)
+              .importUrl(url);
+          await ref
+              .read(libraryControllerProvider.notifier)
+              .importPlaylist(imported);
+          return PlaylistImportOutcome(
+            name: imported.name,
+            trackCount: imported.tracks.length,
+          );
+        },
       ),
     );
-    try {
-      final imported = await ref
-          .read(playlistImportServiceProvider)
-          .importUrl(url);
-      await ref
-          .read(libraryControllerProvider.notifier)
-          .importPlaylist(imported);
-      if (!context.mounted) return;
-      rootNavigator.pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '«${imported.name}»: перенесено ${imported.tracks.length} треков',
-          ),
+    if (result == null || !context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '«${result.name}»: перенесено ${result.trackCount} треков',
         ),
-      );
-    } catch (error) {
-      if (!context.mounted) return;
-      rootNavigator.pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst(RegExp(r'^\w+: '), '')),
-        ),
-      );
-    }
+      ),
+    );
   }
 }
 

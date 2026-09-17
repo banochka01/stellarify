@@ -122,9 +122,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "2.1.0",
+    version: process.env.CLIENT_VERSION || "3.0.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Resonance 2.1 Visual Stage: новый полноэкранный плеер, видеофоны и серверные источники клипов.",
+      "Resonance 3.0 Music Graph: единые треки из разных источников, карта связей и надёжный импорт плейлистов.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       windowsPortable: "https://music.webcordes.ru/downloads/windows-portable",
