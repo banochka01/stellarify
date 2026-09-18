@@ -1,5 +1,15 @@
 # Progress
 
+## Version 3.2.0 — Discord Presence and interface polish
+
+- [x] Optional Discord Rich Presence for desktop playback
+- [x] Track, artist, cover, progress and play/pause activity updates
+- [x] Persistent opt-in with reconnect when Discord starts later
+- [x] Build-time or in-app Discord Application ID configuration
+- [x] Dedicated integrations section with responsive status UI
+- [x] Refined Home artwork, playback status and compact controls
+- [x] Controller, settings and visual regression coverage
+
 ## Version 3.1.0 — free access
 
 - [x] All Resonance capabilities enabled without tiers or expiry

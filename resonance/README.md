@@ -29,6 +29,12 @@ tiers. Every product capability is free; provider accounts and credentials may
 still be required by the external music service itself. Legacy access endpoints
 remain read-compatible so older installed clients are unlocked immediately.
 
+Version 3.2.0 adds Discord Rich Presence on desktop with live track metadata,
+cover art, play/pause state and progress timestamps. The connection is optional,
+retries safely when Discord starts later, and can use either a bundled build ID
+or an Application ID saved in Settings. Home now exposes provider and playback
+state more clearly across desktop and mobile layouts.
+
 Version 0.2.0 added a four-step first-run setup for provider selection,
 credential validation, appearance, playback quality, and optional playlist
 import. The proposed endless recommendation flow is documented in
@@ -84,6 +90,17 @@ compile-time default. It can still be overridden for local development:
 ```powershell
 K:\SDK\flutter_fresh\bin\flutter.bat run -d windows --dart-define=RESONANCE_API_URL=http://localhost:8787
 ```
+
+For a branded Discord card, create one application in the
+[Discord Developer Portal](https://discord.com/developers/applications) and
+pass its public Application ID to release builds:
+
+```powershell
+K:\SDK\flutter_fresh\bin\flutter.bat build windows --release --dart-define=RESONANCE_DISCORD_APPLICATION_ID=123456789012345678
+```
+
+Without that build define, desktop users can enter the same ID under
+Settings → Integrations. Mobile builds keep Discord Presence disabled.
 
 Use an HTTPS URL for production. Android emulators must use the host address
 (commonly `10.0.2.2`) instead of `localhost`.

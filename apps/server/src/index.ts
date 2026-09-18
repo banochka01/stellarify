@@ -103,9 +103,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "3.1.0",
+    version: process.env.CLIENT_VERSION || "3.2.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Resonance теперь полностью бесплатный: все функции, Wave и комнаты доступны без тарифов и промокодов.",
+      "Discord Rich Presence, обновлённый главный экран и более ясные статусы источника и воспроизведения.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       windowsPortable: "https://music.webcordes.ru/downloads/windows-portable",

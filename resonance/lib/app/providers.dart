@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:resonance/core/database/app_database.dart';
+import 'package:resonance/core/integrations/discord_presence_controller.dart';
 import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/core/networking/resonance_http_client.dart';
 import 'package:resonance/core/networking/soundcloud_proxy_preference.dart';
@@ -333,3 +334,33 @@ final obsOverlayControllerProvider =
         ref.watch(playbackServiceProvider.future),
       );
     });
+
+final discordPresenceGatewayFactoryProvider =
+    Provider<DiscordPresenceGatewayFactory>((ref) {
+      return DiscordRpcGateway.new;
+    });
+
+final discordPresenceControllerProvider =
+    StateNotifierProvider<DiscordPresenceController, DiscordPresenceState>((
+      ref,
+    ) {
+      return DiscordPresenceController(
+        ref.watch(secureKeyValueStoreProvider),
+        ref
+            .watch(playbackServiceProvider.future)
+            .then<DiscordPlaybackFeed>(_PlaybackDiscordFeed.new),
+        ref.watch(discordPresenceGatewayFactoryProvider),
+      );
+    });
+
+final class _PlaybackDiscordFeed implements DiscordPlaybackFeed {
+  const _PlaybackDiscordFeed(this._service);
+
+  final PlaybackService _service;
+
+  @override
+  ResonancePlaybackState get state => _service.state;
+
+  @override
+  Stream<ResonancePlaybackState> get states => _service.states;
+}

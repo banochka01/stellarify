@@ -1,9 +1,12 @@
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/app/resonance_app.dart';
 import 'package:resonance/app/router.dart';
+import 'package:resonance/core/database/app_database.dart';
 import 'package:resonance/core/networking/soundcloud_proxy_preference.dart';
 import 'package:resonance/core/security/flutter_secure_token_repository.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
@@ -13,6 +16,16 @@ import 'package:resonance/providers/soundcloud/backend_soundcloud_provider.dart'
 import '../helpers/fake_playback_engine.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() async {
+    final inter = FontLoader('Inter')
+      ..addFont(rootBundle.load('assets/fonts/InterVariable.ttf'));
+    final materialIcons = FontLoader('MaterialIcons')
+      ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
+    await Future.wait([inter.load(), materialIcons.load()]);
+  });
+
   testWidgets('stores a SoundCloud Client ID from Settings', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(390, 844);
@@ -24,6 +37,8 @@ void main() {
     final backend = _FakeBackendClient();
     final secureStore = _MemorySecureStore();
     final playbackEngine = FakePlaybackEngine();
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
     resonanceRouter.go('/settings');
     await tester.pumpWidget(
       ProviderScope(
@@ -32,6 +47,7 @@ void main() {
           soundCloudProxyPreferenceProvider.overrideWithValue(proxy),
           resonanceBackendClientProvider.overrideWithValue(backend),
           secureKeyValueStoreProvider.overrideWithValue(secureStore),
+          appDatabaseProvider.overrideWithValue(database),
           playbackEngineProvider.overrideWithValue(playbackEngine),
           playbackPersistenceProvider.overrideWithValue(null),
         ],
@@ -56,6 +72,44 @@ void main() {
     await tester.tap(find.text('Наушники').last);
     await tester.pumpAndSettle();
     expect(playbackEngine.selectedAudioOutput.id, 'headphones');
+
+    final discordField = find.byKey(
+      const ValueKey('discord-application-id-field'),
+    );
+    await tester.scrollUntilVisible(
+      discordField,
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.enterText(discordField, '123456789012345678');
+    final discordCard = find
+        .ancestor(of: discordField, matching: find.byType(Card))
+        .first;
+    final discordSaveButton = find.descendant(
+      of: discordCard,
+      matching: find.text('Сохранить'),
+    );
+    await tester.scrollUntilVisible(
+      discordSaveButton,
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(discordSaveButton);
+    await tester.tap(discordSaveButton);
+    await tester.pumpAndSettle();
+    expect(
+      secureStore.values['resonance.discord_presence.application_id'],
+      '123456789012345678',
+    );
+    expect(find.text('Discord Application ID сохранён'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, 350));
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/resonance-settings-integrations-mobile.png'),
+    );
 
     final field = find.byKey(const ValueKey('soundcloud-token-field'));
     await tester.scrollUntilVisible(

@@ -1,6 +1,7 @@
 param(
   [switch]$SkipFlutterBuild,
-  [string]$ApiUrl = 'https://music.webcordes.ru'
+  [string]$ApiUrl = 'https://music.webcordes.ru',
+  [string]$DiscordApplicationId = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -18,7 +19,16 @@ $definition = Join-Path $resonanceRoot 'windows\installer\Resonance.nsi'
 if (-not $SkipFlutterBuild) {
   Push-Location $resonanceRoot
   try {
-    & $flutter build windows --release "--dart-define=RESONANCE_API_URL=$ApiUrl"
+    $buildArguments = @(
+      'build',
+      'windows',
+      '--release',
+      "--dart-define=RESONANCE_API_URL=$ApiUrl"
+    )
+    if ($DiscordApplicationId.Trim().Length -gt 0) {
+      $buildArguments += "--dart-define=RESONANCE_DISCORD_APPLICATION_ID=$($DiscordApplicationId.Trim())"
+    }
+    & $flutter @buildArguments
     if ($LASTEXITCODE -ne 0) { throw 'The Windows release build failed.' }
   } finally {
     Pop-Location

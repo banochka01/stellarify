@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/errors/app_exception.dart';
+import 'package:resonance/core/integrations/discord_presence_controller.dart';
 import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/core/playback/audio_output_controller.dart';
 import 'package:resonance/core/playback/playback_engine.dart';
@@ -270,6 +271,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final audioOutput = ref.watch(audioOutputControllerProvider);
     final flow = ref.watch(playbackFlowControllerProvider);
     final obs = ref.watch(obsOverlayControllerProvider);
+    final discord = ref.watch(discordPresenceControllerProvider);
     return ListView(
       padding: EdgeInsets.fromLTRB(
         compact ? 18 : 34,
@@ -367,6 +369,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         ),
         const SizedBox(height: 16),
+        Text('Интеграции', style: Theme.of(context).textTheme.displaySmall),
+        const SizedBox(height: 8),
+        const Text(
+          'Показывайте текущий трек друзьям и в эфире. Интеграции работают локально и не передают credentials.',
+          style: TextStyle(color: ResonanceColors.muted),
+        ),
+        const SizedBox(height: 18),
+        _DiscordPresenceCard(state: discord, compact: compact),
+        const SizedBox(height: 12),
         Card(
           margin: EdgeInsets.zero,
           child: Column(
@@ -957,6 +968,281 @@ final class _AudioOutputCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    ),
+  );
+}
+
+class _DiscordPresenceCard extends ConsumerStatefulWidget {
+  const _DiscordPresenceCard({required this.state, required this.compact});
+
+  final DiscordPresenceState state;
+  final bool compact;
+
+  @override
+  ConsumerState<_DiscordPresenceCard> createState() =>
+      _DiscordPresenceCardState();
+}
+
+class _DiscordPresenceCardState extends ConsumerState<_DiscordPresenceCard> {
+  late final TextEditingController _applicationIdController;
+  final FocusNode _applicationIdFocus = FocusNode();
+  String? _validationMessage;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _applicationIdController = TextEditingController(
+      text: widget.state.applicationId,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _DiscordPresenceCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_applicationIdFocus.hasFocus &&
+        oldWidget.state.applicationId != widget.state.applicationId &&
+        _applicationIdController.text != widget.state.applicationId) {
+      _applicationIdController.text = widget.state.applicationId;
+    }
+  }
+
+  @override
+  void dispose() {
+    _applicationIdController.dispose();
+    _applicationIdFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveApplicationId() async {
+    if (_saving) return;
+    setState(() {
+      _saving = true;
+      _validationMessage = null;
+    });
+    final message = await ref
+        .read(discordPresenceControllerProvider.notifier)
+        .setApplicationId(_applicationIdController.text);
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      _validationMessage = message;
+    });
+    if (message == null) {
+      _applicationIdFocus.unfocus();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Discord Application ID сохранён')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    final status = !state.supported
+        ? 'Только desktop'
+        : state.connected
+        ? 'Подключено'
+        : state.connecting
+        ? 'Подключение'
+        : state.enabled
+        ? 'Ожидание Discord'
+        : state.configured
+        ? 'Готово'
+        : 'Нужен App ID';
+    final statusColor = state.connected
+        ? ResonanceColors.success
+        : state.connecting || state.enabled
+        ? ResonanceColors.primary
+        : ResonanceColors.muted;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          SwitchListTile(
+            key: const ValueKey('discord-presence-switch'),
+            value: state.enabled,
+            onChanged: !state.supported || !state.configured || state.connecting
+                ? null
+                : (enabled) => unawaited(
+                    ref
+                        .read(discordPresenceControllerProvider.notifier)
+                        .setEnabled(enabled),
+                  ),
+            secondary: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFF5865F2).withValues(alpha: .16),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                Icons.discord_rounded,
+                color: Color(0xFF8A93FF),
+              ),
+            ),
+            title: widget.compact
+                ? const Text('Discord Rich Presence')
+                : Row(
+                    children: [
+                      const Expanded(child: Text('Discord Rich Presence')),
+                      _IntegrationStatus(label: status, color: statusColor),
+                    ],
+                  ),
+            subtitle: widget.compact
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          state.supported
+                              ? 'Показывает трек, исполнителя, обложку и точный прогресс прослушивания.'
+                              : 'Доступно в настольной версии Resonance.',
+                        ),
+                        const SizedBox(height: 9),
+                        _IntegrationStatus(
+                          label: status,
+                          color: statusColor,
+                          compact: true,
+                        ),
+                      ],
+                    ),
+                  )
+                : Text(
+                    state.supported
+                        ? 'Показывает трек, исполнителя, обложку и точный прогресс прослушивания.'
+                        : 'Доступно в настольной версии Resonance.',
+                  ),
+          ),
+          if (state.supported && !state.bundled) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: widget.compact
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildApplicationIdField(),
+                        const SizedBox(height: 12),
+                        _buildSaveButton(),
+                      ],
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: _buildApplicationIdField()),
+                        const SizedBox(width: 12),
+                        _buildSaveButton(),
+                      ],
+                    ),
+            ),
+          ],
+          if (state.error != null) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 13, 18, 16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      state.error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                        fontSize: 12,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                  if (state.enabled)
+                    TextButton(
+                      onPressed: state.connecting
+                          ? null
+                          : () => unawaited(
+                              ref
+                                  .read(
+                                    discordPresenceControllerProvider.notifier,
+                                  )
+                                  .retry(),
+                            ),
+                      child: const Text('Повторить'),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildApplicationIdField() => TextField(
+    key: const ValueKey('discord-application-id-field'),
+    controller: _applicationIdController,
+    focusNode: _applicationIdFocus,
+    enabled: !_saving,
+    keyboardType: TextInputType.number,
+    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+    textInputAction: TextInputAction.done,
+    onSubmitted: (_) => unawaited(_saveApplicationId()),
+    decoration: InputDecoration(
+      labelText: 'Discord Application ID',
+      hintText: '123456789012345678',
+      prefixIcon: const Icon(Icons.tag_rounded),
+      errorText: _validationMessage,
+      helperText: 'Создаётся один раз в Discord Developer Portal.',
+    ),
+  );
+
+  Widget _buildSaveButton() => FilledButton.icon(
+    onPressed: _saving ? null : _saveApplicationId,
+    icon: _saving
+        ? const SizedBox.square(
+            dimension: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : const Icon(Icons.save_outlined),
+    label: const Text('Сохранить'),
+  );
+}
+
+class _IntegrationStatus extends StatelessWidget {
+  const _IntegrationStatus({
+    required this.label,
+    required this.color,
+    this.compact = false,
+  });
+
+  final String label;
+  final Color color;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: EdgeInsets.only(left: compact ? 0 : 12),
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: .12),
+      borderRadius: BorderRadius.circular(999),
+      border: Border.all(color: color.withValues(alpha: .3)),
+    ),
+    child: Text(
+      label,
+      style: TextStyle(
+        color: color,
+        fontSize: 9,
+        fontWeight: FontWeight.w900,
+        letterSpacing: .4,
       ),
     ),
   );
