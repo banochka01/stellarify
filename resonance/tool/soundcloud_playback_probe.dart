@@ -42,10 +42,6 @@ class _ProbeAppState extends State<_ProbeApp> {
       final guestToken = base64UrlEncode(
         List<int>.generate(48, (_) => random.nextInt(256)),
       ).replaceAll('=', '');
-      await dio.post<Map<String, dynamic>>(
-        '/api/v1/subscription/guest',
-        data: {'token': guestToken},
-      );
       dio.options.headers['X-Guest-Token'] = guestToken;
       dio.options.headers['X-Device-Id'] = guestToken;
       final search = await dio.get<Map<String, dynamic>>(

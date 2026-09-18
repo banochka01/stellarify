@@ -9,7 +9,6 @@ import 'package:resonance/features/player/visual_stage_screen.dart';
 import 'package:resonance/features/rooms/rooms_screen.dart';
 import 'package:resonance/features/search/search_screen.dart';
 import 'package:resonance/features/settings/settings_screen.dart';
-import 'package:resonance/features/subscription/subscription_screen.dart';
 import 'package:resonance/shared/widgets/adaptive_app_shell.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 
@@ -20,11 +19,6 @@ final resonanceRouter = GoRouter(
       builder: (context, state, child) =>
           AdaptiveAppShell(location: state.uri.path, child: child),
       routes: [
-        GoRoute(
-          path: '/subscription',
-          name: 'subscription',
-          builder: (context, state) => const SubscriptionScreen(),
-        ),
         GoRoute(
           path: '/account',
           name: 'account',

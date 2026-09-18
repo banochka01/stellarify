@@ -40,6 +40,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.textContaining('Подписка'), findsNothing);
+    expect(find.textContaining('промокод'), findsNothing);
+
     final outputPicker = find.byKey(const ValueKey('audio-output-picker'));
     await tester.scrollUntilVisible(
       outputPicker,

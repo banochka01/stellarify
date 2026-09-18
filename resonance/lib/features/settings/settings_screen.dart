@@ -304,17 +304,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        Card(
-          margin: EdgeInsets.zero,
-          child: ListTile(
-            leading: const Icon(Icons.workspace_premium_outlined),
-            title: const Text('Подписка и промокоды'),
-            subtitle: const Text('Гостевые сутки · Base · Plus · Family'),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => context.go('/subscription'),
-          ),
-        ),
-        const SizedBox(height: 16),
         Consumer(
           builder: (context, ref, _) {
             final profile = ref.watch(waveControllerProvider).profile;
@@ -325,7 +314,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: const Text('Музыкальная память Wave'),
                 subtitle: Text(
                   profile == null
-                      ? 'Войдите в Plus или Family, чтобы синхронизировать вкус'
+                      ? 'Войдите в аккаунт, чтобы синхронизировать музыкальный вкус'
                       : '${profile.signalCount} сигналов${profile.topArtists.isEmpty ? '' : ' · ${profile.topArtists.take(3).join(', ')}'}',
                 ),
                 trailing: profile == null || profile.signalCount == 0

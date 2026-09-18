@@ -24,11 +24,10 @@ Version 1.0.0 added a contextual Wave controlled with ordinary language,
 account-owned musical memory, cross-device continuation, shared room taste,
 explainable recommendations, and a fluid reduced-motion-aware Home interface.
 
-Version 0.4.0 added server-enforced subscriptions: a one-day SoundCloud-only
-guest trial plus Base, Plus and Family access activated by paid promo codes.
-Promo codes are issued only by the configured Telegram admin bot. See
-[`../deploy/SUBSCRIPTIONS.md`](../deploy/SUBSCRIPTIONS.md) for the exact
-capabilities, operational requirements and release gate.
+Version 3.1.0 removes Resonance subscriptions, trials, promo codes and device
+tiers. Every product capability is free; provider accounts and credentials may
+still be required by the external music service itself. Legacy access endpoints
+remain read-compatible so older installed clients are unlocked immediately.
 
 Version 0.2.0 added a four-step first-run setup for provider selection,
 credential validation, appearance, playback quality, and optional playlist

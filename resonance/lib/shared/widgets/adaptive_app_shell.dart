@@ -24,7 +24,6 @@ class AdaptiveAppShell extends StatelessWidget {
     '/rooms' => 3,
     '/settings' => 4,
     '/account' => 4,
-    '/subscription' => 4,
     _ => 0,
   };
 
@@ -219,13 +218,6 @@ class _DesktopSidebar extends StatelessWidget {
             onTap: () => onSelected(4),
           ),
           const Spacer(),
-          _SidebarItem(
-            label: 'Подписка',
-            icon: Icons.workspace_premium_outlined,
-            selected: false,
-            onTap: () => context.go('/subscription'),
-          ),
-          const SizedBox(height: 16),
           const _SourceList(),
         ],
       ),

@@ -5,7 +5,6 @@ import {
   ArrowDown,
   ArrowRight,
   Apple,
-  Clock3,
   Combine,
   Download,
   FileText,
@@ -19,7 +18,6 @@ import {
   Search,
   ShieldCheck,
   Smartphone,
-  Ticket,
   Users,
   Volume2
 } from "lucide-react";
@@ -124,7 +122,7 @@ function App() {
           <a href="#graph">Music Graph</a>
           <a href="#rooms">Комнаты</a>
           <a href="#demo">Демо</a>
-          <a href="#plans">Подписки</a>
+          <a href="#free">Бесплатно</a>
           <a href="#privacy">Приватность</a>
           <a href="#faq">FAQ</a>
         </nav>
@@ -141,6 +139,7 @@ function App() {
             <p className="hero-lead">
               Один трек, все его источники и связи. Music Graph очищает
               медиатеку от дублей, а Wave 2.0 продолжает путь по музыке.
+              Все возможности Resonance доступны бесплатно.
             </p>
             <div className="provider-chips">
               <span className="provider-chip"><img src="/assets/logos/yandex-music.svg" alt="" width={16} height={16} />Яндекс Музыка</span>
@@ -163,7 +162,7 @@ function App() {
                 <Apple size={18} /> Unsigned IPA
               </a>
             </div>
-            <p className="release-note">Resonance 3.0 Music Graph · Умное объединение источников · Исправленный импорт · Windows Setup EXE · Android debug-signed · iOS unsigned</p>
+            <p className="release-note">Resonance 3.1 · Полностью бесплатно · Все функции без тарифов и промокодов · Windows Setup EXE · Android debug-signed · iOS unsigned</p>
           </div>
           <div className="hero-visual">
             <HeroStage />
@@ -287,77 +286,41 @@ function App() {
                 <p>Очередь одна на всех: добавляйте треки из любого подключённого источника.</p>
               </article>
             </div>
-            <p className="rooms-note" data-reveal>Вход в комнаты доступен с тарифа Base, создание комнат — с Plus.</p>
+            <p className="rooms-note" data-reveal>Комнаты доступны бесплатно всем пользователям с аккаунтом Resonance.</p>
           </div>
         </section>
 
         <DemoSandbox />
 
-        <section className="plans-section" id="plans">
-          <div className="plans-heading" data-reveal>
+        <section className="free-section" id="free">
+          <div className="free-heading" data-reveal>
             <div>
-              <p className="eyebrow">Доступ без скрытых условий</p>
-              <h2>Сутки на знакомство.<br /><em>Дальше — твой план.</em></h2>
+              <p className="eyebrow">Проект получил финансирование</p>
+              <h2>Все возможности.<br /><em>Бесплатно.</em></h2>
             </div>
             <p>
-              Оплаченный промокод вводится внутри Resonance и открывает выбранный
-              тариф на указанный срок. На Plus и Family подписки на музыкальные
-              сервисы не нужны.
+              У Resonance больше нет платных уровней, пробного периода и
+              промокодов. Скачивай приложение и используй все функции без оплаты.
             </p>
           </div>
-
-          <div className="guest-pass" data-reveal>
-            <span className="plan-icon"><Clock3 size={24} /></span>
-            <div>
-              <p className="plan-kicker">Гостевой доступ</p>
-              <h3>24 часа · SoundCloud и Spotify</h3>
-            </div>
-            <p>Поиск и наш плеер, локальная библиотека и до трёх подборок Wave. Spotify звучит 30-секундными превью. Без облака и комнат.</p>
-          </div>
-
-          <div className="plans-grid">
-            <article className="plan-card" data-reveal>
-              <div className="plan-card-top">
-                <span className="plan-icon"><Ticket size={22} /></span>
-                <p className="plan-kicker">Base</p>
-              </div>
-              <h3>Для личного прослушивания</h3>
-              <ul>
-                <li>SoundCloud, Яндекс Музыка, Spotify и VK Музыка</li>
-                <li>Облачная библиотека и импорт плейлистов — включая Spotify и VK</li>
-                <li>Стандартная Wave</li>
-                <li>Вход в комнаты · 2 устройства</li>
-              </ul>
+          <div className="free-grid">
+            <article className="free-card" data-reveal>
+              <Volume2 size={24} />
+              <h3>Полный плеер</h3>
+              <p>Все поддерживаемые источники, единый поиск, импорт, тексты и Music Graph без ограничений Resonance.</p>
             </article>
-            <article className="plan-card plan-card-accent" data-reveal>
-              <div className="plan-card-top">
-                <span className="plan-icon"><Volume2 size={22} /></span>
-                <p className="plan-kicker">Plus</p>
-              </div>
-              <h3>Для музыки без компромиссов</h3>
-              <ul>
-                <li>Всё из Base</li>
-                <li>Подписка на музыкальные сервисы не нужна</li>
-                <li>Wave обычным языком и музыкальная память</li>
-                <li>Создание и вход в комнаты</li>
-                <li>До 10 устройств</li>
-              </ul>
+            <article className="free-card free-card-accent" data-reveal>
+              <Heart size={24} />
+              <h3>Wave без уровней</h3>
+              <p>Персональные подборки, музыкальная память и управление очередью обычным языком доступны всем.</p>
             </article>
-            <article className="plan-card" data-reveal>
-              <div className="plan-card-top">
-                <span className="plan-icon"><Users size={22} /></span>
-                <p className="plan-kicker">Family</p>
-              </div>
-              <h3>Для пяти отдельных аккаунтов</h3>
-              <ul>
-                <li>Всё из Plus</li>
-                <li>Подписки на музыкальные сервисы включены</li>
-                <li>Владелец и до 4 участников</li>
-                <li>Отдельные библиотеки и настройки</li>
-                <li>До 10 устройств на участника</li>
-              </ul>
+            <article className="free-card" data-reveal>
+              <Users size={24} />
+              <h3>Комнаты для всех</h3>
+              <p>Создавай комнаты, приглашай друзей и слушай синхронно. Для общей сессии нужен только бесплатный аккаунт.</p>
             </article>
           </div>
+          <p className="free-note" data-reveal>Некоторые музыкальные сервисы могут требовать собственный аккаунт, токен или подписку по правилам самого источника. Resonance за доступ к своим функциям плату не берёт.</p>
         </section>
 
         <section className="interface-section" id="interface">
@@ -427,11 +390,11 @@ function App() {
             <div className="faq-list">
               <details data-reveal>
                 <summary>Нужна ли подписка на источники — SoundCloud, Яндекс, Spotify, VK? <Plus size={18} /></summary>
-                <p>На тарифах Plus и Family подписка на источники не нужна — музыка уже включена. На Base войди в свои аккаунты, чтобы каталоги появились в едином поиске: SoundCloud и Spotify работают даже без своих ключей, а Яндекс Музыка и VK — по твоему токену. А без подписки работает гостевой доступ: 24 часа поиска и прослушивания SoundCloud и Spotify-превью.</p>
+                <p>Сам Resonance полностью бесплатный. Доступ к каталогу и полным трекам зависит от правил выбранного источника: где-то достаточно серверного подключения Resonance, а где-то нужен твой аккаунт, токен или подписка самого музыкального сервиса.</p>
               </details>
               <details data-reveal>
-                <summary>Как открывается платный тариф? <Plus size={18} /></summary>
-                <p>Промокод приобретается отдельно и вводится внутри Resonance: он открывает выбранный тариф на указанный срок. На Plus и выше подписка на музыкальные сервисы уже включена; на Base она приобретается у провайдера источника.</p>
+                <summary>Resonance действительно бесплатный? <Plus size={18} /></summary>
+                <p>Да. Проект получил финансирование, поэтому в Resonance нет платных уровней, пробного срока, промокодов и ограничений функций по оплате.</p>
               </details>
               <details data-reveal>
                 <summary>Что умеет Wave? <Plus size={18} /></summary>
@@ -439,7 +402,7 @@ function App() {
               </details>
               <details data-reveal>
                 <summary>Как работают комнаты? <Plus size={18} /></summary>
-                <p>Создатель комнаты получает ссылку-приглашение, а воспроизведение синхронизировано у всех участников. Вход в комнаты доступен с тарифа Base, создание комнат — с Plus.</p>
+                <p>Создатель комнаты получает ссылку-приглашение, а воспроизведение синхронизировано у всех участников. Создание и вход доступны бесплатно после входа в аккаунт Resonance.</p>
               </details>
               <details data-reveal>
                 <summary>Что с приватностью? <Plus size={18} /></summary>
@@ -467,7 +430,7 @@ function App() {
           <a href="#features">Возможности</a>
           <a href="#rooms">Комнаты</a>
           <a href="#demo">Демо</a>
-          <a href="#plans">Подписки</a>
+          <a href="#free">Бесплатно</a>
           <a href="#privacy">Приватность</a>
           <a href="#faq">FAQ</a>
         </nav>

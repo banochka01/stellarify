@@ -1,5 +1,13 @@
 # Progress
 
+## Version 3.1.0 — free access
+
+- [x] All Resonance capabilities enabled without tiers or expiry
+- [x] Paid promo-code flow and Telegram sales bot removed
+- [x] Device limits and Wave/room paywalls removed
+- [x] Native client and landing pricing surfaces removed
+- [x] Legacy access endpoints retained to unlock older clients
+
 ## Version 2.0.0 — Library and Wave 2.0
 
 Status: released to production and publicly verified on 2026-09-08.
@@ -95,7 +103,7 @@ Status: released to production and publicly verified on 2026-09-02.
 - [x] Windows, Android and unsigned iOS production artifacts
 - [x] Atomic production deployment and public behavior verification
 
-## Version 0.4.0 — subscriptions and native-player access (candidate, not deployed)
+## Version 0.4.0 — paid-access candidate (cancelled, never deployed)
 
 - [x] Server-owned 24-hour SoundCloud guest access
 - [x] Base, Plus and Family entitlements with server-side enforcement
@@ -104,7 +112,7 @@ Status: released to production and publicly verified on 2026-09-02.
 - [x] Subscription, device and family-management UI
 - [x] Own-player-only catalog and Wave boundaries
 - [x] Server and Flutter automated validation
-- [ ] Production credentials, bot/proxy smoke test and atomic release
+- [x] Cancelled in favor of free access before production release
 
 ## Version 0.3.1 — safe synchronization and audio output routing
 

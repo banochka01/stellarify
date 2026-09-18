@@ -9,8 +9,13 @@ import { z } from "zod";
 import { createAccountRouter } from "./account-api.js";
 import { AccountStore } from "./account-store.js";
 import { AccountError } from "./account-store.js";
-import { AccessControl, accessError, createSubscriptionRouter } from "./subscription-api.js";
-import { SubscriptionStore, SubscriptionError, hashSecret, type Capability } from "./subscriptions.js";
+import {
+  AccessControl,
+  AccessError,
+  accessError,
+  createLegacyAccessRouter,
+  hashSecret
+} from "./access.js";
 import { parseImportPayload } from "./importer.js";
 import { PlaylistImportService } from "./playlist-import.js";
 import { LyricsError, LyricsService } from "./lyrics.js";
@@ -77,38 +82,14 @@ const wavePersonalizer = new WavePersonalizer(accountStore, {
   cacheMs: optionalNumber(process.env.AGENTROUTER_CACHE_MS)
 });
 const wave = new WaveService(gateway, yandex, wavePersonalizer);
-const subscriptionStore = new SubscriptionStore(process.env.AUTH_DB_PATH || "./data/resonance.sqlite");
-const accessControl = new AccessControl(accountStore, subscriptionStore);
+const accessControl = new AccessControl(accountStore);
 
 app.disable("x-powered-by");
 app.use(cors({ origin: webOrigin }));
 app.use(express.json({ limit: "512kb" }));
 app.use("/api/v1/clips", createClipRouter(ClipService.fromEnvironment()));
-app.use("/api/v1/subscription", createSubscriptionRouter(accessControl));
-app.use("/api/v1/account/library", accessControl.middleware("library.cloudSync"));
+app.use("/api/v1/subscription", createLegacyAccessRouter(accessControl));
 app.use("/api/v1/account", createAccountRouter(accountStore));
-
-// Enforce before any provider traffic, including legacy clients and alternate import paths.
-const playbackCapabilityByProvider: Record<string, Capability> = {
-  soundcloud: "playback.soundcloud",
-  yandex: "playback.yandex",
-  spotify: "playback.spotify",
-  vk: "playback.vk"
-};
-const catalogProviders = new Set(["soundcloud", "yandex", "youtube", "spotify", "vk"]);
-app.use(["/api/v1/catalog/search", "/api/v1/playback/resolve", "/api/v1/auth/validate"], (request, response, next) => {
-  const provider = request.method === "GET" ? request.query.provider : request.body?.provider;
-  const resolving = request.path.endsWith("/playback/resolve");
-  try {
-    if (typeof provider !== "string" || !catalogProviders.has(provider)) throw new SubscriptionError("NATIVE_SOURCE_REQUIRED", "Источник не поддерживает собственный плеер Resonance", 400);
-    const capability = playbackCapabilityByProvider[provider];
-    if (resolving && !capability) throw new SubscriptionError("NATIVE_SOURCE_REQUIRED", "Источник не поддерживает собственный плеер Resonance", 400);
-    accessControl.require(request, capability ?? "wave.standard");
-    next();
-  } catch (error) { accessError(response, error); }
-});
-app.use(["/api/v1/playlists/import", "/api/v1/library/import", "/api/import/preview"], accessControl.middleware("library.import"));
-app.use("/api/v1/wave", accessControl.middleware("wave.standard"));
 
 app.get("/api/health", (_request, response) => {
   response.json({
@@ -122,9 +103,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "3.0.0",
+    version: process.env.CLIENT_VERSION || "3.1.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Resonance 3.0 Music Graph: единые треки из разных источников, карта связей и надёжный импорт плейлистов.",
+      "Resonance теперь полностью бесплатный: все функции, Wave и комнаты доступны без тарифов и промокодов.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       windowsPortable: "https://music.webcordes.ru/downloads/windows-portable",
@@ -241,10 +222,6 @@ app.post("/api/v1/playback/resolve", async (request, response) => {
       input.data.quality,
       access
     );
-    const identity = accessControl.fromRequest(request);
-    const entitlement = subscriptionStore.require(input.data.provider === "soundcloud" ? "playback.soundcloud" : "playback.yandex", identity.userId, identity.guestToken);
-    const expiry = Math.min(Date.parse(entitlement.expiresAt!), source.expiresAt ? Date.parse(source.expiresAt) : Infinity);
-    source = { ...source, expiresAt: new Date(expiry).toISOString() };
     if (input.data.provider === "soundcloud" && access?.useProxy) {
       const relay = soundCloudAudioRelay.issue(source);
       source = {
@@ -288,20 +265,12 @@ app.post("/api/v1/wave/sessions", async (request, response) => {
   if (!input.success) return void response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Invalid wave request" } });
   try {
     const identity = accessControl.fromRequest(request);
-    const entitlement = subscriptionStore.snapshot(identity.userId, identity.guestToken);
-    subscriptionStore.consumeGuestWave(identity.userId, identity.guestToken);
-    const personalized = entitlement.capabilities["wave.personalized"];
-    const roomUsers = personalized && input.data.roomCode && identity.userId
+    const roomUsers = input.data.roomCode && identity.userId
       ? roomWaveUserIds(input.data.roomCode, identity.userId)
       : [];
     response.status(201).json(await wave.start({
       ...input.data,
-      enabledProviders: input.data.enabledProviders.filter(p => entitlement.providers.includes(p)),
-      seedQueries: personalized ? input.data.seedQueries : [],
-      prompt: personalized ? input.data.prompt : undefined,
-      excludedTerms: personalized ? input.data.excludedTerms : [],
-      discovery: personalized ? input.data.discovery : .3,
-    }, waveAccess(request), waveOwner(request), personalized ? identity.userId : undefined,
+    }, waveAccess(request), waveOwner(request), identity.userId,
     roomUsers.length ? roomUsers : identity.userId ? [identity.userId] : []));
   } catch (error) { sendGatewayError(response, error); }
 });
@@ -317,7 +286,7 @@ app.get("/api/v1/wave/active", (request, response) => {
 app.get("/api/v1/wave/profile", (request, response) => {
   try {
     const identity = accessControl.fromRequest(request);
-    if (!identity.userId) throw new SubscriptionError("AUTH_REQUIRED", "Войдите в аккаунт", 401);
+    if (!identity.userId) throw new AccessError("AUTH_REQUIRED", "Войдите в аккаунт", 401);
     const signals = accountStore.getWaveTasteSignals(identity.userId);
     const artists = new Map<string, number>();
     for (const item of [...signals.favorites, ...signals.playlistTracks, ...signals.listening]) {
@@ -343,7 +312,7 @@ app.get("/api/v1/wave/profile", (request, response) => {
 app.delete("/api/v1/wave/profile", (request, response) => {
   try {
     const identity = accessControl.fromRequest(request);
-    if (!identity.userId) throw new SubscriptionError("AUTH_REQUIRED", "Войдите в аккаунт", 401);
+    if (!identity.userId) throw new AccessError("AUTH_REQUIRED", "Войдите в аккаунт", 401);
     accountStore.clearWaveFeedback(identity.userId);
     wavePersonalizer.invalidate(identity.userId);
     response.status(204).end();
@@ -351,11 +320,8 @@ app.delete("/api/v1/wave/profile", (request, response) => {
 });
 
 app.post("/api/v1/wave/sessions/:id/next", async (request, response) => {
-  try {
-    const identity = accessControl.fromRequest(request);
-    subscriptionStore.consumeGuestWave(identity.userId, identity.guestToken);
-    response.json(await wave.next(request.params.id, waveAccess(request), waveOwner(request)));
-  } catch (error) { sendWaveError(response, error); }
+  try { response.json(await wave.next(request.params.id, waveAccess(request), waveOwner(request))); }
+  catch (error) { sendWaveError(response, error); }
 });
 
 app.post("/api/v1/wave/sessions/:id/feedback", async (request, response) => {
@@ -509,40 +475,37 @@ app.post("/api/import/preview", (request, response) => {
   });
 });
 
-function roomAccess(socket: import("socket.io").Socket, create = false) {
-  const deviceId = socket.handshake.auth.deviceId;
-  if (typeof deviceId !== "string") throw new Error("Войдите в аккаунт Resonance");
-  let userId = typeof socket.data.subscriptionUserId === "string" ? socket.data.subscriptionUserId : undefined;
+function roomAccess(socket: import("socket.io").Socket) {
+  let userId = typeof socket.data.userId === "string" ? socket.data.userId : undefined;
   if (!userId) {
     const authorization = socket.handshake.auth.authorization;
     if (typeof authorization !== "string") throw new Error("Войдите в аккаунт Resonance");
     const identity = accessControl.identity({ authorization });
     if (!identity.userId) throw new Error("Войдите в аккаунт Resonance");
     userId = identity.userId;
-    // The JWT authenticates the handshake. The live socket keeps only the user
-    // identity; subscription/device rights are still rechecked every 30 seconds.
-    // A new transport handshake must present a fresh valid access token.
-    socket.data.subscriptionUserId = userId;
+    socket.data.userId = userId;
   }
-  subscriptionStore.require(create ? "rooms.create" : "rooms.join", userId);
-  socket.data.userId = userId;
-  subscriptionStore.touchDevice(userId, deviceId);
 }
-io.use((socket, next) => { try { roomAccess(socket); next(); } catch { next(new Error("Для комнат нужна действующая подписка и вход в аккаунт")); } });
+io.use((socket, next) => { try { roomAccess(socket); next(); } catch { next(new Error("Для комнат нужен аккаунт Resonance")); } });
 io.on("connection", (socket) => {
-  registerRoomHandlers(io, socket, create => roomAccess(socket, create));
-  const timer = setInterval(() => { try { roomAccess(socket); } catch { socket.disconnect(true); } }, 30_000);
-  socket.once("disconnect", () => clearInterval(timer));
+  registerRoomHandlers(io, socket, () => roomAccess(socket));
 });
 
 function waveOwner(request: express.Request) {
   const identity = accessControl.fromRequest(request);
-  const tier = subscriptionStore.snapshot(identity.userId, identity.guestToken).tier;
-  return `${identity.userId ?? hashSecret(identity.guestToken ?? "")}:${tier}`;
+  if (identity.userId) return identity.userId;
+  if (!identity.guestToken?.match(/^[A-Za-z0-9_-]{40,128}$/)) {
+    throw new AccessError(
+      "CLIENT_ID_REQUIRED",
+      "Обновите Resonance и повторите действие",
+      400
+    );
+  }
+  return hashSecret(identity.guestToken);
 }
 
 function sendGatewayError(response: express.Response, error: unknown) {
-  if (error instanceof SubscriptionError || error instanceof AccountError) { accessError(response, error); return; }
+  if (error instanceof AccessError || error instanceof AccountError) { accessError(response, error); return; }
   if (error instanceof ProviderGatewayError) {
     response.status(error.status).json({
       error: { code: error.code, message: error.message }

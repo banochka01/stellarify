@@ -26,7 +26,7 @@ Future<void> playTrackOrOpenOfficial(WidgetRef ref, UnifiedTrack track) async {
       ScaffoldMessenger.of(ref.context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Не удалось включить трек. Проверьте источник и подписку.',
+            'Не удалось включить трек. Проверьте подключение источника.',
           ),
         ),
       );

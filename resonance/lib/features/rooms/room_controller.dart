@@ -94,8 +94,7 @@ class RoomController extends StateNotifier<ListeningRoomState> {
     _socket.on('room:access-denied', (_) {
       state = state.copyWith(
         busy: false,
-        error:
-            'Создание комнат доступно в Plus и Family. Откройте раздел «Подписка».',
+        error: 'Не удалось подтвердить доступ к комнате.',
       );
     });
     unawaited(_connectAuthorized());
@@ -121,7 +120,7 @@ class RoomController extends StateNotifier<ListeningRoomState> {
     if (_disposed || _connecting || _socket.connected) return;
     _connecting = true;
     try {
-      final service = _ref.read(subscriptionServiceProvider);
+      final service = _ref.read(clientIdentityServiceProvider);
       final headers = await service.headers();
       final authorization = headers['Authorization'];
       if (authorization == null) {
@@ -136,7 +135,7 @@ class RoomController extends StateNotifier<ListeningRoomState> {
     } on Object {
       _connecting = false;
       state = state.copyWith(
-        error: 'Войдите в аккаунт с действующей подпиской.',
+        error: 'Войдите в аккаунт Resonance, чтобы использовать комнаты.',
       );
     }
   }
