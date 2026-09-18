@@ -162,7 +162,7 @@ function App() {
                 <Apple size={18} /> Unsigned IPA
               </a>
             </div>
-            <p className="release-note">Resonance 3.1 · Полностью бесплатно · Все функции без тарифов и промокодов · Windows Setup EXE · Android debug-signed · iOS unsigned</p>
+            <p className="release-note">Resonance 3.2 · Discord Rich Presence · Обновлённый интерфейс · Полностью бесплатно · Windows Setup EXE · Android debug-signed · iOS unsigned</p>
           </div>
           <div className="hero-visual">
             <HeroStage />
