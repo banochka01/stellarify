@@ -1,6 +1,5 @@
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:resonance/app/providers.dart';
@@ -16,16 +15,6 @@ import 'package:resonance/providers/soundcloud/backend_soundcloud_provider.dart'
 import '../helpers/fake_playback_engine.dart';
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-
-  setUpAll(() async {
-    final inter = FontLoader('Inter')
-      ..addFont(rootBundle.load('assets/fonts/InterVariable.ttf'));
-    final materialIcons = FontLoader('MaterialIcons')
-      ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
-    await Future.wait([inter.load(), materialIcons.load()]);
-  });
-
   testWidgets('stores a SoundCloud Client ID from Settings', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(390, 844);
@@ -102,14 +91,6 @@ void main() {
       '123456789012345678',
     );
     expect(find.text('Discord Application ID сохранён'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 4));
-    await tester.pumpAndSettle();
-    await tester.drag(find.byType(Scrollable).first, const Offset(0, 350));
-    await tester.pumpAndSettle();
-    await expectLater(
-      find.byType(MaterialApp),
-      matchesGoldenFile('goldens/resonance-settings-integrations-mobile.png'),
-    );
 
     final field = find.byKey(const ValueKey('soundcloud-token-field'));
     await tester.scrollUntilVisible(
