@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { once } from "node:events";
 import test from "node:test";
 import express from "express";
-import { ClipService, clipSchema, createClipRouter, builtInClips, type Clip } from "./clips.js";
+import { ClipService, clipSchema, createClipRouter, type Clip } from "./clips.js";
 
 const clip = (overrides: Partial<Clip> = {}): Clip => ({
   id: "clip-1", title: "Signal", artist: "Artist", kind: "musicVideo",
@@ -59,12 +59,9 @@ test("empty config returns no video without network requests", async () => {
   assert.deepEqual(await service.find("Signal", "Artist"), []);
 });
 
-test("built-in footage remains available when custom providers fail", async () => {
-  const service = new ClipService([], ["https://provider.example"], "invalid-key",
-    async () => new Response("", { status: 503 }), builtInClips);
-  const result = await service.find("Unknown song", "Unknown artist");
-  assert.equal(result.length, 2);
-  assert.ok(result.every((clip) => clip.kind === "ambient" && clipSchema.safeParse(clip).success));
+test("does not invent an ambient clip when no real match exists", async () => {
+  const service = new ClipService([], [], "", async () => { throw new Error("unexpected request"); });
+  assert.deepEqual(await service.find("Unknown song", "Unknown artist"), []);
 });
 
 test("rejects executable, credential-bearing and insecure media URLs", () => {
@@ -143,6 +140,29 @@ test("Dailymotion results are discoverable without pretending watch pages are me
   assert.equal(found[0]?.source, "Dailymotion");
   assert.equal(found[0]?.playback, "external");
   assert.equal(found[0]?.url, undefined);
+});
+
+test("TheAudioDB contributes verified external music-video pages", async () => {
+  const service = new ClipService([], [], "", async () => json({ track: [{
+    idTrack: "77", strTrack: "Signal", strArtist: "Artist",
+    strMusicVid: "https://www.youtube.com/watch?v=official"
+  }] }), [], { audioDbKey: "test-key" });
+  const found = await service.find("Signal", "Artist");
+  assert.equal(found[0]?.source, "TheAudioDB");
+  assert.equal(found[0]?.playback, "external");
+});
+
+test("MusicBrainz video relations add official external clip references", async () => {
+  let calls = 0;
+  const service = new ClipService([], [], "", async (input) => {
+    calls++;
+    return String(input).includes("inc=url-rels")
+      ? json({ relations: [{ type: "video", url: { resource: "https://vimeo.com/123" } }] })
+      : json({ recordings: [{ id: "8f14e45f-ea27-4d4c-b87c-30f55f6db6d8", title: "Signal", "artist-credit": [{ name: "Artist" }] }] });
+  }, [], { musicBrainz: true });
+  const found = await service.find("Signal", "Artist");
+  assert.equal(calls, 2);
+  assert.equal(found[0]?.source, "MusicBrainz · Vimeo");
 });
 
 test("external references cannot masquerade as direct clips", () => {

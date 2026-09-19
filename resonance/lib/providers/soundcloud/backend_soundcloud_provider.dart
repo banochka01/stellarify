@@ -194,11 +194,14 @@ String _credentialErrorMessage(MusicProvider provider, DioException error) {
   if (code == 'INVALID_PROVIDER_TOKEN' ||
       code == 'PROVIDER_AUTH_REQUIRED' ||
       error.response?.statusCode == 401) {
-    return provider == MusicProvider.youtube
-        ? 'YouTube отклонил API key.'
-        : 'Яндекс Музыка отклонила OAuth-токен.';
+    return switch (provider) {
+      MusicProvider.youtube => 'YouTube отклонил API key.',
+      MusicProvider.spotify => 'Spotify отклонил данные входа.',
+      MusicProvider.vk => 'VK отклонил API-токен.',
+      _ => 'Яндекс Музыка отклонила OAuth-токен.',
+    };
   }
-  return 'Не удалось проверить ключ ${provider == MusicProvider.youtube ? 'YouTube' : 'Яндекс Музыки'}.';
+  return 'Не удалось проверить подключение ${provider.name}.';
 }
 
 Uri resolveBackendStreamUrl(Uri baseUri, String value) {

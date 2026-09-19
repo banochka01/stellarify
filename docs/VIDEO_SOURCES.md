@@ -28,22 +28,22 @@ clips loop independently, like the visual snippets in music streaming apps.
    disable them.
 5. **Vimeo** — configure `VIMEO_ACCESS_TOKEN` to add public Vimeo search results
    as external references.
-6. **Server catalog** — exact normalized title/artist matching. Configure
+6. **MusicBrainz** — enabled by default and key-free. Resonance follows only
+   recording relations explicitly marked as video and only to allow-listed
+   YouTube, Vimeo and Dailymotion HTTPS pages. Set
+   `CLIP_MUSICBRAINZ_ENABLED=false` to disable it.
+7. **TheAudioDB** — configure `AUDIODB_API_KEY` to add curated music-video
+   references. Only supported HTTPS video hosts are accepted.
+8. **Server catalog** — exact normalized title/artist matching. Configure
    `CLIP_CATALOG_PATH` to a JSON file. Use `/data/clips.json` in the existing
    Docker data volume, then restart the API after editing it.
-7. **Compatible APIs** — comma-separated `CLIP_PROVIDER_URLS`, up to twelve HTTPS
+9. **Compatible APIs** — comma-separated `CLIP_PROVIDER_URLS`, up to twelve HTTPS
    endpoints. Each receives `title` and `artist` query parameters and returns
    the same catalog format. Redirects are disabled; timeout is six seconds;
    responses are limited to 1 MiB. These endpoints are administrator-controlled.
-8. **Pexels** — optional `PEXELS_API_KEY`, with atmospheric landscape MP4 videos
+10. **Pexels** — optional `PEXELS_API_KEY`, with atmospheric landscape MP4 videos
    up to 1080p. These are explicitly labeled as backgrounds, not the song's
    music video. Creator attribution links to the original Pexels page.
-9. **Built-in NASA footage** — enabled by default, no credentials required.
-   [Aurora Australis from the ISS](https://svs.gsfc.nasa.gov/31281/) by Earth
-   Science and Remote Sensing Unit, NASA Johnson Space Center. The lightweight
-   1080p WebM is preferred; MP4 is offered as a codec fallback. Public-domain
-   provenance is also recorded on [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Aurora_Australis_as_seen_from_ISS_(SVS31281_-_1080p25).webm).
-   Set `CLIP_BUILTIN_ENABLED=false` to disable it.
 
 Example catalog (replace the example URLs with your actual hosted files):
 
@@ -81,12 +81,13 @@ from the stage's Video sources button. Disabling video releases its player.
 Results are cached for 30 minutes (up to 500 track queries); concurrent
 identical requests share one fetch. Pexels backgrounds share an hour cache.
 At most 32 distinct queries can resolve concurrently. An unavailable remote
-source does not prevent working catalog/built-in sources from being returned.
+source does not prevent working catalog sources from being returned.
 With every source disabled or no results, the artwork remains visible. With
 only failing configured providers and no fallback, the API returns 502 and the
 client offers retry. Keys and upstream errors are never returned to clients.
 
-The built-in source is ambient footage, not an official clip for every song.
+There is no built-in generic video fallback: when no track-specific clip or
+configured Pexels background is available, clients explicitly show «Нет клипа».
 Apple previews and direct catalog media are the sources that play inside the
 stage. YouTube, Dailymotion, Vimeo and non-direct Yandex results remain official
 external-player links: watch URLs are never extracted into native media streams.

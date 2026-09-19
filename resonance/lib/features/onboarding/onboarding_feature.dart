@@ -9,6 +9,7 @@ import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class OnboardingGate extends ConsumerWidget {
   const OnboardingGate({required this.child, super.key});
@@ -144,6 +145,42 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
   }
 
+  Future<void> _connectSpotify() async {
+    setState(() {
+      _savingProvider = MusicProvider.spotify;
+      _messages[MusicProvider.spotify] =
+          'Завершите вход в открывшемся окне Spotify…';
+    });
+    try {
+      final credential = await ref
+          .read(spotifyOAuthClientProvider)
+          .connect(
+            (url) => launchUrl(url, mode: LaunchMode.externalApplication),
+          );
+      await ref
+          .read(resonanceBackendClientProvider)
+          .validateProvider(provider: MusicProvider.spotify, token: credential);
+      await ref
+          .read(secureTokenRepositoryProvider)
+          .write(MusicProvider.spotify, credential);
+      if (!mounted) return;
+      setState(() {
+        _connected[MusicProvider.spotify] = true;
+        _messages[MusicProvider.spotify] = 'Spotify подключён.';
+      });
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(
+        () => _messages[MusicProvider.spotify] = error.toString().replaceFirst(
+          RegExp(r'^\w+:\s*'),
+          '',
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _savingProvider = null);
+    }
+  }
+
   Future<void> _finish({bool importPlaylist = true}) async {
     if (_finishing) return;
     setState(() {
@@ -267,6 +304,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       messages: _messages,
       savingProvider: _savingProvider,
       onSave: _saveToken,
+      onSpotifyLogin: _connectSpotify,
     ),
     _ => _PersonalizationStep(
       theme: _theme,
@@ -516,6 +554,7 @@ class _ConnectionStep extends StatelessWidget {
     required this.messages,
     required this.savingProvider,
     required this.onSave,
+    required this.onSpotifyLogin,
   });
 
   final Set<MusicProvider> providers;
@@ -525,6 +564,7 @@ class _ConnectionStep extends StatelessWidget {
   final Map<MusicProvider, String> messages;
   final MusicProvider? savingProvider;
   final ValueChanged<MusicProvider> onSave;
+  final VoidCallback onSpotifyLogin;
 
   @override
   Widget build(BuildContext context) {
@@ -556,6 +596,9 @@ class _ConnectionStep extends StatelessWidget {
                   message: messages[provider],
                   saving: savingProvider == provider,
                   onSave: () => onSave(provider),
+                  onSpotifyLogin: provider == MusicProvider.spotify
+                      ? onSpotifyLogin
+                      : null,
                 ),
               ),
         ],
@@ -727,6 +770,7 @@ class _ConnectionCard extends StatelessWidget {
     required this.message,
     required this.saving,
     required this.onSave,
+    this.onSpotifyLogin,
   });
 
   final MusicProvider provider;
@@ -736,6 +780,7 @@ class _ConnectionCard extends StatelessWidget {
   final String? message;
   final bool saving;
   final VoidCallback onSave;
+  final VoidCallback? onSpotifyLogin;
 
   @override
   Widget build(BuildContext context) {
@@ -788,6 +833,18 @@ class _ConnectionCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
+            if (onSpotifyLogin != null) ...[
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  key: const ValueKey('onboarding-spotify-login'),
+                  onPressed: saving ? null : onSpotifyLogin,
+                  icon: const Icon(Icons.login_rounded),
+                  label: const Text('Войти через Spotify'),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -813,7 +870,11 @@ class _ConnectionCard extends StatelessWidget {
                           dimension: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('Проверить'),
+                      : Text(
+                          provider == MusicProvider.spotify
+                              ? 'Вручную'
+                              : 'Проверить',
+                        ),
                 ),
               ],
             ),

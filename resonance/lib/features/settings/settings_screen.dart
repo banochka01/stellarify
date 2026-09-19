@@ -51,6 +51,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _tokenMessages = <MusicProvider, String>{};
   final _serverCredential = <MusicProvider, bool>{};
   MusicProvider? _savingProvider;
+  bool _connectingSpotify = false;
   bool _proxyEnabled = false;
   bool _savingProxy = false;
   String? _proxyMessage;
@@ -206,6 +207,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ? 'Собственный ключ удалён. Используется серверный.'
           : 'Собственный ключ удалён; серверный пока не настроен.';
     });
+  }
+
+  Future<void> _connectSpotify() async {
+    if (_connectingSpotify) return;
+    setState(() {
+      _connectingSpotify = true;
+      _tokenMessages[MusicProvider.spotify] =
+          'Завершите вход в открывшемся окне Spotify…';
+    });
+    try {
+      final credential = await ref
+          .read(spotifyOAuthClientProvider)
+          .connect(
+            (url) => launchUrl(url, mode: LaunchMode.externalApplication),
+          );
+      await ref
+          .read(resonanceBackendClientProvider)
+          .validateProvider(provider: MusicProvider.spotify, token: credential);
+      await ref
+          .read(secureTokenRepositoryProvider)
+          .write(MusicProvider.spotify, credential);
+      if (!mounted) return;
+      setState(() {
+        _hasToken[MusicProvider.spotify] = true;
+        _tokenMessages[MusicProvider.spotify] = 'Spotify подключён.';
+      });
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(
+        () => _tokenMessages[MusicProvider.spotify] = error
+            .toString()
+            .replaceFirst(RegExp(r'^\w+:\s*'), ''),
+      );
+    } finally {
+      if (mounted) setState(() => _connectingSpotify = false);
+    }
   }
 
   Future<void> _setQuality(AudioQuality quality) async {
@@ -869,6 +906,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             spacing: 10,
             runSpacing: 10,
             children: [
+              if (provider == MusicProvider.spotify)
+                FilledButton.icon(
+                  key: const ValueKey('spotify-login-button'),
+                  onPressed: _savingProvider == null && !_connectingSpotify
+                      ? _connectSpotify
+                      : null,
+                  icon: _connectingSpotify
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.login_rounded),
+                  label: const Text('Войти через Spotify'),
+                ),
               FilledButton.icon(
                 onPressed: _savingProvider == null
                     ? () => _saveToken(provider, controller)
@@ -879,7 +930,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.lock_rounded),
-                label: const Text('Сохранить безопасно'),
+                label: Text(
+                  provider == MusicProvider.spotify
+                      ? 'Вставить токен вручную'
+                      : 'Сохранить безопасно',
+                ),
               ),
               if (connected)
                 OutlinedButton.icon(

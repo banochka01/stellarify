@@ -7,6 +7,7 @@ import {
   ProviderGatewayError,
   type ResolvedStream
 } from "./provider-gateway.js";
+import { decodeSpotifyCredential } from "./spotify-oauth-credential.js";
 
 type FetchLike = typeof fetch;
 
@@ -45,6 +46,7 @@ export class SpotifyAdapter implements MusicProviderAdapter {
   }
 
   private appToken?: SpotifyTokenCacheEntry;
+  private readonly userTokens = new Map<string, SpotifyTokenCacheEntry>();
 
   constructor(
     private readonly credentials: SpotifyCredentials,
@@ -124,7 +126,8 @@ export class SpotifyAdapter implements MusicProviderAdapter {
   }
 
   async importLibrary(access?: ProviderAccess): Promise<ImportedProviderLibrary> {
-    const token = requireSpotifyUserToken(access);
+    requireSpotifyUserToken(access);
+    const token = await this.resolveToken(access);
     const profile = object(await this.requestJson(new URL(`${apiBase}/me`), token));
     const favorites: ProviderTrack[] = [];
     let favoritesUrl: string | undefined = `${apiBase}/me/tracks?limit=50`;
@@ -226,9 +229,41 @@ export class SpotifyAdapter implements MusicProviderAdapter {
       if (userToken.length > 4_096 || /[\r\n]/.test(userToken)) {
         throw new ProviderGatewayError("INVALID_PROVIDER_TOKEN", "The Spotify access token is invalid", 401);
       }
-      return userToken;
+      const refreshToken = decodeSpotifyCredential(userToken);
+      return refreshToken ? this.refreshUserToken(refreshToken) : userToken;
     }
     return this.appAccessToken();
+  }
+
+  private async refreshUserToken(refreshToken: string): Promise<string> {
+    const cached = this.userTokens.get(refreshToken);
+    if (cached && cached.validUntil > this.now() + 30_000) return cached.token;
+    const clientId = this.credentials.clientId?.trim();
+    if (!clientId) {
+      throw new ProviderGatewayError("PROVIDER_AUTH_REQUIRED", "Spotify OAuth client is not configured", 401);
+    }
+    let response: Response;
+    try {
+      response = await this.request(accountsBase, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: refreshToken, client_id: clientId }),
+        signal: AbortSignal.timeout(8_000)
+      });
+    } catch (error) {
+      throw new ProviderGatewayError("UPSTREAM_TIMEOUT", "Spotify accounts service did not respond", 502, { cause: error });
+    }
+    if (response.status === 400 || response.status === 401) {
+      this.userTokens.delete(refreshToken);
+      throw new ProviderGatewayError("INVALID_PROVIDER_TOKEN", "Spotify login expired", 401);
+    }
+    if (!response.ok) throw new ProviderGatewayError("UPSTREAM_ERROR", `Spotify accounts returned HTTP ${response.status}`, 502);
+    const payload = object(await response.json());
+    const token = string(payload.access_token);
+    const expiresIn = Number(payload.expires_in);
+    if (!token || !Number.isFinite(expiresIn)) throw new ProviderGatewayError("UPSTREAM_ERROR", "Spotify returned an invalid token payload", 502);
+    this.userTokens.set(refreshToken, { token, validUntil: this.now() + expiresIn * 1_000 });
+    return token;
   }
 
   private async appAccessToken(): Promise<string> {
