@@ -47,7 +47,6 @@ void main() {
 
     expect(find.textContaining('Подписка'), findsNothing);
     expect(find.textContaining('промокод'), findsNothing);
-
     final outputPicker = find.byKey(const ValueKey('audio-output-picker'));
     await tester.scrollUntilVisible(
       outputPicker,
@@ -116,9 +115,20 @@ void main() {
     expect(tokens.values[MusicProvider.soundcloud], clientId);
     expect(backend.validatedToken, clientId);
     expect(
-      find.text('SoundCloud Client ID проверен и подключён.'),
+      find.text(
+        'SoundCloud Client ID или API access token проверен и подключён.',
+      ),
       findsOneWidget,
     );
+
+    final youtubeField = find.byKey(const ValueKey('youtube-token-field'));
+    await tester.scrollUntilVisible(
+      youtubeField,
+      260,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(youtubeField, findsOneWidget);
+    expect(find.text('YouTube Data API key (не cookie)'), findsOneWidget);
 
     final proxySwitch = find.byKey(const ValueKey('soundcloud-proxy-switch'));
     await tester.scrollUntilVisible(

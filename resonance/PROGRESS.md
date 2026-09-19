@@ -1,5 +1,13 @@
 # Progress
 
+## Version 3.4.0 — Provider & media reliability
+
+- [x] YouTube Music connection card with official API-key guidance
+- [x] Provider-specific credential validation messages for Yandex, Spotify, VK and YouTube
+- [x] Multi-storefront Apple Music video-preview discovery
+- [x] Stable artwork when switching from clips back to lyrics
+- [x] One-action playback queue for every playable favorite
+
 ## Version 3.3.0 — Video & Lyrics Network
 
 - [x] Key-free Apple Music official music-video previews in Visual Stage

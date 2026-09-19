@@ -2,8 +2,15 @@
 
 Resonance is a Flutter foundation for a provider-based music aggregator.
 The current client targets Windows, Android, and iOS. It includes a bundled
-local diagnostic track plus server-backed SoundCloud and Yandex Music search
-and playback. YouTube Music remains a later provider.
+local diagnostic track plus server-backed SoundCloud, Yandex Music, Spotify,
+VK and YouTube Music catalog access. YouTube uses the official Data API for
+search and import; YouTube-only tracks open in the official player rather than
+having their streams extracted.
+
+Version 3.4.0 exposes YouTube Music configuration in Settings, explains the
+exact credential type for every provider, fixes provider-specific validation
+messages, broadens direct Apple Music video-preview discovery, keeps artwork
+stable when returning from clips to lyrics, and plays favorites as one queue.
 
 Version 3.3.0 adds a Video & Lyrics Network: key-free Apple Music video
 previews play directly in Visual Stage; YouTube, Dailymotion, Vimeo and Yandex

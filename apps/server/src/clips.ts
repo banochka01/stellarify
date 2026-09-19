@@ -69,7 +69,7 @@ export class ClipService {
       ? catalogSchema.parse(JSON.parse(readFileSync(env.CLIP_CATALOG_PATH, "utf8"))).clips : [];
     const appleCountries = (env.CLIP_APPLE_COUNTRIES || "ru,us,gb")
       .split(",").map((country) => country.trim().toLowerCase())
-      .filter((country) => /^[a-z]{2}$/.test(country)).slice(0, 4);
+      .filter((country) => /^[a-z]{2}$/.test(country)).slice(0, 8);
     return new ClipService(catalog,
       (env.CLIP_PROVIDER_URLS || "").split(",").map((url) => url.trim()).filter(Boolean).slice(0, 12),
       env.PEXELS_API_KEY || "", request,
@@ -157,22 +157,22 @@ export class ClipService {
   }
 
   private async apple(title: string, artist: string): Promise<Clip[]> {
-    for (const country of this.sources.appleCountries ?? []) {
+    const storefronts = await Promise.allSettled((this.sources.appleCountries ?? []).map(async (country) => {
       const url = new URL("https://itunes.apple.com/search");
       url.search = new URLSearchParams({ term: `${artist} ${title}`, media: "musicVideo", entity: "musicVideo", country, limit: "15" }).toString();
       const data = z.object({ results: z.array(z.object({
         trackId: z.number(), trackName: z.string(), artistName: z.string(),
         previewUrl: httpsUrl.optional(), trackViewUrl: httpsUrl
       })) }).parse(await this.json(url));
-      const matches = data.results
+      return data.results
         .filter((item) => item.previewUrl && musicMatch(item.trackName, item.artistName, title, artist) >= 8.5)
         .sort((left, right) => musicMatch(right.trackName, right.artistName, title, artist) - musicMatch(left.trackName, left.artistName, title, artist));
-      if (matches.length) return matches.slice(0, 2).map((item) => ({
-        id: `apple-${item.trackId}`, title, artist, url: item.previewUrl!, playback: "direct" as const,
-        kind: "preview" as const, source: "Apple Music · 30 сек", sourceUrl: item.trackViewUrl, offsetMs: 0
-      }));
-    }
-    return [];
+    }));
+    const matches = storefronts.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+    return [...new Map(matches.map((item) => [item.previewUrl!, item])).values()].slice(0, 6).map((item) => ({
+      id: `apple-${item.trackId}`, title, artist, url: item.previewUrl!, playback: "direct" as const,
+      kind: "preview" as const, source: "Apple Music · 30 сек", sourceUrl: item.trackViewUrl, offsetMs: 0
+    }));
   }
 
   private async dailymotion(title: string, artist: string): Promise<Clip[]> {

@@ -134,6 +134,24 @@ test("Apple source returns a directly playable official preview", async () => {
   assert.match(found[0]?.url ?? "", /signal\.m4v$/);
 });
 
+test("Apple source combines playable previews from several storefronts", async () => {
+  const countries: string[] = [];
+  const service = new ClipService([], [], "", async (input) => {
+    const url = new URL(String(input));
+    const country = url.searchParams.get("country")!;
+    countries.push(country);
+    return json({ results: [{
+      trackId: country === "us" ? 1 : 2, trackName: "Signal", artistName: "Artist",
+      previewUrl: `https://video-ssl.itunes.apple.com/${country}.m4v`,
+      trackViewUrl: `https://music.apple.com/${country}/music-video/signal/1`
+    }] });
+  }, [], { appleCountries: ["us", "gb"] });
+  const found = await service.find("Signal", "Artist");
+  assert.deepEqual(countries.sort(), ["gb", "us"]);
+  assert.equal(found.filter((item) => item.kind === "preview").length, 2);
+  assert.ok(found.every((item) => item.playback === "direct"));
+});
+
 test("Dailymotion results are discoverable without pretending watch pages are media", async () => {
   const service = new ClipService([], [], "", async () => json({ list: [{
     id: "x1", title: "Artist - Signal (Official Video)",

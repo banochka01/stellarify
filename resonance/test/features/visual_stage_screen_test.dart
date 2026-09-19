@@ -116,7 +116,15 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(currentVideo, 'first');
+      expect(find.byKey(const ValueKey('test-video')), findsOneWidget);
       expect(find.text('Текст пока не найден'), findsNothing);
+      await tester.tap(find.text('Текст'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('test-video')), findsNothing);
+      expect(find.byType(Hero), findsWidgets);
+      await tester.tap(find.text('Клип'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('test-video')), findsOneWidget);
       failVideo!();
       await tester.pumpAndSettle();
       expect(currentVideo, 'second');

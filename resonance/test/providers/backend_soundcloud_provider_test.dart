@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:resonance/core/networking/soundcloud_proxy_preference.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
@@ -6,6 +7,41 @@ import 'package:resonance/domain/repositories/secure_token_repository.dart';
 import 'package:resonance/providers/soundcloud/backend_soundcloud_provider.dart';
 
 void main() {
+  test('reports credential errors for the provider that was validated', () {
+    DioException rejected(String code, int status) => DioException(
+      requestOptions: RequestOptions(path: '/api/v1/auth/validate'),
+      response: Response<Map<String, dynamic>>(
+        requestOptions: RequestOptions(path: '/api/v1/auth/validate'),
+        statusCode: status,
+        data: {
+          'error': {'code': code},
+        },
+      ),
+    );
+
+    expect(
+      providerCredentialErrorMessage(
+        MusicProvider.spotify,
+        rejected('INVALID_PROVIDER_TOKEN', 401),
+      ),
+      contains('Spotify'),
+    );
+    expect(
+      providerCredentialErrorMessage(
+        MusicProvider.vk,
+        rejected('PROVIDER_AUTH_REQUIRED', 401),
+      ),
+      contains('VK'),
+    );
+    expect(
+      providerCredentialErrorMessage(
+        MusicProvider.youtube,
+        rejected('INVALID_PROVIDER_TOKEN', 401),
+      ),
+      isNot(contains('Яндекс')),
+    );
+  });
+
   test('resolves a relative relay URL against the configured backend', () {
     expect(
       resolveBackendStreamUrl(

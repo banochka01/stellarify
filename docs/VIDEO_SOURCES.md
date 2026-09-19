@@ -12,7 +12,8 @@ clips loop independently, like the visual snippets in music streaming apps.
 
 1. **Apple Music video previews** — enabled by default and key-free. Resonance
    searches the configured storefronts (`CLIP_APPLE_COUNTRIES`, default
-   `ru,us,gb`) and plays the official 30-second promotional video preview. The
+   `ru,us,gb,de,fr,jp`) concurrently and plays up to six matching official
+   30-second promotional video previews. The
    source label opens the matching Apple Music page. Set
    `CLIP_APPLE_ENABLED=false` to disable this source.
 2. **Яндекс Музыка** — when the current track has a Yandex source and the user

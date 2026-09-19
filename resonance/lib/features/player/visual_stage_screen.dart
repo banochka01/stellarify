@@ -139,24 +139,23 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
             children: [
               _StageBackground(
                 track: track,
-                video: hasVideo && nativeVideo
-                    ? (effectiveMode == VisualStageMode.video
-                          ? _StageVideo.bright
-                          : _StageVideo.dimmed)
+                video:
+                    hasVideo &&
+                        nativeVideo &&
+                        effectiveMode == VisualStageMode.video
+                    ? _StageVideo.bright
                     : _StageVideo.none,
               ),
-              if (hasVideo && !nativeVideo && selected != null)
+              if (hasVideo &&
+                  !nativeVideo &&
+                  selected != null &&
+                  effectiveMode == VisualStageMode.video)
                 ref.watch(stageVideoBuilderProvider)(
                   selected,
                   state,
                   () =>
                       setState(() => _failedUrls.add(selected.url.toString())),
                 ),
-              if (hasVideo &&
-                  !nativeVideo &&
-                  effectiveMode == VisualStageMode.lyrics &&
-                  !_focusMode)
-                const ColoredBox(color: Color(0x8007070C)),
               const DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -224,13 +223,18 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
     bool nativeVideo,
     UnifiedTrack track,
   ) {
-    final hasExternal = clips.valueOrNull?.any((clip) => !clip.playable) ?? false;
+    final hasExternal =
+        clips.valueOrNull?.any((clip) => !clip.playable) ?? false;
     final label = !_backgroundEnabled
         ? 'Видео выключено'
         : nativeVideo
         ? 'Видео из текущего источника'
         : selected != null
-        ? '${selected.ambient ? 'Атмосферный фон' : selected.preview ? 'Видео-превью' : 'Музыкальный клип'} · ${selected.source}'
+        ? '${selected.ambient
+              ? 'Атмосферный фон'
+              : selected.preview
+              ? 'Видео-превью'
+              : 'Музыкальный клип'} · ${selected.source}'
         : clips.isLoading
         ? 'Ищем видео на сервере…'
         : clips.hasError
@@ -354,7 +358,13 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
                                 ),
                                 title: Text(clip.title),
                                 subtitle: Text(
-                                  '${clip.source} · ${!clip.playable ? 'Открыть источник' : clip.ambient ? 'Фон' : clip.preview ? 'Видео-превью' : 'Клип'}',
+                                  '${clip.source} · ${!clip.playable
+                                      ? 'Открыть источник'
+                                      : clip.ambient
+                                      ? 'Фон'
+                                      : clip.preview
+                                      ? 'Видео-превью'
+                                      : 'Клип'}',
                                 ),
                                 trailing:
                                     clip.playable &&

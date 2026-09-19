@@ -61,7 +61,7 @@ final class DioResonanceBackendClient implements ResonanceBackendClient {
       throw ProviderUnavailableException(
         provider == MusicProvider.soundcloud
             ? _soundCloudErrorMessage(error, validating: true)
-            : _credentialErrorMessage(provider, error),
+            : providerCredentialErrorMessage(provider, error),
         cause: error,
       );
     }
@@ -185,7 +185,10 @@ final class DioResonanceBackendClient implements ResonanceBackendClient {
   }
 }
 
-String _credentialErrorMessage(MusicProvider provider, DioException error) {
+String providerCredentialErrorMessage(
+  MusicProvider provider,
+  DioException error,
+) {
   final code = error.response?.data is Map
       ? (error.response?.data as Map)['error'] is Map
             ? ((error.response?.data as Map)['error'] as Map)['code']
@@ -194,12 +197,30 @@ String _credentialErrorMessage(MusicProvider provider, DioException error) {
   if (code == 'INVALID_PROVIDER_TOKEN' ||
       code == 'PROVIDER_AUTH_REQUIRED' ||
       error.response?.statusCode == 401) {
-    return provider == MusicProvider.youtube
-        ? 'YouTube отклонил API key.'
-        : 'Яндекс Музыка отклонила OAuth-токен.';
+    return switch (provider) {
+      MusicProvider.youtube => 'YouTube отклонил API key.',
+      MusicProvider.yandex => 'Яндекс Музыка отклонила OAuth-токен.',
+      MusicProvider.spotify =>
+        'Spotify отклонил access token. Проверьте срок действия и права.',
+      MusicProvider.vk =>
+        'VK отклонил access token или не дал доступ к audio.*.',
+      MusicProvider.soundcloud =>
+        'SoundCloud отклонил Client ID или API access token.',
+    };
   }
-  return 'Не удалось проверить ключ ${provider == MusicProvider.youtube ? 'YouTube' : 'Яндекс Музыки'}.';
+  if (code == 'PROVIDER_RATE_LIMITED' || error.response?.statusCode == 429) {
+    return '${_providerDisplayName(provider)} временно ограничил запросы. Попробуйте позже.';
+  }
+  return 'Не удалось проверить подключение ${_providerDisplayName(provider)}.';
 }
+
+String _providerDisplayName(MusicProvider provider) => switch (provider) {
+  MusicProvider.yandex => 'Яндекс Музыки',
+  MusicProvider.soundcloud => 'SoundCloud',
+  MusicProvider.youtube => 'YouTube',
+  MusicProvider.spotify => 'Spotify',
+  MusicProvider.vk => 'VK Музыки',
+};
 
 Uri resolveBackendStreamUrl(Uri baseUri, String value) {
   final streamUri = Uri.parse(value);

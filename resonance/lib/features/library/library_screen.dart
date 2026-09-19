@@ -253,6 +253,15 @@ class _LibraryContent extends ConsumerWidget {
           title: 'Избранное',
           count: state.favorites.length,
           icon: Icons.favorite_rounded,
+          action: state.favorites.isEmpty
+              ? null
+              : FilledButton.icon(
+                  key: const ValueKey('play-all-favorites'),
+                  onPressed: () =>
+                      unawaited(_playFavorites(context, ref, state.favorites)),
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  label: const Text('Слушать всё'),
+                ),
         ),
         const SizedBox(height: 14),
         if (state.favorites.isEmpty)
@@ -299,6 +308,41 @@ class _LibraryContent extends ConsumerWidget {
           ),
       ],
     );
+  }
+
+  Future<void> _playFavorites(
+    BuildContext context,
+    WidgetRef ref,
+    List<UnifiedTrack> favorites,
+  ) async {
+    final playable = playableQueueTracks(favorites);
+    if (playable.isEmpty) {
+      await playTrackOrOpenOfficial(ref, favorites.first);
+      return;
+    }
+    try {
+      final service = await ref.read(playbackServiceProvider.future);
+      await service.setQueue(playable, autoplay: true);
+      final skipped = favorites.length - playable.length;
+      if (skipped > 0 && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Любимые включены одной очередью. Пропущено YouTube-only треков: $skipped.',
+            ),
+          ),
+        );
+      }
+    } on Object catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Не удалось запустить любимые. Проверьте подключение первого источника.',
+          ),
+        ),
+      );
+    }
   }
 }
 
@@ -788,11 +832,13 @@ class _SectionHeader extends StatelessWidget {
     required this.title,
     required this.count,
     required this.icon,
+    this.action,
   });
 
   final String title;
   final int count;
   final IconData icon;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -806,6 +852,7 @@ class _SectionHeader extends StatelessWidget {
         ),
         const SizedBox(width: 9),
         Text('$count', style: const TextStyle(color: ResonanceColors.muted)),
+        if (action != null) ...[const Spacer(), action!],
       ],
     );
   }

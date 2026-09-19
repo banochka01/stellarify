@@ -234,10 +234,47 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   String _credentialName(MusicProvider provider) => switch (provider) {
     MusicProvider.yandex => 'OAuth-токен Яндекс Музыки',
-    MusicProvider.soundcloud => 'SoundCloud Client ID',
-    MusicProvider.youtube => 'YouTube Data API key',
-    MusicProvider.spotify => 'OAuth-токен Spotify',
-    MusicProvider.vk => 'Токен VK API',
+    MusicProvider.soundcloud => 'SoundCloud Client ID или API access token',
+    MusicProvider.youtube => 'YouTube Data API key (не cookie)',
+    MusicProvider.spotify => 'Spotify access token',
+    MusicProvider.vk => 'VK API access token',
+  };
+
+  String _credentialInstructions(MusicProvider provider) => switch (provider) {
+    MusicProvider.youtube =>
+      'Google Cloud Console → APIs & Services → Library → включите YouTube Data API v3 → Credentials → Create credentials → API key. '
+          'Вставьте только значение API key. Cookie YouTube/Google, SID и OAuth access token для поиска не нужны.',
+    MusicProvider.yandex =>
+      'Нужен параметр access_token, выданный Яндекс OAuth приложению с доступом к Музыке. '
+          'Копируйте значение access_token из результата OAuth-авторизации — не Session_id, yandexuid и не другие cookie браузера.',
+    MusicProvider.spotify =>
+      'Для каталога достаточно серверного подключения. Для переноса личной медиатеки нужен пользовательский access_token '
+          'со scopes user-library-read, playlist-read-private и playlist-read-collaborative. Не вставляйте sp_dc или другие cookie; '
+          'обычный access token живёт около часа.',
+    MusicProvider.vk =>
+      'Нужен официальный параметр access_token VK API с доступом к audio.*. Cookie remixsid/remixsid6 не подходит. '
+          'VK ограничивает audio API для сторонних приложений, поэтому токен без разрешённого audio-доступа будет отклонён.',
+    MusicProvider.soundcloud =>
+      'Используйте Client ID зарегистрированного SoundCloud API-приложения или выданный API access_token. '
+          'Cookie oauth_token из браузера не является API-токеном и намеренно не принимается.',
+  };
+
+  Uri _credentialDocsUri(MusicProvider provider) => switch (provider) {
+    MusicProvider.youtube => Uri.parse(
+      'https://developers.google.com/youtube/v3/getting-started',
+    ),
+    MusicProvider.yandex => Uri.parse(
+      'https://yandex.ru/dev/id/doc/ru/tokens/debug-token',
+    ),
+    MusicProvider.spotify => Uri.parse(
+      'https://developer.spotify.com/documentation/web-api/concepts/authorization',
+    ),
+    MusicProvider.vk => Uri.parse(
+      'https://dev.vk.com/ru/api/access-token/getting-started',
+    ),
+    MusicProvider.soundcloud => Uri.parse(
+      'https://developers.soundcloud.com/docs/api/guide',
+    ),
   };
 
   String _qualityName(AudioQuality quality) => switch (quality) {
@@ -692,6 +729,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
         const SizedBox(height: 12),
         _buildTokenConnection(
+          provider: MusicProvider.youtube,
+          controller: _youtubeTokenController,
+        ),
+        const SizedBox(height: 12),
+        _buildTokenConnection(
           provider: MusicProvider.spotify,
           controller: _spotifyTokenController,
         ),
@@ -821,6 +863,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final saving = _savingProvider == provider;
     final message = _tokenMessages[provider];
     final soundCloud = provider == MusicProvider.soundcloud;
+    final youtube = provider == MusicProvider.youtube;
     final serverConnected = _serverCredential[provider] == true;
     return _ConnectionCard(
       provider: provider,
@@ -847,7 +890,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ? 'Сохранён — вставьте новый для замены'
                   : soundCloud
                   ? '32 символа из SoundCloud API'
-                  : provider == MusicProvider.youtube
+                  : youtube
                   ? 'Вставьте API key'
                   : 'Вставьте OAuth-токен',
               prefixIcon: const Icon(Icons.key_rounded),
@@ -887,6 +930,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   icon: const Icon(Icons.link_off_rounded),
                   label: const Text('Отключить'),
                 ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ExpansionTile(
+            key: ValueKey('${provider.name}-credential-help'),
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: const EdgeInsets.only(bottom: 4),
+            title: const Text(
+              'Где взять и что именно вставлять',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+            ),
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  _credentialInstructions(provider),
+                  style: const TextStyle(
+                    color: ResonanceColors.muted,
+                    fontSize: 12,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => unawaited(
+                    launchUrl(
+                      _credentialDocsUri(provider),
+                      mode: LaunchMode.externalApplication,
+                    ),
+                  ),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 17),
+                  label: const Text('Официальная инструкция'),
+                ),
+              ),
             ],
           ),
           if (message != null) ...[

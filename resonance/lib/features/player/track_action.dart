@@ -4,6 +4,14 @@ import 'package:resonance/app/providers.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 
+List<UnifiedTrack> playableQueueTracks(Iterable<UnifiedTrack> tracks) => tracks
+    .where(
+      (track) => track.sources.any(
+        (source) => source.provider != MusicProvider.youtube,
+      ),
+    )
+    .toList(growable: false);
+
 Future<void> playTrackOrOpenOfficial(WidgetRef ref, UnifiedTrack track) async {
   final provider =
       track.preferredProvider ?? track.sources.firstOrNull?.provider;

@@ -108,9 +108,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "3.3.0",
+    version: process.env.CLIENT_VERSION || "3.4.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Реальные видео-превью и расширенная сеть lyrics, Discord Rich Presence и обновлённый интерфейс.",
+      "YouTube Music в настройках, понятные токены, больше видео-превью, стабильная обложка и очередь любимых.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       windowsPortable: "https://music.webcordes.ru/downloads/windows-portable",
