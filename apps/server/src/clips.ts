@@ -26,18 +26,11 @@ export type ClipQuery = { title: string; artist: string; yandexId?: string };
 export type ClipSourceOptions = {
   appleCountries?: string[];
   dailymotion?: boolean;
+  musicBrainz?: boolean;
+  audioDbKey?: string;
   youtubeKey?: string;
   vimeoToken?: string;
 };
-
-// Public-domain ISS timelapse, credited on NASA's original asset page.
-export const builtInClips: Clip[] = ["webm", "mp4"].map((format) => ({
-  id: `nasa-aurora-${format}`, title: "Полярное сияние с МКС", artist: "",
-  url: `https://svs.gsfc.nasa.gov/vis/a030000/a031200/a031281/ISS067_20220817_aurora_1080p25.${format}`,
-  playback: "direct", kind: "ambient",
-  source: "NASA Johnson Space Center · Earth Science and Remote Sensing Unit",
-  sourceUrl: "https://svs.gsfc.nasa.gov/31281/", offsetMs: 0
-}));
 const catalogSchema = z.object({ clips: z.array(clipSchema).max(2000) });
 const querySchema = z.object({
   title: z.string().trim().min(1).max(200),
@@ -73,10 +66,12 @@ export class ClipService {
     return new ClipService(catalog,
       (env.CLIP_PROVIDER_URLS || "").split(",").map((url) => url.trim()).filter(Boolean).slice(0, 12),
       env.PEXELS_API_KEY || "", request,
-      env.CLIP_BUILTIN_ENABLED === "false" ? [] : builtInClips,
+      [],
       {
         appleCountries: env.CLIP_APPLE_ENABLED === "false" ? [] : appleCountries,
         dailymotion: env.CLIP_DAILYMOTION_ENABLED !== "false",
+        musicBrainz: env.CLIP_MUSICBRAINZ_ENABLED !== "false",
+        audioDbKey: env.AUDIODB_API_KEY || "",
         youtubeKey: env.YOUTUBE_API_KEY || "",
         vimeoToken: env.VIMEO_ACCESS_TOKEN || ""
       });
@@ -141,6 +136,8 @@ export class ClipService {
     });
     if (this.sources.appleCountries?.length) attempts.push(this.apple(title, artist));
     if (this.sources.dailymotion) attempts.push(this.dailymotion(title, artist));
+    if (this.sources.musicBrainz) attempts.push(this.musicBrainz(title, artist));
+    if (this.sources.audioDbKey) attempts.push(this.audioDb(title, artist, this.sources.audioDbKey));
     if (this.sources.youtubeKey) attempts.push(this.youtube(title, artist, this.sources.youtubeKey));
     if (this.sources.vimeoToken) attempts.push(this.vimeo(title, artist, this.sources.vimeoToken));
     const settled = await Promise.allSettled(attempts);
@@ -200,6 +197,46 @@ export class ClipService {
         kind: "musicVideo" as const, source: `YouTube · ${item.snippet.channelTitle}`.slice(0, 100),
         sourceUrl: `https://www.youtube.com/watch?v=${encodeURIComponent(item.id.videoId)}`, offsetMs: 0
       }));
+  }
+
+  private async audioDb(title: string, artist: string, apiKey: string): Promise<Clip[]> {
+    if (!/^[A-Za-z0-9_-]{1,100}$/.test(apiKey)) return [];
+    const url = new URL(`https://www.theaudiodb.com/api/v1/json/${apiKey}/searchtrack.php`);
+    url.search = new URLSearchParams({ s: artist, t: title }).toString();
+    const data = z.object({ track: z.array(z.object({
+      idTrack: z.string(), strTrack: z.string(), strArtist: z.string(), strMusicVid: z.string().nullable().optional()
+    })).nullable().optional() }).parse(await this.json(url));
+    return (data.track ?? []).flatMap((item): Clip[] => {
+      if (!item.strMusicVid || musicMatch(item.strTrack, item.strArtist, title, artist) < 8.5) return [];
+      const sourceUrl = safeVideoPage(item.strMusicVid);
+      return sourceUrl ? [{ id: `audiodb-${item.idTrack}`, title, artist, playback: "external",
+        kind: "musicVideo", source: "TheAudioDB", sourceUrl, offsetMs: 0 }] : [];
+    }).slice(0, 2);
+  }
+
+  private async musicBrainz(title: string, artist: string): Promise<Clip[]> {
+    const search = new URL("https://musicbrainz.org/ws/2/recording");
+    search.search = new URLSearchParams({
+      query: `recording:\"${lucene(title)}\" AND artist:\"${lucene(artist)}\"`, fmt: "json", limit: "5"
+    }).toString();
+    const result = z.object({ recordings: z.array(z.object({
+      id: z.string().uuid(), title: z.string(), "artist-credit": z.array(z.object({ name: z.string() }))
+    })) }).parse(await this.json(search));
+    const match = result.recordings.find((item) =>
+      musicMatch(item.title, item["artist-credit"].map((credit) => credit.name).join(", "), title, artist) >= 8.5);
+    if (!match) return [];
+    const lookup = new URL(`https://musicbrainz.org/ws/2/recording/${match.id}`);
+    lookup.search = new URLSearchParams({ inc: "url-rels", fmt: "json" }).toString();
+    const data = z.object({ relations: z.array(z.object({
+      type: z.string(), url: z.object({ resource: z.string() })
+    })).default([]) }).parse(await this.json(lookup));
+    return data.relations.flatMap((relation, index): Clip[] => {
+      if (!/video/i.test(relation.type)) return [];
+      const sourceUrl = safeVideoPage(relation.url.resource);
+      if (!sourceUrl) return [];
+      return [{ id: `musicbrainz-${match.id}-${index}`, title, artist, playback: "external",
+        kind: "musicVideo", source: `MusicBrainz · ${videoSourceName(sourceUrl)}`, sourceUrl, offsetMs: 0 }];
+    }).slice(0, 3);
   }
 
   private async vimeo(title: string, artist: string, token: string): Promise<Clip[]> {
@@ -303,4 +340,27 @@ function transliterate(value: string) {
     х: "kh", ц: "ts", ч: "ch", ш: "sh", щ: "shch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya"
   };
   return [...value].map((letter) => letters[letter] ?? letter).join("");
+}
+
+function safeVideoPage(value: string) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password) return undefined;
+    const host = url.hostname.toLowerCase();
+    return ["youtube.com", "youtu.be", "vimeo.com", "dailymotion.com"].some(
+      (allowed) => host === allowed || host.endsWith(`.${allowed}`)
+    ) ? url.toString() : undefined;
+  } catch { return undefined; }
+}
+
+function videoSourceName(value: string) {
+  const host = new URL(value).hostname.replace(/^www\./, "");
+  if (host === "youtu.be" || host.endsWith("youtube.com")) return "YouTube";
+  if (host.endsWith("vimeo.com")) return "Vimeo";
+  if (host.endsWith("dailymotion.com")) return "Dailymotion";
+  return host;
+}
+
+function lucene(value: string) {
+  return value.replace(/[+\-&|!(){}\[\]^"~*?:\\/]/g, "\\$&").slice(0, 200);
 }

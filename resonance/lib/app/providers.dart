@@ -36,6 +36,7 @@ import 'package:resonance/features/auth/client_identity_service.dart';
 import 'package:resonance/features/auth/library_sync_service.dart';
 import 'package:resonance/features/library/playlist_import_service.dart';
 import 'package:resonance/features/lyrics/lyrics_service.dart';
+import 'package:resonance/features/settings/spotify_oauth_client.dart';
 import 'package:resonance/providers/common/backend_token_provider.dart';
 import 'package:resonance/providers/common/provider_registry.dart';
 import 'package:resonance/providers/soundcloud/backend_soundcloud_provider.dart';
@@ -189,6 +190,13 @@ final lyricsServiceProvider = Provider<LyricsService>((ref) {
     ref.watch(resonanceHttpClientProvider).dio,
     BackendEndpoint.requireCurrent,
     ref.watch(secureTokenRepositoryProvider),
+  );
+});
+
+final spotifyOAuthClientProvider = Provider<SpotifyOAuthClient>((ref) {
+  return SpotifyOAuthClient(
+    ref.watch(resonanceHttpClientProvider).dio,
+    BackendEndpoint.requireCurrent,
   );
 });
 

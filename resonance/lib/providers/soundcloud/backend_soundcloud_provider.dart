@@ -201,7 +201,7 @@ String providerCredentialErrorMessage(
       MusicProvider.youtube => 'YouTube отклонил API key.',
       MusicProvider.yandex => 'Яндекс Музыка отклонила OAuth-токен.',
       MusicProvider.spotify =>
-        'Spotify отклонил access token. Проверьте срок действия и права.',
+        'Spotify отклонил данные входа. Войдите через Spotify ещё раз.',
       MusicProvider.vk =>
         'VK отклонил access token или не дал доступ к audio.*.',
       MusicProvider.soundcloud =>

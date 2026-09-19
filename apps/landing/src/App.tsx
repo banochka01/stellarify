@@ -5,10 +5,12 @@ import {
   ArrowDown,
   ArrowRight,
   Apple,
+  BookOpen,
   Combine,
   Download,
   FileText,
   Heart,
+  KeyRound,
   Network,
   Layers3,
   Link2,
@@ -124,6 +126,7 @@ function App() {
           <a href="#demo">Демо</a>
           <a href="#free">Бесплатно</a>
           <a href="#privacy">Приватность</a>
+          <a href="#knowledge">База знаний</a>
           <a href="#faq">FAQ</a>
         </nav>
         <a className="header-download" href={downloads.windows}>
@@ -162,7 +165,7 @@ function App() {
                 <Apple size={18} /> Unsigned IPA
               </a>
             </div>
-            <p className="release-note">Resonance 3.4.0 · YouTube Music в настройках · Больше видео-превью · Стабильная обложка · Все любимые одной кнопкой</p>
+            <p className="release-note">Resonance 3.5 · Честный статус «Нет клипа» · Apple Music, YouTube, Dailymotion, Vimeo, MusicBrainz, TheAudioDB и Яндекс · Официальный вход Spotify</p>
           </div>
           <div className="hero-visual">
             <HeroStage />
@@ -381,6 +384,74 @@ function App() {
           </ol>
         </section>
 
+        <section className="knowledge-section" id="knowledge">
+          <div className="knowledge-heading" data-reveal>
+            <div>
+              <p className="eyebrow">База знаний</p>
+              <h2>Подключение<br /><em>без догадок.</em></h2>
+            </div>
+            <p>
+              Токены — это пароли приложений. Не отправляйте их в чаты и не
+              сохраняйте в обычных заметках. Resonance хранит пользовательские
+              данные подключения в защищённом хранилище устройства.
+            </p>
+          </div>
+          <div className="knowledge-grid">
+            <article data-reveal>
+              <span className="knowledge-icon spotify"><KeyRound size={22} /></span>
+              <p className="plan-kicker">Spotify · рекомендуемый способ</p>
+              <h3>Войти официально</h3>
+              <ol>
+                <li>Откройте «Настройки → Подключения → Spotify».</li>
+                <li>Нажмите «Войти через Spotify» и подтвердите доступ к медиатеке и плейлистам.</li>
+                <li>Вернитесь в Resonance: приложение проверит вход и сохранит refresh-credential на устройстве.</li>
+              </ol>
+              <p className="knowledge-note">Ручной access token больше не нужен. Если вход не открывается, администратор сервера должен добавить точный HTTPS callback в Spotify Dashboard.</p>
+              <a href="https://developer.spotify.com/documentation/web-api/concepts/authorization" target="_blank" rel="noreferrer">Официальная документация Spotify <ArrowRight size={15} /></a>
+            </article>
+            <article data-reveal>
+              <span className="knowledge-icon"><KeyRound size={22} /></span>
+              <p className="plan-kicker">Яндекс Музыка</p>
+              <h3>OAuth приложения</h3>
+              <ol>
+                <li>Создайте OAuth-приложение в Яндекс ID и разрешите доступ только к нужным данным.</li>
+                <li>Пройдите авторизацию владельцем музыкальной библиотеки и получите OAuth-токен через настроенный redirect URI.</li>
+                <li>Вставьте токен в Resonance и дождитесь сообщения о проверке.</li>
+              </ol>
+              <p className="knowledge-note">Не копируйте cookie браузера и не используйте сайты-«генераторы токенов».</p>
+              <a href="https://yandex.ru/dev/id/doc/ru/concepts/ya-oauth-intro" target="_blank" rel="noreferrer">Документация Яндекс OAuth <ArrowRight size={15} /></a>
+            </article>
+            <article data-reveal>
+              <span className="knowledge-icon"><KeyRound size={22} /></span>
+              <p className="plan-kicker">SoundCloud</p>
+              <h3>Client ID или OAuth</h3>
+              <ol>
+                <li>Зарегистрируйте приложение в SoundCloud for Developers.</li>
+                <li>Возьмите Client ID в настройках приложения либо выполните OAuth flow для личного access token.</li>
+                <li>Вставьте значение в Resonance; cookie <code>oauth_token</code> не подходит.</li>
+              </ol>
+              <p className="knowledge-note">Если серверный Client ID уже настроен, этот шаг можно пропустить.</p>
+              <a href="https://developers.soundcloud.com/docs/api/guide" target="_blank" rel="noreferrer">SoundCloud API Guide <ArrowRight size={15} /></a>
+            </article>
+            <article data-reveal>
+              <span className="knowledge-icon"><KeyRound size={22} /></span>
+              <p className="plan-kicker">VK Музыка</p>
+              <h3>Токен с audio-доступом</h3>
+              <ol>
+                <li>Создайте приложение в VK для разработчиков и настройте доверенный redirect URI.</li>
+                <li>Запросите пользовательский OAuth token только с необходимыми разрешениями.</li>
+                <li>Проверьте токен в Resonance. Если VK не выдал права audio, источник останется недоступен.</li>
+              </ol>
+              <p className="knowledge-note">Доступ к audio API ограничивается политикой VK и может быть недоступен обычным приложениям.</p>
+              <a href="https://dev.vk.com/ru/api/access-token/getting-started" target="_blank" rel="noreferrer">VK Access Token <ArrowRight size={15} /></a>
+            </article>
+          </div>
+          <div className="knowledge-admin" data-reveal>
+            <BookOpen size={24} />
+            <div><h3>Для администратора сервера</h3><p>Видеоисточники включаются переменными <code>YOUTUBE_API_KEY</code>, <code>VIMEO_ACCESS_TOKEN</code>, <code>AUDIODB_API_KEY</code> и <code>PEXELS_API_KEY</code>. Spotify требует <code>SPOTIFY_CLIENT_ID</code>, а callback должен точно совпадать с <code>https://music.webcordes.ru/api/v1/auth/spotify/callback</code>.</p></div>
+          </div>
+        </section>
+
         <section className="faq-section" id="faq">
           <div className="faq-layout">
             <div className="faq-heading" data-reveal>
@@ -432,6 +503,7 @@ function App() {
           <a href="#demo">Демо</a>
           <a href="#free">Бесплатно</a>
           <a href="#privacy">Приватность</a>
+          <a href="#knowledge">База знаний</a>
           <a href="#faq">FAQ</a>
         </nav>
         <span>© 2026 WebCord</span>

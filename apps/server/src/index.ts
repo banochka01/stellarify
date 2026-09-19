@@ -29,6 +29,7 @@ import {
   SoundCloudAudioRelay
 } from "./soundcloud-audio-relay.js";
 import { SpotifyAdapter } from "./spotify.js";
+import { createSpotifyOAuthRouter, SpotifyOAuthService } from "./spotify-oauth.js";
 import { VkAdapter } from "./vk.js";
 import { YandexAdapter } from "./yandex.js";
 import { YouTubeAdapter } from "./youtube.js";
@@ -60,6 +61,10 @@ const spotify = new SpotifyAdapter({
   clientId: process.env.SPOTIFY_CLIENT_ID,
   clientSecret: process.env.SPOTIFY_CLIENT_SECRET
 });
+const spotifyOAuth = new SpotifyOAuthService(
+  process.env.SPOTIFY_CLIENT_ID || "",
+  process.env.SPOTIFY_REDIRECT_URI || (publicBaseUrl ? new URL("/api/v1/auth/spotify/callback", publicBaseUrl).toString() : "")
+);
 const vk = new VkAdapter(process.env.VK_ACCESS_TOKEN);
 const gateway = new ProviderGateway([
   soundCloud,
@@ -86,6 +91,7 @@ const accessControl = new AccessControl(accountStore);
 
 app.disable("x-powered-by");
 app.use(cors({ origin: webOrigin }));
+app.use("/api/v1/auth/spotify", createSpotifyOAuthRouter(spotifyOAuth));
 app.use(express.json({ limit: "512kb" }));
 app.use("/api/v1/clips", createClipRouter(
   ClipService.fromEnvironment(),
@@ -108,9 +114,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "3.4.0",
+    version: process.env.CLIENT_VERSION || "3.5.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "YouTube Music в настройках, понятные токены, больше видео-превью, стабильная обложка и очередь любимых.",
+      "Resonance 3.5: честное отсутствие клипа, новые видеоисточники, официальный вход Spotify и база знаний.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       windowsPortable: "https://music.webcordes.ru/downloads/windows-portable",
