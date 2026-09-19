@@ -1,4 +1,4 @@
-# Resonance 3.1 — Video & Lyrics Network
+# Resonance 3.3 — Video & Lyrics Network
 
 Visual Stage теперь показывает реальные официальные видео-превью Apple Music,
 а в выборе источника находит клипы YouTube, Dailymotion, Vimeo и Яндекс Музыки.

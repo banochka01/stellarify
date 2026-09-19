@@ -180,6 +180,8 @@ class _CinematicPlayer extends StatelessWidget {
                         letterSpacing: -.5,
                       ),
                     ),
+                    const SizedBox(height: 14),
+                    _PlaybackSignal(state: state),
                     if (_waveReason(track) case final reason?) ...[
                       const SizedBox(height: 10),
                       _ReasonPill(reason: reason),
@@ -327,6 +329,97 @@ class _HeroControls extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PlaybackSignal extends StatelessWidget {
+  const _PlaybackSignal({required this.state, this.compact = false});
+
+  final ResonancePlaybackState state;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final track = state.currentTrack;
+    final provider =
+        state.activeTrackSource?.provider ??
+        track?.preferredProvider ??
+        (track?.sources.isNotEmpty == true
+            ? track!.sources.first.provider
+            : null);
+    final audio = state.activeAudioSource;
+    final bitrate = audio?.bitrate;
+    final technical = bitrate != null && bitrate > 0
+        ? '${(bitrate / 1000).round()} kbps'
+        : audio?.codec?.replaceAll('_', ' ').toUpperCase();
+    final status = state.buffering
+        ? 'БУФЕРИЗАЦИЯ'
+        : state.playing
+        ? 'В ЭФИРЕ'
+        : 'ПАУЗА';
+
+    return Semantics(
+      label: state.playing
+          ? 'Трек воспроизводится'
+          : 'Воспроизведение приостановлено',
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 500),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 11 : 10,
+          vertical: compact ? 8 : 7,
+        ),
+        decoration: BoxDecoration(
+          color: compact ? const Color(0xC20A0A0A) : const Color(0x990A0A0A),
+          borderRadius: BorderRadius.circular(compact ? 12 : 999),
+          border: Border.all(color: const Color(0x40FFFFFF)),
+        ),
+        child: Row(
+          mainAxisSize: compact ? MainAxisSize.max : MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: ResonanceMotion.quick,
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: state.playing
+                    ? ResonanceColors.primary
+                    : ResonanceColors.muted,
+                shape: BoxShape.circle,
+                boxShadow: state.playing
+                    ? const [BoxShadow(color: Color(0x88FF5538), blurRadius: 8)]
+                    : null,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              status,
+              style: const TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.05,
+              ),
+            ),
+            if (provider != null) ...[
+              const SizedBox(width: 9),
+              Container(width: 1, height: 14, color: const Color(0x36FFFFFF)),
+              const SizedBox(width: 9),
+              ProviderBadge(provider: provider, compact: true),
+            ],
+            if (technical != null && technical.isNotEmpty) ...[
+              const SizedBox(width: 9),
+              Text(
+                technical,
+                style: const TextStyle(
+                  color: ResonanceColors.muted,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -511,23 +604,57 @@ class _CompactHome extends StatelessWidget {
       children: [
         const ResonanceEntrance(child: _WaveCommandCenter()),
         const SizedBox(height: 22),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(18),
-          child: AspectRatio(
-            aspectRatio: 1.08,
-            child: track.artworkUrl == null
-                ? Image.asset(
-                    'assets/images/resonance_fallback_cover.png',
-                    fit: BoxFit.cover,
-                  )
-                : CachedNetworkImage(
-                    imageUrl: highQualityArtworkUrl(track.artworkUrl!),
-                    fit: BoxFit.cover,
-                    errorWidget: (_, _, _) => Image.asset(
-                      'assets/images/resonance_fallback_cover.png',
-                      fit: BoxFit.cover,
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: ResonanceColors.border),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x52000000),
+                blurRadius: 30,
+                offset: Offset(0, 18),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(19),
+            child: AspectRatio(
+              aspectRatio: 1.08,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  track.artworkUrl == null
+                      ? Image.asset(
+                          'assets/images/resonance_fallback_cover.png',
+                          fit: BoxFit.cover,
+                        )
+                      : CachedNetworkImage(
+                          imageUrl: highQualityArtworkUrl(track.artworkUrl!),
+                          fit: BoxFit.cover,
+                          errorWidget: (_, _, _) => Image.asset(
+                            'assets/images/resonance_fallback_cover.png',
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Colors.transparent, Color(0xB3000000)],
+                        stops: [.55, 1],
+                      ),
                     ),
                   ),
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: 14,
+                    child: _PlaybackSignal(state: state, compact: true),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 22),
@@ -563,6 +690,8 @@ class _CompactHome extends StatelessWidget {
         ),
         const SizedBox(height: 22),
         _HeroProgress(state: state),
+        const SizedBox(height: 16),
+        _HeroControls(state: state),
         const SizedBox(height: 16),
         _NextTrackPill(track: nextTrack),
         if (recent.isNotEmpty) ...[

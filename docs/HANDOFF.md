@@ -6,7 +6,7 @@
 ## Контекст проекта
 
 Resonance/stellarify — мульти-источниковый музыкальный плеер:
-- `apps/server` — Node/Express API + Socket.IO (комнаты, Wave, подписки, аккаунты).
+- `apps/server` — Node/Express API + Socket.IO (комнаты, Wave, аккаунты; функции Resonance бесплатны).
 - `apps/landing` — лендинг (React+GSAP, деплоится статикой).
 - `apps/web` — веб-демо клиент (React), в проде не публикуется отдельно.
 - `resonance/` — Flutter клиент (Windows/Android/iOS), основной продукт.
@@ -59,8 +59,7 @@ Resonance/stellarify — мульти-источниковый музыкаль�
 - VPS агрессивно ограничивает новые SSH-сессии. Использовать
   `-o IdentitiesOnly=yes -o PreferredAuthentications=publickey`; для больших
   файлов стабильнее `scp -O` и пауза между соединениями. При деплое собирать
-  только service `api`: `api` и `promo-bot` используют один image tag, поэтому
-  параллельный `docker compose build api promo-bot` даёт коллизию экспорта.
+  только service `api`; отдельный бот доступа больше не используется.
 - Удалена dangling-ссылка `/etc/nginx/sites-enabled/study.webcordes.ru`, которая
   указывала на отсутствующий файл и блокировала `nginx -t`/reload.
 

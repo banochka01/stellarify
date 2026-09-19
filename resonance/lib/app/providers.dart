@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:resonance/core/database/app_database.dart';
+import 'package:resonance/core/integrations/discord_presence_controller.dart';
 import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/core/networking/resonance_http_client.dart';
 import 'package:resonance/core/networking/soundcloud_proxy_preference.dart';
@@ -31,10 +32,10 @@ import 'package:resonance/domain/repositories/secure_token_repository.dart';
 import 'package:resonance/domain/services/source_selection_policy.dart';
 import 'package:resonance/features/auth/account_api.dart';
 import 'package:resonance/features/auth/account_session_repository.dart';
+import 'package:resonance/features/auth/client_identity_service.dart';
 import 'package:resonance/features/auth/library_sync_service.dart';
 import 'package:resonance/features/library/playlist_import_service.dart';
 import 'package:resonance/features/lyrics/lyrics_service.dart';
-import 'package:resonance/features/subscription/subscription_service.dart';
 import 'package:resonance/providers/common/backend_token_provider.dart';
 import 'package:resonance/providers/common/provider_registry.dart';
 import 'package:resonance/providers/soundcloud/backend_soundcloud_provider.dart';
@@ -127,7 +128,9 @@ resonanceHttpClientProvider = Provider<ResonanceHttpClient>((ref) {
           return;
         }
         try {
-          final headers = await ref.read(subscriptionServiceProvider).headers();
+          final headers = await ref
+              .read(clientIdentityServiceProvider)
+              .headers();
           // AccountApi already binds library requests to an exact session: never replace that token.
           for (final entry in headers.entries) {
             options.headers.putIfAbsent(entry.key, () => entry.value);
@@ -144,22 +147,18 @@ resonanceHttpClientProvider = Provider<ResonanceHttpClient>((ref) {
   return client;
 });
 
-final Provider<SubscriptionService> subscriptionServiceProvider =
-    Provider<SubscriptionService>(
-      (ref) => SubscriptionService(
-        ref.watch(resonanceHttpClientProvider).dio,
-        BackendEndpoint.requireCurrent,
-        ref.watch(secureKeyValueStoreProvider),
-        ref.watch(accountApiProvider),
-        ref.watch(accountSessionRepositoryProvider),
-      ),
-    );
-
 final accountApiProvider = Provider<AccountApi>((ref) {
   return AccountApi(
     ref.watch(resonanceHttpClientProvider).dio,
     BackendEndpoint.requireCurrent,
     ref.watch(accountSessionRepositoryProvider),
+  );
+});
+
+final clientIdentityServiceProvider = Provider<ClientIdentityService>((ref) {
+  return ClientIdentityService(
+    ref.watch(secureKeyValueStoreProvider),
+    ref.watch(accountApiProvider),
   );
 });
 
@@ -288,7 +287,6 @@ final playbackServiceProvider = FutureProvider<PlaybackService>((ref) async {
     persistence: ref.watch(playbackPersistenceProvider),
     sourceCache: ref.watch(resolvedSourceCacheProvider),
     quality: onboarding.quality,
-    authorizeSource: ref.read(subscriptionServiceProvider).requireProvider,
     flowSettings: flowSettings,
   );
   await service.initialize();
@@ -337,3 +335,33 @@ final obsOverlayControllerProvider =
         ref.watch(playbackServiceProvider.future),
       );
     });
+
+final discordPresenceGatewayFactoryProvider =
+    Provider<DiscordPresenceGatewayFactory>((ref) {
+      return DiscordRpcGateway.new;
+    });
+
+final discordPresenceControllerProvider =
+    StateNotifierProvider<DiscordPresenceController, DiscordPresenceState>((
+      ref,
+    ) {
+      return DiscordPresenceController(
+        ref.watch(secureKeyValueStoreProvider),
+        ref
+            .watch(playbackServiceProvider.future)
+            .then<DiscordPlaybackFeed>(_PlaybackDiscordFeed.new),
+        ref.watch(discordPresenceGatewayFactoryProvider),
+      );
+    });
+
+final class _PlaybackDiscordFeed implements DiscordPlaybackFeed {
+  const _PlaybackDiscordFeed(this._service);
+
+  final PlaybackService _service;
+
+  @override
+  ResonancePlaybackState get state => _service.state;
+
+  @override
+  Stream<ResonancePlaybackState> get states => _service.states;
+}

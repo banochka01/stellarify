@@ -169,7 +169,7 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
   socket.use(([event], next) => {
     if (event === "room:leave") { next(); return; }
     try { authorize?.(event === "room:create"); next(); }
-    catch { socket.emit("room:access-denied", { message: "Для этой функции нужна подписка Plus или Family" }); }
+    catch { socket.emit("room:access-denied", { message: "Для комнат нужен аккаунт Resonance" }); }
   });
   socket.on("room:create", (payload, acknowledge) => {
     leaveRooms(io, socket);

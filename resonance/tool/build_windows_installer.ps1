@@ -1,5 +1,7 @@
 param(
-  [switch]$SkipFlutterBuild
+  [switch]$SkipFlutterBuild,
+  [string]$ApiUrl = 'https://music.webcordes.ru',
+  [string]$DiscordApplicationId = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -15,8 +17,22 @@ $artifactDir = Join-Path $workspaceRoot "artifacts\resonance-$version"
 $definition = Join-Path $resonanceRoot 'windows\installer\Resonance.nsi'
 
 if (-not $SkipFlutterBuild) {
-  & $flutter build windows --release
-  if ($LASTEXITCODE -ne 0) { throw 'The Windows release build failed.' }
+  Push-Location $resonanceRoot
+  try {
+    $buildArguments = @(
+      'build',
+      'windows',
+      '--release',
+      "--dart-define=RESONANCE_API_URL=$ApiUrl"
+    )
+    if ($DiscordApplicationId.Trim().Length -gt 0) {
+      $buildArguments += "--dart-define=RESONANCE_DISCORD_APPLICATION_ID=$($DiscordApplicationId.Trim())"
+    }
+    & $flutter @buildArguments
+    if ($LASTEXITCODE -ne 0) { throw 'The Windows release build failed.' }
+  } finally {
+    Pop-Location
+  }
 }
 if (-not (Test-Path -LiteralPath (Join-Path $releaseDir 'resonance.exe'))) {
   throw "The Windows release bundle is missing at $releaseDir."

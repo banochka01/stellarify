@@ -272,7 +272,7 @@ export class LyricsService {
   private async fetch(url: URL) {
     try {
       return await this.request(url, {
-        headers: { accept: "application/json", "user-agent": "Resonance/3.1 (https://music.webcordes.ru)" },
+        headers: { accept: "application/json", "user-agent": "Resonance/3.3 (https://music.webcordes.ru)" },
         signal: AbortSignal.timeout(6_000)
       });
     } catch (error) {

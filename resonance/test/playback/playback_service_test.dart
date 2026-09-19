@@ -111,30 +111,33 @@ void main() {
     await service.dispose();
   });
 
-  test('subscription guard blocks cached source reuse and resume', () async {
-    var allowed = true;
-    final resolver = _FakeResolver(MusicProvider.soundcloud);
-    final service = PlaybackService(
-      engine: engine,
-      providers: ProviderRegistry(resolvers: [resolver]),
-      sourceSelectionPolicy: SourceSelectionPolicy(),
-      authorizeSource: (_) async {
-        if (!allowed) throw StateError('subscription expired');
-      },
-    );
-    final track = _track('guarded', [MusicProvider.soundcloud]);
-    await service.playTrack(track);
-    await service.pause();
-    allowed = false;
-    await expectLater(service.play(), throwsStateError);
-    await expectLater(
-      service.playTrack(track),
-      throwsA(isA<PlaybackFailedException>()),
-    );
-    expect(engine.openedSources, hasLength(1));
-    expect(engine.isPlaying, false);
-    await service.dispose();
-  });
+  test(
+    'source authorization guard blocks cached source reuse and resume',
+    () async {
+      var allowed = true;
+      final resolver = _FakeResolver(MusicProvider.soundcloud);
+      final service = PlaybackService(
+        engine: engine,
+        providers: ProviderRegistry(resolvers: [resolver]),
+        sourceSelectionPolicy: SourceSelectionPolicy(),
+        authorizeSource: (_) async {
+          if (!allowed) throw StateError('source authorization expired');
+        },
+      );
+      final track = _track('guarded', [MusicProvider.soundcloud]);
+      await service.playTrack(track);
+      await service.pause();
+      allowed = false;
+      await expectLater(service.play(), throwsStateError);
+      await expectLater(
+        service.playTrack(track),
+        throwsA(isA<PlaybackFailedException>()),
+      );
+      expect(engine.openedSources, hasLength(1));
+      expect(engine.isPlaying, false);
+      await service.dispose();
+    },
+  );
 
   test(
     'Flow fades between tracks, restores volume and enables normalization',

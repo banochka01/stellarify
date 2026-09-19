@@ -1,9 +1,11 @@
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/app/resonance_app.dart';
 import 'package:resonance/app/router.dart';
+import 'package:resonance/core/database/app_database.dart';
 import 'package:resonance/core/networking/soundcloud_proxy_preference.dart';
 import 'package:resonance/core/security/flutter_secure_token_repository.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
@@ -24,6 +26,8 @@ void main() {
     final backend = _FakeBackendClient();
     final secureStore = _MemorySecureStore();
     final playbackEngine = FakePlaybackEngine();
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
     resonanceRouter.go('/settings');
     await tester.pumpWidget(
       ProviderScope(
@@ -32,6 +36,7 @@ void main() {
           soundCloudProxyPreferenceProvider.overrideWithValue(proxy),
           resonanceBackendClientProvider.overrideWithValue(backend),
           secureKeyValueStoreProvider.overrideWithValue(secureStore),
+          appDatabaseProvider.overrideWithValue(database),
           playbackEngineProvider.overrideWithValue(playbackEngine),
           playbackPersistenceProvider.overrideWithValue(null),
         ],
@@ -39,6 +44,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+
+    expect(find.textContaining('Подписка'), findsNothing);
+    expect(find.textContaining('промокод'), findsNothing);
 
     final outputPicker = find.byKey(const ValueKey('audio-output-picker'));
     await tester.scrollUntilVisible(
@@ -53,6 +61,36 @@ void main() {
     await tester.tap(find.text('Наушники').last);
     await tester.pumpAndSettle();
     expect(playbackEngine.selectedAudioOutput.id, 'headphones');
+
+    final discordField = find.byKey(
+      const ValueKey('discord-application-id-field'),
+    );
+    await tester.scrollUntilVisible(
+      discordField,
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.enterText(discordField, '123456789012345678');
+    final discordCard = find
+        .ancestor(of: discordField, matching: find.byType(Card))
+        .first;
+    final discordSaveButton = find.descendant(
+      of: discordCard,
+      matching: find.text('Сохранить'),
+    );
+    await tester.scrollUntilVisible(
+      discordSaveButton,
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(discordSaveButton);
+    await tester.tap(discordSaveButton);
+    await tester.pumpAndSettle();
+    expect(
+      secureStore.values['resonance.discord_presence.application_id'],
+      '123456789012345678',
+    );
+    expect(find.text('Discord Application ID сохранён'), findsOneWidget);
 
     final field = find.byKey(const ValueKey('soundcloud-token-field'));
     await tester.scrollUntilVisible(

@@ -110,7 +110,7 @@ export class ClipService {
 
   private async json(url: URL, headers?: Record<string, string>) {
     const response = await this.request(url, {
-      headers: { accept: "application/json", "user-agent": "Resonance/3.1 (https://music.webcordes.ru)", ...headers },
+      headers: { accept: "application/json", "user-agent": "Resonance/3.3 (https://music.webcordes.ru)", ...headers },
       redirect: "error", signal: AbortSignal.timeout(6000)
     });
     if (!response.ok) throw new Error("Clip source unavailable");

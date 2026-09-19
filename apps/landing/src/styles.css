@@ -240,23 +240,18 @@ h1 em, h2 em { color: var(--coral); font-style: normal; }
 .room-mock-you { color: #090908; background: var(--paper); border-color: var(--paper); }
 .room-sync { margin: 26px 0 0; display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px; border: 1px solid rgba(240,90,73,.45); border-radius: 999px; color: var(--coral); font-size: 12px; font-weight: 600; background: rgba(240,90,73,.08); }
 
-.plans-section { padding: 150px max(40px, calc((100vw - 1420px) / 2)); background: #0c0b0a; border-top: 1px solid var(--line); }
-.plans-heading { display: grid; grid-template-columns: 1.2fr .8fr; align-items: end; gap: 80px; }
-.plans-heading h2 { font-size: clamp(62px, 6.2vw, 98px); line-height: .92; }
-.plans-heading > p { max-width: 430px; margin: 0 0 8px; color: #9b968f; font-size: 15px; line-height: 1.75; }
-.guest-pass { margin: 72px 0 24px; padding: 26px 28px; display: grid; grid-template-columns: auto minmax(240px, .65fr) 1fr; align-items: center; gap: 22px; border: 1px solid rgba(240,90,73,.38); border-radius: 16px; background: linear-gradient(115deg, rgba(240,90,73,.13), rgba(255,255,255,.018)); }
-.guest-pass h3, .plan-card h3 { margin: 5px 0 0; font-size: 20px; font-weight: 560; letter-spacing: -.02em; }
-.guest-pass > p { margin: 0; color: #a39f97; font-size: 14px; line-height: 1.65; }
-.plan-icon { flex: 0 0 auto; width: 48px; height: 48px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--coral); background: rgba(255,255,255,.025); }
-.plan-kicker { margin: 0; color: var(--coral); font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
-.plans-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-.plan-card { min-height: 360px; padding: 32px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.018); transition: border-color .25s ease, transform .25s ease; }
-.plan-card:hover { border-color: rgba(238,233,222,.32); transform: translateY(-4px); }
-.plan-card-accent { border-color: rgba(240,90,73,.6); background: radial-gradient(circle at 90% 0, rgba(240,90,73,.15), transparent 52%), rgba(255,255,255,.025); }
-.plan-card-top { display: flex; align-items: center; gap: 16px; margin-bottom: 34px; }
-.plan-card ul { margin: 28px 0 0; padding: 0; list-style: none; color: #9b968f; font-size: 14px; line-height: 1.6; }
-.plan-card li { position: relative; padding: 10px 0 10px 20px; border-top: 1px solid rgba(238,233,222,.08); }
-.plan-card li::before { content: ""; position: absolute; left: 0; top: 18px; width: 6px; height: 6px; border-radius: 50%; background: var(--coral); }
+.free-section { padding: 150px max(40px, calc((100vw - 1420px) / 2)); background: #0c0b0a; border-top: 1px solid var(--line); }
+.free-heading { display: grid; grid-template-columns: 1.2fr .8fr; align-items: end; gap: 80px; }
+.free-heading h2 { font-size: clamp(62px, 6.2vw, 98px); line-height: .92; }
+.free-heading > p { max-width: 430px; margin: 0 0 8px; color: #9b968f; font-size: 15px; line-height: 1.75; }
+.free-grid { margin-top: 72px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.free-card { min-height: 270px; padding: 32px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.018); transition: border-color .25s ease, transform .25s ease; }
+.free-card:hover { border-color: rgba(238,233,222,.32); transform: translateY(-4px); }
+.free-card-accent { border-color: rgba(240,90,73,.6); background: radial-gradient(circle at 90% 0, rgba(240,90,73,.15), transparent 52%), rgba(255,255,255,.025); }
+.free-card > svg { color: var(--coral); }
+.free-card h3 { margin: 48px 0 14px; font-size: 22px; font-weight: 620; letter-spacing: -.02em; }
+.free-card p, .free-note { color: #9b968f; font-size: 14px; line-height: 1.7; }
+.free-note { max-width: 860px; margin: 28px 0 0; }
 
 .interface-section { min-height: 1000px; padding: 150px max(40px, calc((100vw - 1420px) / 2)); display: grid; grid-template-columns: .72fr 1.28fr; align-items: center; gap: 70px; background: var(--paper); color: #11100f; }
 .interface-copy .eyebrow { color: #bd3c2f; }
@@ -346,8 +341,8 @@ footer { min-height: 120px; padding: 0 max(40px, calc((100vw - 1420px) / 2)); di
   .faq-layout { gap: 44px; }
   .demo-heading { grid-template-columns: 1fr; gap: 30px; }
   .demo-layout { grid-template-columns: 1fr; }
-  .plans-grid { gap: 14px; }
-  .plan-card { padding: 26px; }
+  .free-grid { gap: 14px; }
+  .free-card { padding: 26px; }
   .interface-section { grid-template-columns: 1fr; }
   .interface-copy { max-width: 640px; }
 }
@@ -368,7 +363,7 @@ footer { min-height: 120px; padding: 0 max(40px, calc((100vw - 1420px) / 2)); di
   .stage-now-title { font-size: clamp(40px, 11vw, 58px); }
   .stage-glow-a { width: 420px; height: 420px; right: -160px; }
   .scroll-cue { display: none; }
-  .search-section, .library-section, .graph-section, .rooms-section, .plans-section, .interface-section, .privacy-section, .steps-section, .faq-section, .demo-section { padding: 90px 20px; }
+  .search-section, .library-section, .graph-section, .rooms-section, .free-section, .interface-section, .privacy-section, .steps-section, .faq-section, .demo-section { padding: 90px 20px; }
   .library-section .section-heading { margin-bottom: 48px; }
   .graph-section .section-heading { margin-bottom: 48px; }
   .graph-showcase { grid-template-columns: 1fr; gap: 36px; }
@@ -406,12 +401,10 @@ footer { min-height: 120px; padding: 0 max(40px, calc((100vw - 1420px) / 2)); di
   .demo-row .queue-source { display: none; }
   .demo-row .queue-row-cover { width: 40px; height: 40px; }
   .demo-player-cover { height: 150px; }
-  .plans-heading { grid-template-columns: 1fr; gap: 30px; }
-  .plans-heading h2 { font-size: clamp(56px, 17vw, 82px); }
-  .guest-pass { margin-top: 50px; padding: 24px; grid-template-columns: auto 1fr; }
-  .guest-pass > p { grid-column: 1 / -1; }
-  .plans-grid { grid-template-columns: 1fr; }
-  .plan-card { min-height: auto; }
+  .free-heading { grid-template-columns: 1fr; gap: 30px; }
+  .free-heading h2 { font-size: clamp(56px, 17vw, 82px); }
+  .free-grid { margin-top: 50px; grid-template-columns: 1fr; }
+  .free-card { min-height: auto; }
   .interface-section { min-height: auto; gap: 55px; }
   .app-frame { width: 148%; margin-left: -10%; overflow: hidden; }
   .app-frame img { width: 100%; }

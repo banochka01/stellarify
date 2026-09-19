@@ -108,7 +108,7 @@ final class PlaybackService {
           playing: false,
           activeAudioSource: null,
           errorMessage:
-              'Проверьте подписку в настройках. Воспроизведение приостановлено.',
+              'Источник больше не разрешает воспроизведение. Проверьте подключение источника.',
         ),
       );
     } finally {
