@@ -162,7 +162,7 @@ function App() {
                 <Apple size={18} /> Unsigned IPA
               </a>
             </div>
-            <p className="release-note">Resonance 3.3 · Реальные видео-превью · Apple Music, YouTube, Dailymotion, Vimeo и Яндекс · Больше синхронных lyrics · Discord Rich Presence</p>
+            <p className="release-note">Resonance 3.4.0 · YouTube Music в настройках · Больше видео-превью · Стабильная обложка · Все любимые одной кнопкой</p>
           </div>
           <div className="hero-visual">
             <HeroStage />
