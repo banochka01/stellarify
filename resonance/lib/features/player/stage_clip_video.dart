@@ -74,11 +74,13 @@ class _StageClipVideoState extends State<StageClipVideo> {
       await _player.setVolume(0);
       if (!mounted) return;
       await _player.setPlaylistMode(
-        widget.clip.ambient ? PlaylistMode.single : PlaylistMode.none,
+        widget.clip.ambient || widget.clip.preview
+            ? PlaylistMode.single
+            : PlaylistMode.none,
       );
       if (!mounted) return;
       await _player
-          .open(Media(widget.clip.url.toString()), play: false)
+          .open(Media(widget.clip.url!.toString()), play: false)
           .timeout(const Duration(seconds: 15));
       if (!mounted) return;
       _ready = true;
@@ -106,7 +108,7 @@ class _StageClipVideoState extends State<StageClipVideo> {
     }
     _syncing = true;
     try {
-      if (!widget.clip.ambient) {
+      if (!widget.clip.ambient && !widget.clip.preview) {
         final wanted = widget.state.position + widget.clip.offset;
         final end = _player.state.duration;
         final position = Duration(
@@ -123,6 +125,7 @@ class _StageClipVideoState extends State<StageClipVideo> {
       if (!mounted) return;
       final ended =
           !widget.clip.ambient &&
+          !widget.clip.preview &&
           _player.state.duration > Duration.zero &&
           widget.state.position + widget.clip.offset >= _player.state.duration;
       final shouldPlay =

@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
+import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
+import 'package:resonance/domain/repositories/secure_token_repository.dart';
 
 final class LyricLine {
   const LyricLine({required this.text, this.start});
@@ -53,13 +55,18 @@ final class LyricsDocument {
 }
 
 final class LyricsService {
-  LyricsService(this._dio, this._baseUri);
+  LyricsService(this._dio, this._baseUri, [this._tokens]);
 
   final Dio _dio;
   final Uri Function() _baseUri;
+  final SecureTokenRepository? _tokens;
 
   Future<LyricsDocument?> find(UnifiedTrack track) async {
     try {
+      final yandexSource = track.sourceFor(MusicProvider.yandex);
+      final yandexToken = yandexSource == null
+          ? null
+          : await _tokens?.read(MusicProvider.yandex);
       final uri = _baseUri()
           .resolve('/api/v1/lyrics')
           .replace(
@@ -69,9 +76,15 @@ final class LyricsService {
               if (track.album?.trim().isNotEmpty == true) 'album': track.album,
               if (track.duration != null)
                 'durationMs': track.duration!.inMilliseconds.toString(),
+              if (yandexSource != null) 'yandexId': yandexSource.externalId,
             },
           );
-      final response = await _dio.getUri<Map<String, dynamic>>(uri);
+      final response = await _dio.getUri<Map<String, dynamic>>(
+        uri,
+        options: yandexToken?.trim().isNotEmpty == true
+            ? Options(headers: {'X-Provider-Token': yandexToken})
+            : null,
+      );
       final data = response.data;
       return data == null ? null : LyricsDocument.fromJson(data);
     } on DioException catch (error) {

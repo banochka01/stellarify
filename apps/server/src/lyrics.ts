@@ -64,7 +64,7 @@ export type LyricsServiceOptions = {
 
 type FetchLike = typeof fetch;
 type CacheEntry = { expiresAt: number; value: LyricsResult | null };
-type ProviderAttempt = () => Promise<LyricsResult | null>;
+export type ProviderAttempt = () => Promise<LyricsResult | null>;
 
 export class LyricsError extends Error {
   constructor(
@@ -97,7 +97,7 @@ export class LyricsService {
       compatibleProviderUrls: (options.compatibleProviderUrls ?? [])
         .map(value => value.trim())
         .filter(isHttpUrl)
-        .slice(0, 4)
+        .slice(0, 12)
     };
   }
 
@@ -110,11 +110,12 @@ export class LyricsService {
       });
   }
 
-  async find(query: LyricsQuery): Promise<LyricsResult | null> {
+  async find(query: LyricsQuery, extraAttempts: ProviderAttempt[] = []): Promise<LyricsResult | null> {
     const key = [query.artist, query.title, query.album ?? "", query.durationMs ?? ""]
       .map(normalize)
       .join("|");
-    const cached = this.cache.get(key);
+    const useSharedCache = extraAttempts.length === 0;
+    const cached = useSharedCache ? this.cache.get(key) : undefined;
     if (cached && cached.expiresAt > this.now()) return cached.value;
     if (cached) this.cache.delete(key);
 
@@ -124,7 +125,7 @@ export class LyricsService {
       const primary = await this.findLrclib(query);
       completedProvider = true;
       if (primary) {
-        this.remember(key, primary);
+        if (useSharedCache) this.remember(key, primary);
         return primary;
       }
     } catch (error) {
@@ -132,6 +133,7 @@ export class LyricsService {
     }
 
     const fallbacks: ProviderAttempt[] = [];
+    fallbacks.push(...extraAttempts.slice(0, 4));
     if (this.options.musixmatchApiKey) {
       fallbacks.push(() => this.findMusixmatch(query, this.options.musixmatchApiKey!));
     }
@@ -153,7 +155,7 @@ export class LyricsService {
     }
     const value = candidates.sort((left, right) => Number(right.synced) - Number(left.synced))[0] ?? null;
     if (value || completedProvider) {
-      this.remember(key, value);
+      if (useSharedCache) this.remember(key, value);
       return value;
     }
     throw bestUpstreamError(errors);
@@ -192,13 +194,37 @@ export class LyricsService {
   }
 
   private async findMusixmatch(query: LyricsQuery, apiKey: string) {
-    const endpoint = new URL("https://api.musixmatch.com/ws/1.1/matcher.lyrics.get");
-    endpoint.searchParams.set("q_track", query.title);
-    endpoint.searchParams.set("q_artist", query.artist);
-    endpoint.searchParams.set("apikey", apiKey);
-    const response = await this.fetch(endpoint);
-    if (!response.ok) throw upstreamError(response.status, "Musixmatch");
-    const payload = musixmatchSchema.parse(await readJson(response));
+    const request = async (method: "matcher.subtitle.get" | "matcher.lyrics.get") => {
+      const endpoint = new URL(`https://api.musixmatch.com/ws/1.1/${method}`);
+      endpoint.searchParams.set("q_track", query.title);
+      endpoint.searchParams.set("q_artist", query.artist);
+      endpoint.searchParams.set("apikey", apiKey);
+      if (method === "matcher.subtitle.get") {
+        endpoint.searchParams.set("subtitle_format", "lrc");
+        if (query.durationMs) {
+          endpoint.searchParams.set("f_subtitle_length", String(Math.round(query.durationMs / 1_000)));
+          endpoint.searchParams.set("f_subtitle_length_max_deviation", "4");
+        }
+      }
+      const response = await this.fetch(endpoint);
+      if (!response.ok) throw upstreamError(response.status, "Musixmatch");
+      return musixmatchSchema.parse(await readJson(response));
+    };
+
+    const subtitlePayload = await request("matcher.subtitle.get");
+    if (subtitlePayload.message.header.status_code === 200) {
+      const subtitle = z.object({ subtitle_body: z.string(), restricted: z.number().optional() })
+        .safeParse(subtitlePayload.message.body.subtitle);
+      if (subtitle.success && subtitle.data.restricted !== 1) {
+        const result = lyricsResultFromText(query, subtitle.data.subtitle_body,
+          "Musixmatch", "https://www.musixmatch.com", false, true);
+        if (result?.lines.length) return result;
+      }
+    } else if (subtitlePayload.message.header.status_code !== 404) {
+      throw upstreamError(subtitlePayload.message.header.status_code, "Musixmatch");
+    }
+
+    const payload = await request("matcher.lyrics.get");
     if (payload.message.header.status_code === 404) return null;
     if (payload.message.header.status_code !== 200) {
       throw upstreamError(payload.message.header.status_code, "Musixmatch");
@@ -207,7 +233,7 @@ export class LyricsService {
       lyrics_body: z.string(), instrumental: z.number().optional(), restricted: z.number().optional()
     }).safeParse(payload.message.body.lyrics);
     if (!lyrics.success || lyrics.data.restricted === 1) return null;
-    return fromPlainText(query, lyrics.data.lyrics_body, "Musixmatch", "https://www.musixmatch.com",
+    return lyricsResultFromText(query, lyrics.data.lyrics_body, "Musixmatch", "https://www.musixmatch.com",
       lyrics.data.instrumental === 1);
   }
 
@@ -246,7 +272,7 @@ export class LyricsService {
   private async fetch(url: URL) {
     try {
       return await this.request(url, {
-        headers: { accept: "application/json", "user-agent": "Resonance/1.3 (https://music.webcordes.ru)" },
+        headers: { accept: "application/json", "user-agent": "Resonance/3.1 (https://music.webcordes.ru)" },
         signal: AbortSignal.timeout(6_000)
       });
     } catch (error) {
@@ -296,13 +322,25 @@ function mapRecord(record: z.infer<typeof lyricsRecordSchema>): LyricsResult {
 function fromPlainText(
   query: LyricsQuery, input: string, sourceName: string, sourceUrl: string, instrumental = false
 ): LyricsResult | null {
-  const lines = plainTextLines(input);
+  return lyricsResultFromText(query, input, sourceName, sourceUrl, instrumental);
+}
+
+export function lyricsResultFromText(
+  query: LyricsQuery,
+  input: string,
+  sourceName: string,
+  sourceUrl: string,
+  instrumental = false,
+  synchronized = false
+): LyricsResult | null {
+  const syncedLines = synchronized ? parseLrc(input) : [];
+  const lines = syncedLines.length ? syncedLines : plainTextLines(input);
   if (!lines.length && !instrumental) return null;
   return {
     id: syntheticId(query, sourceName), title: query.title, artist: query.artist,
     ...(query.album ? { album: query.album } : {}),
     ...(query.durationMs ? { durationMs: query.durationMs } : {}),
-    instrumental, synced: false, lines, source: { name: sourceName, url: sourceUrl }
+    instrumental, synced: syncedLines.length > 0, lines, source: { name: sourceName, url: sourceUrl }
   };
 }
 

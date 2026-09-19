@@ -163,7 +163,7 @@ function App() {
                 <Apple size={18} /> Unsigned IPA
               </a>
             </div>
-            <p className="release-note">Resonance 3.0 Music Graph · Умное объединение источников · Исправленный импорт · Windows Setup EXE · Android debug-signed · iOS unsigned</p>
+            <p className="release-note">Resonance 3.1 Video & Lyrics Network · Реальные видео-превью · Apple Music, YouTube, Dailymotion, Vimeo и Яндекс · Больше синхронных lyrics</p>
           </div>
           <div className="hero-visual">
             <HeroStage />

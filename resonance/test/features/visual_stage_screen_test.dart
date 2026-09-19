@@ -76,7 +76,8 @@ void main() {
             title: id,
             source: 'Test source',
             sourceUrl: Uri.parse('https://example.com'),
-            ambient: true,
+            kind: StageClipKind.ambient,
+            playable: true,
           ),
       ];
       VoidCallback? failVideo;

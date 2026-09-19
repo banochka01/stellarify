@@ -189,6 +189,7 @@ final lyricsServiceProvider = Provider<LyricsService>((ref) {
   return LyricsService(
     ref.watch(resonanceHttpClientProvider).dio,
     BackendEndpoint.requireCurrent,
+    ref.watch(secureTokenRepositoryProvider),
   );
 });
 

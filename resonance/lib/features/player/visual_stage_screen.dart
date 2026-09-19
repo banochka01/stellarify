@@ -97,7 +97,12 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
         _selectedUrl == null;
     final clips = ref.watch(stageClipsProvider(track));
     final available = (clips.valueOrNull ?? <StageClip>[])
-        .where((clip) => !_failedUrls.contains(clip.url.toString()))
+        .where(
+          (clip) =>
+              clip.playable &&
+              clip.url != null &&
+              !_failedUrls.contains(clip.url.toString()),
+        )
         .toList();
     final selected =
         available
@@ -219,18 +224,21 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
     bool nativeVideo,
     UnifiedTrack track,
   ) {
+    final hasExternal = clips.valueOrNull?.any((clip) => !clip.playable) ?? false;
     final label = !_backgroundEnabled
         ? 'Видео выключено'
         : nativeVideo
         ? 'Видео из текущего источника'
         : selected != null
-        ? '${selected.ambient ? 'Атмосферный фон' : 'Музыкальный клип'} · ${selected.source}'
+        ? '${selected.ambient ? 'Атмосферный фон' : selected.preview ? 'Видео-превью' : 'Музыкальный клип'} · ${selected.source}'
         : clips.isLoading
         ? 'Ищем видео на сервере…'
         : clips.hasError
         ? 'Источники недоступны · Повторить'
         : _failedUrls.isNotEmpty
         ? 'Видео не загрузилось · Повторить'
+        : hasExternal
+        ? 'Клип найден во внешнем источнике · Открыть'
         : 'Для этого трека пока нет видео · Источники';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -338,19 +346,35 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
                             .map(
                               (clip) => ListTile(
                                 leading: Icon(
-                                  clip.ambient
+                                  !clip.playable
+                                      ? Icons.open_in_new_rounded
+                                      : clip.ambient
                                       ? Icons.blur_on_rounded
                                       : Icons.music_video_rounded,
                                 ),
                                 title: Text(clip.title),
                                 subtitle: Text(
-                                  '${clip.source} · ${clip.ambient ? 'Фон' : 'Клип'}',
+                                  '${clip.source} · ${!clip.playable ? 'Открыть источник' : clip.ambient ? 'Фон' : clip.preview ? 'Видео-превью' : 'Клип'}',
                                 ),
                                 trailing:
-                                    _failedUrls.contains(clip.url.toString())
+                                    clip.playable &&
+                                        _failedUrls.contains(
+                                          clip.url.toString(),
+                                        )
                                     ? const Icon(Icons.error_outline)
+                                    : !clip.playable
+                                    ? const Icon(Icons.open_in_new_rounded)
                                     : null,
                                 onTap: () {
+                                  if (!clip.playable) {
+                                    unawaited(
+                                      launchUrl(
+                                        clip.sourceUrl,
+                                        mode: LaunchMode.externalApplication,
+                                      ),
+                                    );
+                                    return;
+                                  }
                                   setState(() {
                                     _backgroundEnabled = true;
                                     _selectedUrl = clip.url.toString();

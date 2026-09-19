@@ -210,3 +210,45 @@ test("imports liked tracks and every owned Yandex playlist", async () => {
   assert.equal(library.playlists[0]?.title, "В дорогу");
   assert.deepEqual(library.playlists[0]?.tracks.map((track) => track.id), ["11"]);
 });
+
+test("returns account-scoped synchronized Yandex lyrics", async () => {
+  let requestedFormat = "";
+  const adapter = new YandexAdapter("server-token", () => ({
+    async search() { return null; },
+    async tracksDownloadInfo() { return []; },
+    async tracksLyrics(_id, format) {
+      requestedFormat = format ?? "";
+      return {
+        lyricId: 91,
+        major: { prettyName: "Licensed partner" },
+        async fetchLyrics() { return "[00:01.20]Первая строка"; }
+      };
+    }
+  }));
+
+  const result = await adapter.lyrics("42", { title: "Трек", artist: "Артист" });
+  assert.equal(requestedFormat, "LRC");
+  assert.equal(result?.id, 91);
+  assert.equal(result?.synced, true);
+  assert.equal(result?.source.name, "Яндекс Музыка · Licensed partner");
+});
+
+test("exposes Yandex video supplements as direct media or safe external references", async () => {
+  const adapter = new YandexAdapter("server-token", () => ({
+    async search() { return null; },
+    async tracksDownloadInfo() { return []; },
+    async trackSupplement() {
+      return { videos: [
+        { provider: "cdn", providerVideoId: "1", url: "https://video.example/clip.mp4" },
+        { provider: "YouTube", providerVideoId: "2", url: "https://www.youtube.com/watch?v=two" },
+        { provider: "bad", providerVideoId: "3", url: "http://insecure.example/video" }
+      ] };
+    }
+  }));
+
+  const clips = await adapter.clips("42", { title: "Track", artist: "Artist" });
+  assert.equal(clips.length, 2);
+  assert.equal(clips[0]?.playback, "direct");
+  assert.equal(clips[1]?.playback, "external");
+  assert.equal(clips[1]?.url, undefined);
+});

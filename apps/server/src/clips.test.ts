@@ -8,7 +8,7 @@ import { ClipService, clipSchema, createClipRouter, builtInClips, type Clip } fr
 const clip = (overrides: Partial<Clip> = {}): Clip => ({
   id: "clip-1", title: "Signal", artist: "Artist", kind: "musicVideo",
   url: "https://cdn.example.com/clip.mp4", source: "Catalog",
-  sourceUrl: "https://example.com/clip", offsetMs: 0, ...overrides
+  sourceUrl: "https://example.com/clip", offsetMs: 0, playback: "direct", ...overrides
 });
 const json = (body: unknown) => new Response(JSON.stringify(body));
 
@@ -113,4 +113,39 @@ test("clips route validates queries and returns the client contract", async (t) 
   const response = await fetch(`${base}?title=Signal&artist=Artist`);
   assert.equal(response.status, 200);
   assert.equal((await response.json()).clips[0].id, "clip-1");
+});
+
+test("Apple source returns a directly playable official preview", async () => {
+  const service = new ClipService([], [], "", async (input) => {
+    const url = new URL(String(input));
+    assert.equal(url.hostname, "itunes.apple.com");
+    assert.equal(url.searchParams.get("entity"), "musicVideo");
+    return json({ results: [{
+      trackId: 42,
+      trackName: "Signal (Official Video)",
+      artistName: "Artist",
+      previewUrl: "https://video-ssl.itunes.apple.com/signal.m4v",
+      trackViewUrl: "https://music.apple.com/us/music-video/signal/42"
+    }] });
+  }, [], { appleCountries: ["us"] });
+  const found = await service.find("Signal", "Artist");
+  assert.equal(found[0]?.kind, "preview");
+  assert.equal(found[0]?.playback, "direct");
+  assert.match(found[0]?.url ?? "", /signal\.m4v$/);
+});
+
+test("Dailymotion results are discoverable without pretending watch pages are media", async () => {
+  const service = new ClipService([], [], "", async () => json({ list: [{
+    id: "x1", title: "Artist - Signal (Official Video)",
+    url: "https://www.dailymotion.com/video/x1", channel: "music"
+  }] }), [], { dailymotion: true });
+  const found = await service.find("Signal", "Artist");
+  assert.equal(found[0]?.source, "Dailymotion");
+  assert.equal(found[0]?.playback, "external");
+  assert.equal(found[0]?.url, undefined);
+});
+
+test("external references cannot masquerade as direct clips", () => {
+  assert.equal(clipSchema.safeParse({ ...clip(), url: undefined }).success, false);
+  assert.equal(clipSchema.safeParse({ ...clip(), url: undefined, playback: "external" }).success, true);
 });

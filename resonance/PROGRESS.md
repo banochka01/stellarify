@@ -1,5 +1,14 @@
 # Progress
 
+## Version 3.1.0 — Video & Lyrics Network
+
+- [x] Key-free Apple Music official music-video previews in Visual Stage
+- [x] YouTube, Dailymotion, Vimeo and Yandex video source discovery
+- [x] Safe external-player references without stream extraction
+- [x] Request-scoped Yandex synchronized/plain lyrics
+- [x] Musixmatch synchronized subtitle-first fallback
+- [x] Up to twelve compatible clip and lyrics endpoints
+
 ## Version 2.0.0 — Library and Wave 2.0
 
 Status: released to production and publicly verified on 2026-09-08.

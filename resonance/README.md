@@ -5,6 +5,11 @@ The current client targets Windows, Android, and iOS. It includes a bundled
 local diagnostic track plus server-backed SoundCloud and Yandex Music search
 and playback. YouTube Music remains a later provider.
 
+Version 3.1.0 adds a Video & Lyrics Network: key-free Apple Music video
+previews play directly in Visual Stage; YouTube, Dailymotion, Vimeo and Yandex
+video references appear in the source picker; Yandex lyrics and synchronized
+Musixmatch subtitles join the existing LRCLIB/Lyrics.ovh cascade.
+
 Version 1.3.0 adds a resilient Lyrics Network: LRCLIB remains the synchronized
 primary source, Lyrics.ovh provides a key-free plain-text fallback, licensed
 Musixmatch access can be enabled by server key, and up to four compatible

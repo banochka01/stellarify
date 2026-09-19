@@ -157,3 +157,51 @@ test("uses configured Musixmatch without exposing its key", async () => {
   assert.match(requestedUrl, /apikey=secret-key/);
   assert.doesNotMatch(JSON.stringify(result), /secret-key/);
 });
+
+test("prefers synchronized Musixmatch subtitles over plain lyrics", async () => {
+  const calls: string[] = [];
+  const service = new LyricsService(async input => {
+    const url = new URL(String(input));
+    calls.push(url.pathname);
+    if (url.hostname === "lrclib.net" && url.pathname === "/api/get") {
+      return new Response(null, { status: 404 });
+    }
+    if (url.hostname === "lrclib.net") return Response.json([]);
+    if (url.pathname.endsWith("matcher.subtitle.get")) {
+      assert.equal(url.searchParams.get("subtitle_format"), "lrc");
+      return Response.json({ message: { header: { status_code: 200 }, body: {
+        subtitle: { subtitle_body: "[00:01.25]Licensed sync" }
+      } } });
+    }
+    throw new Error("plain lyrics should not be requested");
+  }, Date.now, 60_000, "https://lrclib.net", { musixmatchApiKey: "secret" });
+
+  const result = await service.find({ title: "Track", artist: "Artist", durationMs: 180_000 });
+  assert.equal(result?.source.name, "Musixmatch");
+  assert.equal(result?.synced, true);
+  assert.equal(result?.lines[0]?.startMs, 1_250);
+  assert.ok(calls.some(path => path.endsWith("matcher.subtitle.get")));
+  assert.ok(calls.every(path => !path.endsWith("matcher.lyrics.get")));
+});
+
+test("accepts request-scoped provider lyrics without sharing them through cache", async () => {
+  let extras = 0;
+  const service = new LyricsService(async input => {
+    const url = new URL(String(input));
+    if (url.pathname === "/api/get") return new Response(null, { status: 404 });
+    if (url.hostname === "lrclib.net") return Response.json([]);
+    return new Response(null, { status: 404 });
+  }, Date.now, 60_000, "https://lrclib.net", { lyricsOvhBaseUrl: null });
+  const query = { title: "Track", artist: "Artist" };
+  const attempt = async () => {
+    extras++;
+    return {
+      id: 77, title: "Track", artist: "Artist", instrumental: false, synced: false,
+      lines: [{ startMs: null, text: "Authorized lyrics" }],
+      source: { name: "Account provider", url: "https://example.com" }
+    };
+  };
+  assert.equal((await service.find(query, [attempt]))?.id, 77);
+  assert.equal((await service.find(query, [attempt]))?.id, 77);
+  assert.equal(extras, 2);
+});

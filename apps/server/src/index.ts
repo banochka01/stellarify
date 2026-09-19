@@ -83,7 +83,12 @@ const accessControl = new AccessControl(accountStore, subscriptionStore);
 app.disable("x-powered-by");
 app.use(cors({ origin: webOrigin }));
 app.use(express.json({ limit: "512kb" }));
-app.use("/api/v1/clips", createClipRouter(ClipService.fromEnvironment()));
+app.use("/api/v1/clips", createClipRouter(
+  ClipService.fromEnvironment(),
+  async (query, request) => query.yandexId
+    ? yandex.clips(query.yandexId, query, providerAccess(request))
+    : []
+));
 app.use("/api/v1/subscription", createSubscriptionRouter(accessControl));
 app.use("/api/v1/account/library", accessControl.middleware("library.cloudSync"));
 app.use("/api/v1/account", createAccountRouter(accountStore));
@@ -122,9 +127,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "3.0.0",
+    version: process.env.CLIENT_VERSION || "3.1.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Resonance 3.0 Music Graph: единые треки из разных источников, карта связей и надёжный импорт плейлистов.",
+      "Resonance 3.1 Video & Lyrics Network: реальные видео-превью, больше источников клипов и синхронных текстов.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       windowsPortable: "https://music.webcordes.ru/downloads/windows-portable",
@@ -158,7 +163,8 @@ const lyricsQuerySchema = z.object({
   title: z.string().trim().min(1).max(200),
   artist: z.string().trim().min(1).max(200),
   album: z.string().trim().min(1).max(200).optional(),
-  durationMs: z.coerce.number().int().min(1).max(24 * 60 * 60 * 1_000).optional()
+  durationMs: z.coerce.number().int().min(1).max(24 * 60 * 60 * 1_000).optional(),
+  yandexId: z.string().trim().regex(/^\d+(?::\d+)?$/).optional()
 });
 
 app.get("/api/v1/lyrics", async (request, response) => {
@@ -168,12 +174,22 @@ app.get("/api/v1/lyrics", async (request, response) => {
     return;
   }
   try {
-    const result = await lyrics.find(input.data);
+    const result = await lyrics.find(
+      input.data,
+      input.data.yandexId
+        ? [() => yandex.lyrics(input.data.yandexId!, input.data, providerAccess(request))]
+        : []
+    );
     if (!result) {
       response.status(404).json({ error: { code: "LYRICS_NOT_FOUND", message: "Текст для этого трека пока не найден" } });
       return;
     }
-    response.setHeader("cache-control", "public, max-age=900, stale-while-revalidate=3600");
+      response.setHeader(
+        "cache-control",
+        input.data.yandexId
+          ? "private, max-age=300"
+          : "public, max-age=900, stale-while-revalidate=3600"
+      );
     response.json(result);
   } catch (error) {
     if (error instanceof LyricsError) {

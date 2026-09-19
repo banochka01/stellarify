@@ -9,6 +9,8 @@ import {
   type ResolvedStream
 } from "./provider-gateway.js";
 import type { ImportedPlaylist } from "./youtube.js";
+import type { Clip } from "./clips.js";
+import { lyricsResultFromText, type LyricsQuery, type LyricsResult } from "./lyrics.js";
 
 interface YandexTrackLike {
   id?: string | number;
@@ -29,6 +31,22 @@ interface YandexDownloadInfoLike {
   getDirectLink(): Promise<string>;
 }
 
+interface YandexTrackLyricsLike {
+  lyricId?: number;
+  major?: { prettyName?: string; name?: string };
+  fetchLyrics(): Promise<string>;
+}
+
+interface YandexSupplementLike {
+  videos?: Array<{
+    provider?: string;
+    providerVideoId?: string;
+    title?: string;
+    url?: string;
+    embedUrl?: string;
+  }>;
+}
+
 interface YandexClientLike {
   init?(): Promise<unknown>;
   search(
@@ -41,6 +59,8 @@ interface YandexClientLike {
   usersPlaylists?(kind: string | number, userId?: string | number): Promise<YandexPlaylistLike | YandexPlaylistLike[] | null>;
   playlist?(playlistUuid: string): Promise<YandexPlaylistLike | null>;
   tracks?(trackIds: Array<string | number> | string | number): Promise<YandexTrackLike[]>;
+  tracksLyrics?(trackId: string | number, format?: "TEXT" | "LRC"): Promise<YandexTrackLyricsLike | null>;
+  trackSupplement?(trackId: string | number): Promise<YandexSupplementLike | null>;
   usersLikesTracks?(): Promise<{ tracks?: Array<YandexTrackLike & { track?: YandexTrackLike }> } | null>;
   usersPlaylistsList?(): Promise<YandexPlaylistLike[]>;
   rotorWaveSettings?(): Promise<{ defaultStation?: { stationId?: string } } | null>;
@@ -328,6 +348,63 @@ export class YandexAdapter implements MusicProviderAdapter {
       if (error instanceof ProviderGatewayError) throw error;
       throw mapYandexError(error);
     }
+  }
+
+  async lyrics(trackId: string, query: LyricsQuery, access?: ProviderAccess): Promise<LyricsResult | null> {
+    if (!/^\d+(?::\d+)?$/.test(trackId)) return null;
+    const client = this.client(access);
+    if (!client.tracksLyrics) return null;
+    for (const format of ["LRC", "TEXT"] as const) {
+      try {
+        const lyrics = await client.tracksLyrics(trackId, format);
+        if (!lyrics) continue;
+        const text = await lyrics.fetchLyrics();
+        const label = lyrics.major?.prettyName || lyrics.major?.name;
+        const result = lyricsResultFromText(
+          query,
+          text,
+          label ? `Яндекс Музыка · ${label}` : "Яндекс Музыка",
+          `https://music.yandex.ru/track/${encodeURIComponent(trackId)}`,
+          false,
+          format === "LRC"
+        );
+        if (result) return { ...result, id: lyrics.lyricId ?? result.id };
+      } catch (error) {
+        if ((error as Error)?.name === "UnauthorizedError") throw mapYandexError(error);
+      }
+    }
+    return null;
+  }
+
+  async clips(trackId: string, query: { title: string; artist: string }, access?: ProviderAccess): Promise<Clip[]> {
+    if (!/^\d+(?::\d+)?$/.test(trackId)) return [];
+    const client = this.client(access);
+    if (!client.trackSupplement) return [];
+    const supplement = await client.trackSupplement(trackId);
+    return (supplement?.videos ?? []).flatMap((video, index): Clip[] => {
+      const raw = video.url || video.embedUrl;
+      if (!raw) return [];
+      let sourceUrl: URL;
+      try {
+        sourceUrl = new URL(raw);
+      } catch {
+        return [];
+      }
+      if (sourceUrl.protocol !== "https:" || sourceUrl.username || sourceUrl.password) return [];
+      const direct = /\.(?:mp4|webm|m3u8)(?:$|\?)/iu.test(sourceUrl.toString());
+      const provider = video.provider?.trim() || "видео";
+      return [{
+        id: `yandex-${video.providerVideoId || index}`,
+        title: query.title,
+        artist: query.artist,
+        ...(direct ? { url: sourceUrl.toString() } : {}),
+        playback: direct ? "direct" : "external",
+        kind: "musicVideo",
+        source: `Яндекс Музыка · ${provider}`.slice(0, 100),
+        sourceUrl: sourceUrl.toString(),
+        offsetMs: 0
+      }];
+    });
   }
 
   private client(access?: ProviderAccess) {
