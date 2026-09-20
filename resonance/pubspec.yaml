@@ -56,7 +56,8 @@ dependencies:
   url_launcher: ^6.3.2
   file_picker: ^12.1.1
   package_info_plus: ^10.2.1
-  flutter_discord_rpc: ^1.1.0
+  flutter_discord_rpc:
+    path: third_party/flutter_discord_rpc
   flutter_svg: ^2.2.1
   smtc_windows: ^1.1.0
   # smtc_windows 1.1.0 was generated with this exact FRB runtime. A newer
