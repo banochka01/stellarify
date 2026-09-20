@@ -11,7 +11,12 @@ $pubspecPath = Join-Path $resonanceRoot 'pubspec.yaml'
 $versionLine = Select-String -LiteralPath $pubspecPath -Pattern '^version:\s*([^+\s]+)' | Select-Object -First 1
 if (-not $versionLine) { throw 'Could not read the Resonance version from pubspec.yaml.' }
 $version = $versionLine.Matches[0].Groups[1].Value
-$flutter = 'K:\SDK\flutter_fresh\bin\flutter.bat'
+$flutterCommand = Get-Command flutter.bat -ErrorAction SilentlyContinue
+$flutter = if ($flutterCommand) {
+  $flutterCommand.Source
+} else {
+  'K:\SDK\flutter_fresh\bin\flutter.bat'
+}
 $releaseDir = Join-Path $resonanceRoot 'build\windows\x64\runner\Release'
 $artifactDir = Join-Path $workspaceRoot "artifacts\resonance-$version"
 $definition = Join-Path $resonanceRoot 'windows\installer\Resonance.nsi'

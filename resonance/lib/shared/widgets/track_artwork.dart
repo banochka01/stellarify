@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 
 class TrackArtwork extends StatelessWidget {
@@ -34,7 +37,7 @@ class TrackArtwork extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: CachedNetworkImage(
-        imageUrl: highQualityArtworkUrl(artworkUrl, targetSize: cacheSize),
+        imageUrl: proxiedArtworkUrl(artworkUrl, targetSize: cacheSize),
         width: size,
         height: size,
         fit: BoxFit.cover,
@@ -42,7 +45,7 @@ class TrackArtwork extends StatelessWidget {
         maxWidthDiskCache: cacheSize,
         fadeInDuration: const Duration(milliseconds: 180),
         errorWidget: (_, _, _) => Image.network(
-          artworkUrl.toString(),
+          proxiedArtworkUrl(artworkUrl),
           width: size,
           height: size,
           fit: BoxFit.cover,
@@ -167,3 +170,38 @@ String highQualityArtworkUrl(Uri artworkUrl, {int targetSize = 1000}) {
   }
   return value;
 }
+
+String proxiedArtworkUrl(Uri artworkUrl, {int targetSize = 1000}) {
+  final highQuality = highQualityArtworkUrl(
+    artworkUrl,
+    targetSize: targetSize,
+  );
+  final uri = Uri.tryParse(highQuality);
+  if (uri == null || !_proxiedArtworkHosts.any(
+    (host) => uri.host == host || uri.host.endsWith('.$host'),
+  )) {
+    return highQuality;
+  }
+  try {
+    final backend = BackendEndpoint.requireCurrent();
+    if (uri.origin == backend.origin &&
+        uri.path.startsWith('/api/v1/media/artwork/')) {
+      return highQuality;
+    }
+    final ticket = base64Url
+        .encode(utf8.encode(highQuality))
+        .replaceAll('=', '');
+    return backend.resolve('/api/v1/media/artwork/$ticket').toString();
+  } on Object {
+    return highQuality;
+  }
+}
+
+const _proxiedArtworkHosts = <String>{
+  'sndcdn.com',
+  'scdn.co',
+  'spotifycdn.com',
+  'ytimg.com',
+  'yt3.ggpht.com',
+  'yt3.googleusercontent.com',
+};

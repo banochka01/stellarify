@@ -55,3 +55,23 @@ test("Spotify adapter refreshes an OAuth credential and reuses the short-lived a
   assert.equal(refreshes, 1);
   assert.equal(apiCalls, 2);
 });
+
+test("Spotify OAuth token exchange uses the injected server request transport", async () => {
+  const calls: string[] = [];
+  const service = new SpotifyOAuthService(
+    "client-id",
+    "https://music.example/api/v1/auth/spotify/callback",
+    async (input) => {
+      calls.push(String(input));
+      return Response.json({ refresh_token: "refresh-secret" });
+    }
+  );
+  const started = service.start();
+  const authorize = new URL(started.authorizeUrl);
+  const result = await service.callback({
+    state: authorize.searchParams.get("state"),
+    code: "code"
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls, ["https://accounts.spotify.com/api/token"]);
+});

@@ -629,7 +629,7 @@ class _CompactHome extends StatelessWidget {
                           fit: BoxFit.cover,
                         )
                       : CachedNetworkImage(
-                          imageUrl: highQualityArtworkUrl(track.artworkUrl!),
+                          imageUrl: proxiedArtworkUrl(track.artworkUrl!),
                           fit: BoxFit.cover,
                           errorWidget: (_, _, _) => Image.asset(
                             'assets/images/resonance_fallback_cover.png',
@@ -1172,7 +1172,7 @@ class _TrackBackdrop extends ConsumerWidget {
           )
         : CachedNetworkImage(
             key: ValueKey('artwork-${track.id}'),
-            imageUrl: highQualityArtworkUrl(artwork),
+            imageUrl: proxiedArtworkUrl(artwork, targetSize: 1400),
             memCacheWidth: 1400,
             maxWidthDiskCache: 1400,
             fit: BoxFit.cover,

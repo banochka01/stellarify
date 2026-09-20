@@ -498,7 +498,7 @@ class _StageBackground extends ConsumerWidget {
             child: Transform.scale(
               scale: 1.14,
               child: Image.network(
-                artwork.toString(),
+                proxiedArtworkUrl(artwork, targetSize: 1400),
                 fit: BoxFit.cover,
                 errorBuilder: (_, _, _) => _ambientGradient(track),
               ),

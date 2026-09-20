@@ -27,6 +27,13 @@ relay ticket with byte-range support. When the proxy is requested but
 unavailable, the server fails closed instead of silently falling back to a
 direct request.
 
+`PROVIDER_PROXY_URL` is the server-only egress proxy used for Spotify OAuth and
+Web API calls, YouTube Data API calls, and the artwork relay for Spotify,
+SoundCloud, and YouTube. It accepts the same restricted HTTP(S) IPv4 formats as
+`SOUNDCLOUD_PROXY_URL` and falls back to that value when omitted. Provider CDN
+URLs are never sent to the native image loader: the API returns an HTTPS
+`/api/v1/media/artwork/...` URL and validates every decoded host before fetching.
+
 Plus/Family Wave can use AgentRouter to turn recent listening feedback, likes,
 and playlist tracks into bounded search and ranking parameters. Configure
 `AGENTROUTER_API_KEY` in `/opt/resonance/.env`; the defaults use the

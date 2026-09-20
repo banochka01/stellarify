@@ -24,6 +24,7 @@ final class PlaybackService {
     Random? random,
     Future<void> Function(MusicProvider)? authorizeSource,
     PlaybackFlowSettings flowSettings = const PlaybackFlowSettings(),
+    Duration bufferingTimeout = const Duration(seconds: 20),
   }) {
     return PlaybackService._(
       engine: engine,
@@ -35,6 +36,7 @@ final class PlaybackService {
       random: random,
       authorizeSource: authorizeSource,
       flowSettings: flowSettings,
+      bufferingTimeout: bufferingTimeout,
     );
   }
 
@@ -48,6 +50,7 @@ final class PlaybackService {
     required Random? random,
     required this._authorizeSource,
     required this._flowSettings,
+    required this._bufferingTimeout,
   }) : _sourceCache = sourceCache ?? ResolvedSourceCache(),
        _random = random ?? Random() {
     _subscriptions.addAll([
@@ -56,10 +59,11 @@ final class PlaybackService {
         _emit(_state.copyWith(playing: playing));
         if (playing) _scheduleAccessCheck();
       }),
-      _engine.buffering.listen(
-        (buffering) => _emit(_state.copyWith(buffering: buffering)),
-      ),
+      _engine.buffering.listen(_onBuffering),
       _engine.position.listen((position) {
+        if (position > _state.position && !_state.buffering) {
+          _bufferingRecoveryAttempts = 0;
+        }
         _emit(_state.copyWith(position: position));
         _maybePrefetchNext(position);
         _maybeStartAutomaticFlow(position);
@@ -79,6 +83,7 @@ final class PlaybackService {
 
   final Future<void> Function(MusicProvider)? _authorizeSource;
   Timer? _accessTimer;
+  Timer? _bufferingTimer;
   bool _checkingAccess = false;
   void _scheduleAccessCheck() {
     _accessTimer?.cancel();
@@ -117,6 +122,7 @@ final class PlaybackService {
   }
 
   final PlaybackEngine _engine;
+  final Duration _bufferingTimeout;
   final ProviderRegistry _providers;
   final SourceSelectionPolicy _sourceSelectionPolicy;
   final PlaybackPersistence? _persistence;
@@ -133,6 +139,7 @@ final class PlaybackService {
   bool _recovering = false;
   bool _transitioning = false;
   bool _disposed = false;
+  int _bufferingRecoveryAttempts = 0;
 
   ResonancePlaybackState get state => _state;
   Stream<ResonancePlaybackState> get states => _states.stream;
@@ -196,6 +203,7 @@ final class PlaybackService {
   }
 
   Future<void> playTrack(UnifiedTrack track) async {
+    if (_state.currentTrack?.id != track.id) _bufferingRecoveryAttempts = 0;
     final existingIndex = _state.queue.indexWhere(
       (candidate) => candidate.id == track.id,
     );
@@ -355,6 +363,7 @@ final class PlaybackService {
 
   Future<void> _moveTo(int index) async {
     if (_transitioning || index < 0 || index >= _state.queue.length) return;
+    _bufferingRecoveryAttempts = 0;
     final targetVolume = _state.volume;
     final duration = _effectiveTransitionDuration(index);
     if (!_flowSettings.enabled ||
@@ -519,7 +528,9 @@ final class PlaybackService {
           resolved = await resolver.resolve(source, quality: _quality);
         }
         _sourceCache.put(source, resolved);
-        await _engine.open(resolved, play: play, start: start);
+        await _engine
+            .open(resolved, play: play, start: start)
+            .timeout(_bufferingTimeout);
         _lastSuccessfulProvider[track.id] = source.provider;
         _emit(
           _state.copyWith(
@@ -534,6 +545,9 @@ final class PlaybackService {
         _scheduleAccessCheck();
         return;
       } on Object catch (error) {
+        if (error is TimeoutException) {
+          await _engine.pause();
+        }
         _sourceCache.invalidate(source);
         failures.add('${source.provider.name}: $error');
       }
@@ -546,6 +560,40 @@ final class PlaybackService {
       _state.copyWith(playing: false, buffering: false, errorMessage: message),
     );
     throw PlaybackFailedException(message);
+  }
+
+  void _onBuffering(bool buffering) {
+    _bufferingTimer?.cancel();
+    _emit(_state.copyWith(buffering: buffering));
+    if (!buffering || _disposed || _state.currentTrack == null) return;
+    _bufferingTimer = Timer(_bufferingTimeout, () {
+      unawaited(_recoverFromBufferingTimeout());
+    });
+  }
+
+  Future<void> _recoverFromBufferingTimeout() async {
+    if (_disposed || !_state.buffering || _recovering) return;
+    _bufferingTimer?.cancel();
+    final active = _state.activeTrackSource;
+    if (active != null) _sourceCache.invalidate(active);
+    await _engine.pause();
+    if (_bufferingRecoveryAttempts == 0 && active != null) {
+      _bufferingRecoveryAttempts = 1;
+      try {
+        await _openCurrent(play: true, start: _state.position);
+        return;
+      } on Object {
+        // The bounded retry below reports the final failure state.
+      }
+    }
+    _emit(
+      _state.copyWith(
+        playing: false,
+        buffering: false,
+        errorMessage:
+            'Поток не начал воспроизведение вовремя. Повторите попытку или выберите другой источник.',
+      ),
+    );
   }
 
   void _onCompleted(bool completed) {
@@ -608,6 +656,7 @@ final class PlaybackService {
     }
     _disposed = true;
     _accessTimer?.cancel();
+    _bufferingTimer?.cancel();
     for (final subscription in _subscriptions) {
       await subscription.cancel();
     }

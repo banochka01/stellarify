@@ -182,6 +182,28 @@ void main() {
     expect(resolver.calls, 2);
     await service.dispose();
   });
+
+  test('bounds stalled buffering, retries once, and exposes an actionable error', () async {
+    final resolver = _FakeResolver(MusicProvider.yandex);
+    final service = PlaybackService(
+      engine: engine,
+      providers: ProviderRegistry(resolvers: [resolver]),
+      sourceSelectionPolicy: SourceSelectionPolicy(),
+      bufferingTimeout: const Duration(milliseconds: 20),
+    );
+
+    await service.playTrack(_track('stall', [MusicProvider.yandex]));
+    engine.emitBuffering(true);
+    await Future<void>.delayed(const Duration(milliseconds: 35));
+    engine.emitBuffering(true);
+    await Future<void>.delayed(const Duration(milliseconds: 35));
+
+    expect(resolver.calls, 2);
+    expect(service.state.buffering, isFalse);
+    expect(service.state.playing, isFalse);
+    expect(service.state.errorMessage, contains('Поток не начал'));
+    await service.dispose();
+  });
 }
 
 PlaybackService _createService(

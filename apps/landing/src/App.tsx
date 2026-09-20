@@ -165,7 +165,7 @@ function App() {
                 <Apple size={18} /> Unsigned IPA
               </a>
             </div>
-            <p className="release-note">Resonance 3.5 · Честный статус «Нет клипа» · Apple Music, YouTube, Dailymotion, Vimeo, MusicBrainz, TheAudioDB и Яндекс · Официальный вход Spotify</p>
+            <p className="release-note">Resonance 3.5.1 · Стабильное воспроизведение · Серверный прокси Spotify и обложек · Исправленный Discord Rich Presence</p>
           </div>
           <div className="hero-visual">
             <HeroStage />

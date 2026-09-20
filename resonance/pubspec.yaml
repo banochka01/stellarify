@@ -16,7 +16,7 @@ publish_to: "none"
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 3.5.0+29
+version: 3.5.1+30
 
 environment:
   sdk: ^3.12.2
@@ -56,7 +56,8 @@ dependencies:
   url_launcher: ^6.3.2
   file_picker: ^12.1.1
   package_info_plus: ^10.2.1
-  discord_rich_presence: ^1.1.1
+  flutter_discord_rpc: ^1.1.0
+  flutter_svg: ^2.2.1
   smtc_windows: ^1.1.0
   # smtc_windows 1.1.0 was generated with this exact FRB runtime. A newer
   # transitive runtime aborts SMTC initialization before the first frame.
@@ -92,6 +93,7 @@ flutter:
     - assets/audio/resonance_test.wav
     - assets/images/resonance_fallback_cover.png
     - assets/images/resonance_cinematic_background.png
+    - assets/icons/
   fonts:
     - family: Inter
       fonts:

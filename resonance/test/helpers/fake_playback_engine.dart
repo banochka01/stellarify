@@ -132,6 +132,8 @@ final class FakePlaybackEngine implements PlaybackEngine {
 
   void emitDuration(Duration value) => _duration.add(value);
 
+  void emitBuffering(bool value) => _buffering.add(value);
+
   void emitCompleted() => _completed.add(true);
 
   void emitError(String value) => _errors.add(value);

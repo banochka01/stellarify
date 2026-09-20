@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:discord_rich_presence/discord_rich_presence.dart' as discord;
+import 'package:flutter_discord_rpc/flutter_discord_rpc.dart' as discord;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/core/security/flutter_secure_token_repository.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
@@ -77,30 +77,42 @@ final class DiscordPresenceActivity {
 }
 
 final class DiscordRpcGateway implements DiscordPresenceGateway {
-  DiscordRpcGateway(String applicationId)
-    : _client = discord.Client(clientId: applicationId);
+  DiscordRpcGateway(this._applicationId);
 
-  final discord.Client _client;
+  static String? _initializedApplicationId;
+  final String _applicationId;
 
   @override
-  Future<void> connect() => _client.connect();
+  Future<void> connect() async {
+    final initialized = _initializedApplicationId;
+    if (initialized == null) {
+      await discord.FlutterDiscordRPC.initialize(_applicationId);
+      _initializedApplicationId = _applicationId;
+    } else if (initialized != _applicationId) {
+      throw StateError(
+        'Discord Application ID changed; restart Resonance to reconnect.',
+      );
+    }
+    await discord.FlutterDiscordRPC.instance.connect().timeout(
+      const Duration(seconds: 6),
+    );
+  }
 
   @override
   Future<void> update(DiscordPresenceActivity activity) {
     final artwork = activity.artworkUrl;
-    return _client.setActivity(
-      discord.Activity(
-        name: 'Resonance',
-        type: discord.ActivityType.listening,
+    return discord.FlutterDiscordRPC.instance.setActivity(
+      activity: discord.RPCActivity(
+        activityType: discord.ActivityType.listening,
         details: _discordText(activity.title),
         state: _discordText(activity.artist),
         timestamps: activity.playing
-            ? discord.ActivityTimestamps(
-                start: activity.startedAt,
-                end: activity.endsAt,
+            ? discord.RPCTimestamps(
+                start: activity.startedAt?.millisecondsSinceEpoch,
+                end: activity.endsAt?.millisecondsSinceEpoch,
               )
             : null,
-        assets: discord.ActivityAssets(
+        assets: discord.RPCAssets(
           largeImage: artwork,
           largeText: _discordText('${activity.title} — ${activity.artist}'),
         ),
@@ -109,7 +121,8 @@ final class DiscordRpcGateway implements DiscordPresenceGateway {
   }
 
   @override
-  Future<void> disconnect() => _client.disconnect();
+  Future<void> disconnect() =>
+      discord.FlutterDiscordRPC.instance.disconnect();
 }
 
 String _discordText(String value) {

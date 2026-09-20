@@ -10,6 +10,11 @@ import { createAccountRouter } from "./account-api.js";
 import { AccountStore } from "./account-store.js";
 import { AccountError } from "./account-store.js";
 import {
+  ArtworkRelay,
+  isArtworkRelayTicket,
+  rewriteArtworkUrls
+} from "./artwork-relay.js";
+import {
   AccessControl,
   AccessError,
   accessError,
@@ -33,6 +38,7 @@ import { createSpotifyOAuthRouter, SpotifyOAuthService } from "./spotify-oauth.j
 import { VkAdapter } from "./vk.js";
 import { YandexAdapter } from "./yandex.js";
 import { YouTubeAdapter } from "./youtube.js";
+import { createProxiedFetch } from "./upstream-proxy.js";
 import { WaveService, WaveSessionError } from "./wave.js";
 import { WavePersonalizer } from "./wave-personalizer.js";
 
@@ -48,6 +54,9 @@ const io = new Server(httpServer, {
     methods: ["GET", "POST"]
   }
 });
+const providerProxyUrl = process.env.PROVIDER_PROXY_URL || process.env.SOUNDCLOUD_PROXY_URL;
+const providerRequest = createProxiedFetch(providerProxyUrl);
+const artworkRelay = new ArtworkRelay(providerRequest);
 const soundCloud = new SoundCloudAdapter({
   clientId: process.env.SOUNDCLOUD_CLIENT_ID,
   proxyUrl: process.env.SOUNDCLOUD_PROXY_URL
@@ -56,14 +65,15 @@ const soundCloudAudioRelay = new SoundCloudAudioRelay(
   process.env.SOUNDCLOUD_PROXY_URL
 );
 const yandex = new YandexAdapter(process.env.YANDEX_MUSIC_TOKEN);
-const youtube = new YouTubeAdapter(process.env.YOUTUBE_API_KEY);
+const youtube = new YouTubeAdapter(process.env.YOUTUBE_API_KEY, providerRequest);
 const spotify = new SpotifyAdapter({
   clientId: process.env.SPOTIFY_CLIENT_ID,
   clientSecret: process.env.SPOTIFY_CLIENT_SECRET
-});
+}, providerRequest);
 const spotifyOAuth = new SpotifyOAuthService(
   process.env.SPOTIFY_CLIENT_ID || "",
-  process.env.SPOTIFY_REDIRECT_URI || (publicBaseUrl ? new URL("/api/v1/auth/spotify/callback", publicBaseUrl).toString() : "")
+  process.env.SPOTIFY_REDIRECT_URI || (publicBaseUrl ? new URL("/api/v1/auth/spotify/callback", publicBaseUrl).toString() : ""),
+  providerRequest
 );
 const vk = new VkAdapter(process.env.VK_ACCESS_TOKEN);
 const gateway = new ProviderGateway([
@@ -90,6 +100,13 @@ const wave = new WaveService(gateway, yandex, wavePersonalizer);
 const accessControl = new AccessControl(accountStore);
 
 app.disable("x-powered-by");
+app.use((request, response, next) => {
+  const sendJson = response.json.bind(response);
+  response.json = ((body: unknown) => sendJson(
+    rewriteArtworkUrls(body, artworkRelay, (path) => absoluteRelayUrl(request, path))
+  )) as typeof response.json;
+  next();
+});
 app.use(cors({ origin: webOrigin }));
 app.use("/api/v1/auth/spotify", createSpotifyOAuthRouter(spotifyOAuth));
 app.use(express.json({ limit: "512kb" }));
@@ -114,9 +131,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "3.5.0",
+    version: process.env.CLIENT_VERSION || "3.5.1",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Resonance 3.5: честное отсутствие клипа, новые видеоисточники, официальный вход Spotify и база знаний.",
+      "Resonance 3.5.1: брендовые иконки, стабильное воспроизведение, серверный прокси Spotify и обложек, исправленный Discord Rich Presence.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       windowsPortable: "https://music.webcordes.ru/downloads/windows-portable",
@@ -128,6 +145,49 @@ app.get("/api/client-version", (_request, response) => {
 
 app.get("/api/providers", (_request, response) => {
   response.json({ providers: providerCapabilities });
+});
+
+app.all("/api/v1/media/artwork/:ticket", async (request, response) => {
+  const ticket = request.params.ticket;
+  if (
+    (request.method !== "GET" && request.method !== "HEAD") ||
+    typeof ticket !== "string" ||
+    !isArtworkRelayTicket(ticket)
+  ) {
+    response.status(request.method === "GET" || request.method === "HEAD" ? 404 : 405).end();
+    return;
+  }
+  try {
+    const upstream = await artworkRelay.open(ticket, request.method, {
+      "if-none-match": request.header("if-none-match"),
+      "if-modified-since": request.header("if-modified-since")
+    });
+    if (request.method === "HEAD" || upstream.status === 304 || !upstream.body) {
+      response.status(upstream.status);
+      for (const name of ["content-type", "content-length", "etag", "last-modified"]) {
+        const value = upstream.headers.get(name);
+        if (value) response.setHeader(name, value);
+      }
+      response.setHeader("cache-control", "public, max-age=86400, stale-while-revalidate=604800");
+      response.end();
+      return;
+    }
+    const body = Buffer.from(await upstream.arrayBuffer());
+    if (body.length > 12 * 1024 * 1024) {
+      response.status(502).json({ error: { code: "UPSTREAM_ERROR", message: "Artwork is too large" } });
+      return;
+    }
+    response.status(upstream.status);
+    for (const name of ["content-type", "etag", "last-modified"]) {
+      const value = upstream.headers.get(name);
+      if (value) response.setHeader(name, value);
+    }
+    response.setHeader("cache-control", "public, max-age=86400, stale-while-revalidate=604800");
+    response.setHeader("content-length", String(body.length));
+    response.end(body);
+  } catch (error) {
+    sendGatewayError(response, error);
+  }
 });
 
 const searchSchema = z.object({
