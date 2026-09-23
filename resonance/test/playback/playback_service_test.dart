@@ -71,6 +71,93 @@ void main() {
     await service.dispose();
   });
 
+  test(
+    'engine failure shifts to another source at the same position',
+    () async {
+      final soundcloud = _FakeResolver(MusicProvider.soundcloud);
+      final yandex = _FakeResolver(MusicProvider.yandex);
+      final service = _createService(engine, persistence, [soundcloud, yandex]);
+      final track = _track('recovery', [
+        MusicProvider.soundcloud,
+        MusicProvider.yandex,
+      ], preferred: MusicProvider.soundcloud);
+
+      await service.playTrack(track);
+      await service.seek(const Duration(seconds: 47));
+      engine.emitError('HTTP 403');
+      await _waitFor(
+        () => service.state.activeTrackSource?.provider == MusicProvider.yandex,
+      );
+
+      expect(engine.openedPositions.last, const Duration(seconds: 47));
+      expect(service.state.sourceShiftMessage, contains('продолжили через'));
+      await service.dispose();
+    },
+  );
+
+  test('manual source switch keeps playback position', () async {
+    final soundcloud = _FakeResolver(MusicProvider.soundcloud);
+    final yandex = _FakeResolver(MusicProvider.yandex);
+    final service = _createService(engine, persistence, [soundcloud, yandex]);
+    final track = _track('manual', [
+      MusicProvider.soundcloud,
+      MusicProvider.yandex,
+    ], preferred: MusicProvider.soundcloud);
+
+    await service.playTrack(track);
+    await service.seek(const Duration(minutes: 1, seconds: 12));
+    await service.switchSource(track.sourceFor(MusicProvider.yandex)!);
+
+    expect(service.state.activeTrackSource?.provider, MusicProvider.yandex);
+    expect(
+      engine.openedPositions.last,
+      const Duration(minutes: 1, seconds: 12),
+    );
+    expect(engine.isPlaying, isTrue);
+    await service.dispose();
+  });
+
+  test('prefers a full source over a short preview', () async {
+    final spotify = _FakeResolver(MusicProvider.spotify, preview: true);
+    final yandex = _FakeResolver(MusicProvider.yandex);
+    final service = _createService(engine, persistence, [spotify, yandex]);
+
+    await service.playTrack(
+      _track('full-over-preview', [
+        MusicProvider.spotify,
+        MusicProvider.yandex,
+      ], preferred: MusicProvider.spotify),
+    );
+
+    expect(spotify.calls, 1);
+    expect(service.state.activeTrackSource?.provider, MusicProvider.yandex);
+    expect(service.state.activeAudioSource?.preview, isFalse);
+    await service.dispose();
+  });
+
+  test('preview completion continues through a full alternative', () async {
+    final spotify = _FakeResolver(MusicProvider.spotify, preview: true);
+    final yandex = _FakeResolver(MusicProvider.yandex);
+    final service = _createService(engine, persistence, [spotify, yandex]);
+    final track = _track(
+      'preview-end',
+      [MusicProvider.yandex, MusicProvider.spotify],
+      preferred: MusicProvider.yandex,
+      duration: const Duration(minutes: 3),
+    );
+
+    await service.playTrack(track);
+    await service.seek(const Duration(seconds: 29));
+    await service.switchSource(track.sourceFor(MusicProvider.spotify)!);
+    engine.emitCompleted();
+    await _waitFor(
+      () => service.state.activeTrackSource?.provider == MusicProvider.yandex,
+    );
+
+    expect(engine.openedPositions.last, const Duration(seconds: 29));
+    await service.dispose();
+  });
+
   test('re-resolves an already expired URL before opening', () async {
     final resolver = _FakeResolver(
       MusicProvider.soundcloud,
@@ -197,12 +284,18 @@ PlaybackService _createService(
 }
 
 final class _FakeResolver implements AudioSourceResolver {
-  _FakeResolver(this.provider, {this.error, this.firstExpired = false});
+  _FakeResolver(
+    this.provider, {
+    this.error,
+    this.firstExpired = false,
+    this.preview = false,
+  });
 
   @override
   final MusicProvider provider;
   final Object? error;
   final bool firstExpired;
+  final bool preview;
   var calls = 0;
 
   @override
@@ -219,6 +312,7 @@ final class _FakeResolver implements AudioSourceResolver {
         'https://stream.example/${source.externalId}/$calls',
       ),
       protocol: StreamProtocol.progressive,
+      preview: preview,
       expiresAt: firstExpired && calls == 1
           ? DateTime.now().toUtc().subtract(const Duration(seconds: 1))
           : DateTime.now().toUtc().add(const Duration(hours: 1)),
@@ -242,12 +336,14 @@ UnifiedTrack _track(
   String id,
   List<MusicProvider> providers, {
   MusicProvider? preferred,
+  Duration? duration,
 }) => UnifiedTrack(
   id: id,
   title: 'Track $id',
   normalizedTitle: 'track $id',
   artist: 'Artist',
   normalizedArtist: 'artist',
+  duration: duration,
   preferredProvider: preferred,
   sources: [
     for (final provider in providers)
@@ -258,3 +354,11 @@ UnifiedTrack _track(
       ),
   ],
 );
+
+Future<void> _waitFor(bool Function() condition) async {
+  for (var attempt = 0; attempt < 30; attempt++) {
+    if (condition()) return;
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
+  fail('Condition was not reached in time');
+}

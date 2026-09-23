@@ -8,6 +8,8 @@ import 'package:resonance/core/preferences/playback_flow_preferences.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_session.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
+import 'package:resonance/domain/entities/resolved_audio_source.dart';
+import 'package:resonance/domain/entities/track_source.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/domain/repositories/playback_persistence.dart';
 import 'package:resonance/domain/services/source_selection_policy.dart';
@@ -101,15 +103,9 @@ final class PlaybackService {
     try {
       await _authorizeSource?.call(source.provider);
     } on Object catch (_) {
-      await _engine.pause();
       _sourceCache.clear();
-      _emit(
-        _state.copyWith(
-          playing: false,
-          activeAudioSource: null,
-          errorMessage:
-              'Проверьте подписку в настройках. Воспроизведение приостановлено.',
-        ),
+      await _recoverFromEngineError(
+        'доступ к ${_providerTitle(source.provider)} завершён',
       );
     } finally {
       _checkingAccess = false;
@@ -128,6 +124,7 @@ final class PlaybackService {
   final _lastSuccessfulProvider = <String, MusicProvider>{};
   final _prefetchingTrackIds = <String>{};
   PlaybackFlowSettings _flowSettings;
+  Timer? _sourceNoticeTimer;
 
   ResonancePlaybackState _state = const ResonancePlaybackState();
   bool _recovering = false;
@@ -186,12 +183,15 @@ final class PlaybackService {
         currentIndex: safeIndex,
         position: Duration.zero,
         duration: Duration.zero,
+        sourceReadiness: const {},
         errorMessage: null,
       ),
     );
     await _persist();
     if (autoplay && safeIndex >= 0) {
       await _openCurrent(play: true);
+    } else {
+      _startNextPreflight();
     }
   }
 
@@ -211,6 +211,57 @@ final class PlaybackService {
     }
     await _persist();
     await _openCurrent(play: true);
+  }
+
+  Future<void> switchSource(TrackSource source) async {
+    final track = _state.currentTrack;
+    if (track == null ||
+        !track.sources.any(
+          (candidate) => _sourceKey(candidate) == _sourceKey(source),
+        )) {
+      throw const PlaybackFailedException(
+        'Этот источник не относится к текущему треку.',
+      );
+    }
+    final active = _state.activeTrackSource;
+    if (active != null && _sourceKey(active) == _sourceKey(source)) return;
+
+    final previous = _state;
+    final position = _state.position;
+    _emit(_state.copyWith(buffering: true, errorMessage: null));
+    try {
+      final resolved = await _resolveSource(source);
+      await _engine.open(resolved, play: previous.playing, start: position);
+      _lastSuccessfulProvider[track.id] = source.provider;
+      _emit(
+        _state.copyWith(
+          activeTrackSource: source,
+          activeAudioSource: resolved,
+          buffering: false,
+          playing: previous.playing,
+          position: position,
+          errorMessage: null,
+        ),
+      );
+      _showSourceNotice(
+        active == null
+            ? 'Источник: ${_providerTitle(source.provider)}'
+            : 'Переключено: ${_providerTitle(active.provider)} → ${_providerTitle(source.provider)}',
+      );
+      _scheduleAccessCheck();
+      _startNextPreflight();
+    } on Object catch (error) {
+      _emit(
+        previous.copyWith(
+          buffering: false,
+          errorMessage:
+              'Не удалось переключиться на ${_providerTitle(source.provider)}.',
+        ),
+      );
+      throw PlaybackFailedException(
+        'Не удалось переключиться на ${_providerTitle(source.provider)}: $error',
+      );
+    }
   }
 
   Future<void> prepareCurrent({Duration start = Duration.zero}) async {
@@ -263,6 +314,7 @@ final class PlaybackService {
   Future<void> addToQueue(UnifiedTrack track) async {
     _emit(_state.copyWith(queue: [..._state.queue, track]));
     await _persist();
+    _startNextPreflight();
   }
 
   Future<void> appendToQueue(Iterable<UnifiedTrack> tracks) async {
@@ -272,6 +324,7 @@ final class PlaybackService {
     if (additions.isEmpty) return;
     _emit(_state.copyWith(queue: [..._state.queue, ...additions]));
     await _persist();
+    _startNextPreflight();
   }
 
   Future<void> playNext(UnifiedTrack track) async {
@@ -279,6 +332,7 @@ final class PlaybackService {
     final queue = [..._state.queue]..insert(insertAt, track);
     _emit(_state.copyWith(queue: queue));
     await _persist();
+    _startNextPreflight();
   }
 
   Future<void> skipToIndex(int index) async {
@@ -446,12 +500,16 @@ final class PlaybackService {
   }
 
   Future<void> _prefetch(UnifiedTrack track) async {
+    _setSourceReadiness(track.id, 'checking');
     final sources = _sourceSelectionPolicy.orderedSources(
       track,
       lastSuccessfulProvider: _lastSuccessfulProvider[track.id],
     );
     for (final source in sources) {
-      if (_sourceCache.get(source) != null) return;
+      if (_sourceCache.get(source) != null) {
+        _setSourceReadiness(track.id, 'ready');
+        return;
+      }
       final resolver = _providers.resolverFor(source.provider);
       if (resolver == null) continue;
       try {
@@ -459,12 +517,38 @@ final class PlaybackService {
         final resolved = await resolver.resolve(source, quality: _quality);
         if (!resolved.isExpired()) {
           _sourceCache.put(source, resolved);
+          _setSourceReadiness(track.id, 'ready');
           return;
         }
       } on Object {
         // Prefetch is opportunistic; normal resolution still reports failures.
       }
     }
+    _setSourceReadiness(track.id, 'unavailable');
+  }
+
+  void _startNextPreflight() {
+    if (_state.queue.isEmpty) return;
+    final nextIndex = _state.currentIndex + 1 < _state.queue.length
+        ? _state.currentIndex + 1
+        : (_state.currentIndex < 0 ? 0 : -1);
+    if (nextIndex < 0) return;
+    final next = _state.queue[nextIndex];
+    if (_state.sourceReadiness[next.id] == 'ready' ||
+        !_prefetchingTrackIds.add(next.id)) {
+      return;
+    }
+    unawaited(
+      _prefetch(next).whenComplete(() => _prefetchingTrackIds.remove(next.id)),
+    );
+  }
+
+  void _setSourceReadiness(String trackId, String value) {
+    _emit(
+      _state.copyWith(
+        sourceReadiness: {..._state.sourceReadiness, trackId: value},
+      ),
+    );
   }
 
   void _maybeStartAutomaticFlow(Duration position) {
@@ -492,16 +576,22 @@ final class PlaybackService {
   Future<void> _openCurrent({
     required bool play,
     Duration start = Duration.zero,
+    Set<String> excludedSourceKeys = const {},
+    String? recoveryReason,
   }) async {
     final track = _state.currentTrack;
     if (track == null) {
       return;
     }
-    final sources = _sourceSelectionPolicy.orderedSources(
-      track,
-      lastSuccessfulProvider: _lastSuccessfulProvider[track.id],
-    );
+    final sources = _sourceSelectionPolicy
+        .orderedSources(
+          track,
+          lastSuccessfulProvider: _lastSuccessfulProvider[track.id],
+        )
+        .where((source) => !excludedSourceKeys.contains(_sourceKey(source)))
+        .toList(growable: false);
     final failures = <String>[];
+    ({TrackSource source, ResolvedAudioSource resolved})? previewFallback;
 
     _emit(_state.copyWith(buffering: true, errorMessage: null));
     for (final source in sources) {
@@ -511,32 +601,38 @@ final class PlaybackService {
         continue;
       }
       try {
-        await _authorizeSource?.call(source.provider);
-        var resolved = _sourceCache.get(source);
-        resolved ??= await resolver.resolve(source, quality: _quality);
-        if (resolved.isExpired()) {
-          _sourceCache.invalidate(source);
-          resolved = await resolver.resolve(source, quality: _quality);
+        final resolved = await _resolveSource(source);
+        if (resolved.preview && sources.length > 1) {
+          previewFallback ??= (source: source, resolved: resolved);
+          continue;
         }
-        _sourceCache.put(source, resolved);
-        await _engine.open(resolved, play: play, start: start);
-        _lastSuccessfulProvider[track.id] = source.provider;
-        _emit(
-          _state.copyWith(
-            activeTrackSource: source,
-            activeAudioSource: resolved,
-            buffering: false,
-            playing: play,
-            position: start,
-            errorMessage: null,
-          ),
+        await _activateSource(
+          track,
+          source,
+          resolved,
+          play: play,
+          start: start,
+          failedProviders: failures,
+          recoveryReason: recoveryReason,
         );
-        _scheduleAccessCheck();
         return;
       } on Object catch (error) {
         _sourceCache.invalidate(source);
         failures.add('${source.provider.name}: $error');
       }
+    }
+
+    if (previewFallback case final fallback?) {
+      await _activateSource(
+        track,
+        fallback.source,
+        fallback.resolved,
+        play: play,
+        start: start,
+        failedProviders: failures,
+        recoveryReason: recoveryReason,
+      );
+      return;
     }
 
     final message = failures.isEmpty
@@ -552,7 +648,15 @@ final class PlaybackService {
     if (!completed || _transitioning) {
       return;
     }
-    if (_state.repeatMode == PlaybackRepeatMode.one) {
+    final track = _state.currentTrack;
+    final endedEarly =
+        _state.activeAudioSource?.preview == true &&
+        track?.duration != null &&
+        _state.position + const Duration(seconds: 5) < track!.duration! &&
+        track.sources.length > 1;
+    if (endedEarly) {
+      unawaited(_recoverFromEngineError('preview завершён'));
+    } else if (_state.repeatMode == PlaybackRepeatMode.one) {
       unawaited(seek(Duration.zero).then((_) => play()));
     } else {
       unawaited(next());
@@ -570,7 +674,12 @@ final class PlaybackService {
       _sourceCache.invalidate(active);
     }
     try {
-      await _openCurrent(play: true, start: position);
+      await _openCurrent(
+        play: true,
+        start: position,
+        excludedSourceKeys: active == null ? const {} : {_sourceKey(active)},
+        recoveryReason: message,
+      );
     } on Object {
       _emit(
         _state.copyWith(
@@ -583,6 +692,78 @@ final class PlaybackService {
       _recovering = false;
     }
   }
+
+  Future<ResolvedAudioSource> _resolveSource(TrackSource source) async {
+    final resolver = _providers.resolverFor(source.provider);
+    if (resolver == null) {
+      throw StateError('resolver не подключён');
+    }
+    await _authorizeSource?.call(source.provider);
+    var resolved = _sourceCache.get(source);
+    resolved ??= await resolver.resolve(source, quality: _quality);
+    if (resolved.isExpired()) {
+      _sourceCache.invalidate(source);
+      resolved = await resolver.resolve(source, quality: _quality);
+    }
+    _sourceCache.put(source, resolved);
+    return resolved;
+  }
+
+  Future<void> _activateSource(
+    UnifiedTrack track,
+    TrackSource source,
+    ResolvedAudioSource resolved, {
+    required bool play,
+    required Duration start,
+    required List<String> failedProviders,
+    String? recoveryReason,
+  }) async {
+    final previous = _state.activeTrackSource;
+    await _engine.open(resolved, play: play, start: start);
+    _lastSuccessfulProvider[track.id] = source.provider;
+    _emit(
+      _state.copyWith(
+        activeTrackSource: source,
+        activeAudioSource: resolved,
+        buffering: false,
+        playing: play,
+        position: start,
+        errorMessage: null,
+      ),
+    );
+    if (recoveryReason != null &&
+        previous != null &&
+        _sourceKey(previous) != _sourceKey(source)) {
+      _showSourceNotice(
+        '${_providerTitle(previous.provider)} недоступен — продолжили через ${_providerTitle(source.provider)}',
+      );
+    } else if (failedProviders.isNotEmpty) {
+      _showSourceNotice(
+        'Выбран доступный источник: ${_providerTitle(source.provider)}',
+      );
+    }
+    _scheduleAccessCheck();
+    _startNextPreflight();
+  }
+
+  void _showSourceNotice(String message) {
+    _sourceNoticeTimer?.cancel();
+    _emit(_state.copyWith(sourceShiftMessage: message));
+    _sourceNoticeTimer = Timer(const Duration(seconds: 6), () {
+      _emit(_state.copyWith(sourceShiftMessage: null));
+    });
+  }
+
+  static String _sourceKey(TrackSource source) =>
+      '${source.provider.name}:${source.externalId}';
+
+  static String _providerTitle(MusicProvider provider) => switch (provider) {
+    MusicProvider.soundcloud => 'SoundCloud',
+    MusicProvider.yandex => 'Яндекс Музыка',
+    MusicProvider.youtube => 'YouTube',
+    MusicProvider.spotify => 'Spotify',
+    MusicProvider.vk => 'VK Музыка',
+  };
 
   Future<void> _persist() async {
     await _persistence?.save(
@@ -608,6 +789,7 @@ final class PlaybackService {
     }
     _disposed = true;
     _accessTimer?.cancel();
+    _sourceNoticeTimer?.cancel();
     for (final subscription in _subscriptions) {
       await subscription.cancel();
     }

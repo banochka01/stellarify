@@ -22,6 +22,8 @@ abstract class ResonancePlaybackState with _$ResonancePlaybackState {
     @Default(PlaybackRepeatMode.off) PlaybackRepeatMode repeatMode,
     TrackSource? activeTrackSource,
     ResolvedAudioSource? activeAudioSource,
+    @Default(<String, String>{}) Map<String, String> sourceReadiness,
+    String? sourceShiftMessage,
     String? errorMessage,
   }) = _ResonancePlaybackState;
 

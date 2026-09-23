@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$ResonancePlaybackState {
 
- List<UnifiedTrack> get queue; int get currentIndex; bool get playing; bool get buffering; Duration get position; Duration get duration; double get volume; bool get shuffle; PlaybackRepeatMode get repeatMode; TrackSource? get activeTrackSource; ResolvedAudioSource? get activeAudioSource; String? get errorMessage;
+ List<UnifiedTrack> get queue; int get currentIndex; bool get playing; bool get buffering; Duration get position; Duration get duration; double get volume; bool get shuffle; PlaybackRepeatMode get repeatMode; TrackSource? get activeTrackSource; ResolvedAudioSource? get activeAudioSource; Map<String, String> get sourceReadiness; String? get sourceShiftMessage; String? get errorMessage;
 /// Create a copy of ResonancePlaybackState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $ResonancePlaybackStateCopyWith<ResonancePlaybackState> get copyWith => _$Resona
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ResonancePlaybackState&&const DeepCollectionEquality().equals(other.queue, queue)&&(identical(other.currentIndex, currentIndex) || other.currentIndex == currentIndex)&&(identical(other.playing, playing) || other.playing == playing)&&(identical(other.buffering, buffering) || other.buffering == buffering)&&(identical(other.position, position) || other.position == position)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.volume, volume) || other.volume == volume)&&(identical(other.shuffle, shuffle) || other.shuffle == shuffle)&&(identical(other.repeatMode, repeatMode) || other.repeatMode == repeatMode)&&(identical(other.activeTrackSource, activeTrackSource) || other.activeTrackSource == activeTrackSource)&&(identical(other.activeAudioSource, activeAudioSource) || other.activeAudioSource == activeAudioSource)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ResonancePlaybackState&&const DeepCollectionEquality().equals(other.queue, queue)&&(identical(other.currentIndex, currentIndex) || other.currentIndex == currentIndex)&&(identical(other.playing, playing) || other.playing == playing)&&(identical(other.buffering, buffering) || other.buffering == buffering)&&(identical(other.position, position) || other.position == position)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.volume, volume) || other.volume == volume)&&(identical(other.shuffle, shuffle) || other.shuffle == shuffle)&&(identical(other.repeatMode, repeatMode) || other.repeatMode == repeatMode)&&(identical(other.activeTrackSource, activeTrackSource) || other.activeTrackSource == activeTrackSource)&&(identical(other.activeAudioSource, activeAudioSource) || other.activeAudioSource == activeAudioSource)&&const DeepCollectionEquality().equals(other.sourceReadiness, sourceReadiness)&&(identical(other.sourceShiftMessage, sourceShiftMessage) || other.sourceShiftMessage == sourceShiftMessage)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(queue),currentIndex,playing,buffering,position,duration,volume,shuffle,repeatMode,activeTrackSource,activeAudioSource,errorMessage);
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(queue),currentIndex,playing,buffering,position,duration,volume,shuffle,repeatMode,activeTrackSource,activeAudioSource,const DeepCollectionEquality().hash(sourceReadiness),sourceShiftMessage,errorMessage);
 
 @override
 String toString() {
-  return 'ResonancePlaybackState(queue: $queue, currentIndex: $currentIndex, playing: $playing, buffering: $buffering, position: $position, duration: $duration, volume: $volume, shuffle: $shuffle, repeatMode: $repeatMode, activeTrackSource: $activeTrackSource, activeAudioSource: $activeAudioSource, errorMessage: $errorMessage)';
+  return 'ResonancePlaybackState(queue: $queue, currentIndex: $currentIndex, playing: $playing, buffering: $buffering, position: $position, duration: $duration, volume: $volume, shuffle: $shuffle, repeatMode: $repeatMode, activeTrackSource: $activeTrackSource, activeAudioSource: $activeAudioSource, sourceReadiness: $sourceReadiness, sourceShiftMessage: $sourceShiftMessage, errorMessage: $errorMessage)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $ResonancePlaybackStateCopyWith<$Res>  {
   factory $ResonancePlaybackStateCopyWith(ResonancePlaybackState value, $Res Function(ResonancePlaybackState) _then) = _$ResonancePlaybackStateCopyWithImpl;
 @useResult
 $Res call({
- List<UnifiedTrack> queue, int currentIndex, bool playing, bool buffering, Duration position, Duration duration, double volume, bool shuffle, PlaybackRepeatMode repeatMode, TrackSource? activeTrackSource, ResolvedAudioSource? activeAudioSource, String? errorMessage
+ List<UnifiedTrack> queue, int currentIndex, bool playing, bool buffering, Duration position, Duration duration, double volume, bool shuffle, PlaybackRepeatMode repeatMode, TrackSource? activeTrackSource, ResolvedAudioSource? activeAudioSource, Map<String, String> sourceReadiness, String? sourceShiftMessage, String? errorMessage
 });
 
 
@@ -62,7 +62,7 @@ class _$ResonancePlaybackStateCopyWithImpl<$Res>
 
 /// Create a copy of ResonancePlaybackState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? queue = null,Object? currentIndex = null,Object? playing = null,Object? buffering = null,Object? position = null,Object? duration = null,Object? volume = null,Object? shuffle = null,Object? repeatMode = null,Object? activeTrackSource = freezed,Object? activeAudioSource = freezed,Object? errorMessage = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? queue = null,Object? currentIndex = null,Object? playing = null,Object? buffering = null,Object? position = null,Object? duration = null,Object? volume = null,Object? shuffle = null,Object? repeatMode = null,Object? activeTrackSource = freezed,Object? activeAudioSource = freezed,Object? sourceReadiness = null,Object? sourceShiftMessage = freezed,Object? errorMessage = freezed,}) {
   return _then(_self.copyWith(
 queue: null == queue ? _self.queue : queue // ignore: cast_nullable_to_non_nullable
 as List<UnifiedTrack>,currentIndex: null == currentIndex ? _self.currentIndex : currentIndex // ignore: cast_nullable_to_non_nullable
@@ -75,7 +75,9 @@ as double,shuffle: null == shuffle ? _self.shuffle : shuffle // ignore: cast_nul
 as bool,repeatMode: null == repeatMode ? _self.repeatMode : repeatMode // ignore: cast_nullable_to_non_nullable
 as PlaybackRepeatMode,activeTrackSource: freezed == activeTrackSource ? _self.activeTrackSource : activeTrackSource // ignore: cast_nullable_to_non_nullable
 as TrackSource?,activeAudioSource: freezed == activeAudioSource ? _self.activeAudioSource : activeAudioSource // ignore: cast_nullable_to_non_nullable
-as ResolvedAudioSource?,errorMessage: freezed == errorMessage ? _self.errorMessage : errorMessage // ignore: cast_nullable_to_non_nullable
+as ResolvedAudioSource?,sourceReadiness: null == sourceReadiness ? _self.sourceReadiness : sourceReadiness // ignore: cast_nullable_to_non_nullable
+as Map<String, String>,sourceShiftMessage: freezed == sourceShiftMessage ? _self.sourceShiftMessage : sourceShiftMessage // ignore: cast_nullable_to_non_nullable
+as String?,errorMessage: freezed == errorMessage ? _self.errorMessage : errorMessage // ignore: cast_nullable_to_non_nullable
 as String?,
   ));
 }
@@ -185,10 +187,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<UnifiedTrack> queue,  int currentIndex,  bool playing,  bool buffering,  Duration position,  Duration duration,  double volume,  bool shuffle,  PlaybackRepeatMode repeatMode,  TrackSource? activeTrackSource,  ResolvedAudioSource? activeAudioSource,  String? errorMessage)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<UnifiedTrack> queue,  int currentIndex,  bool playing,  bool buffering,  Duration position,  Duration duration,  double volume,  bool shuffle,  PlaybackRepeatMode repeatMode,  TrackSource? activeTrackSource,  ResolvedAudioSource? activeAudioSource,  Map<String, String> sourceReadiness,  String? sourceShiftMessage,  String? errorMessage)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ResonancePlaybackState() when $default != null:
-return $default(_that.queue,_that.currentIndex,_that.playing,_that.buffering,_that.position,_that.duration,_that.volume,_that.shuffle,_that.repeatMode,_that.activeTrackSource,_that.activeAudioSource,_that.errorMessage);case _:
+return $default(_that.queue,_that.currentIndex,_that.playing,_that.buffering,_that.position,_that.duration,_that.volume,_that.shuffle,_that.repeatMode,_that.activeTrackSource,_that.activeAudioSource,_that.sourceReadiness,_that.sourceShiftMessage,_that.errorMessage);case _:
   return orElse();
 
 }
@@ -206,10 +208,10 @@ return $default(_that.queue,_that.currentIndex,_that.playing,_that.buffering,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<UnifiedTrack> queue,  int currentIndex,  bool playing,  bool buffering,  Duration position,  Duration duration,  double volume,  bool shuffle,  PlaybackRepeatMode repeatMode,  TrackSource? activeTrackSource,  ResolvedAudioSource? activeAudioSource,  String? errorMessage)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<UnifiedTrack> queue,  int currentIndex,  bool playing,  bool buffering,  Duration position,  Duration duration,  double volume,  bool shuffle,  PlaybackRepeatMode repeatMode,  TrackSource? activeTrackSource,  ResolvedAudioSource? activeAudioSource,  Map<String, String> sourceReadiness,  String? sourceShiftMessage,  String? errorMessage)  $default,) {final _that = this;
 switch (_that) {
 case _ResonancePlaybackState():
-return $default(_that.queue,_that.currentIndex,_that.playing,_that.buffering,_that.position,_that.duration,_that.volume,_that.shuffle,_that.repeatMode,_that.activeTrackSource,_that.activeAudioSource,_that.errorMessage);case _:
+return $default(_that.queue,_that.currentIndex,_that.playing,_that.buffering,_that.position,_that.duration,_that.volume,_that.shuffle,_that.repeatMode,_that.activeTrackSource,_that.activeAudioSource,_that.sourceReadiness,_that.sourceShiftMessage,_that.errorMessage);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -226,10 +228,10 @@ return $default(_that.queue,_that.currentIndex,_that.playing,_that.buffering,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<UnifiedTrack> queue,  int currentIndex,  bool playing,  bool buffering,  Duration position,  Duration duration,  double volume,  bool shuffle,  PlaybackRepeatMode repeatMode,  TrackSource? activeTrackSource,  ResolvedAudioSource? activeAudioSource,  String? errorMessage)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<UnifiedTrack> queue,  int currentIndex,  bool playing,  bool buffering,  Duration position,  Duration duration,  double volume,  bool shuffle,  PlaybackRepeatMode repeatMode,  TrackSource? activeTrackSource,  ResolvedAudioSource? activeAudioSource,  Map<String, String> sourceReadiness,  String? sourceShiftMessage,  String? errorMessage)?  $default,) {final _that = this;
 switch (_that) {
 case _ResonancePlaybackState() when $default != null:
-return $default(_that.queue,_that.currentIndex,_that.playing,_that.buffering,_that.position,_that.duration,_that.volume,_that.shuffle,_that.repeatMode,_that.activeTrackSource,_that.activeAudioSource,_that.errorMessage);case _:
+return $default(_that.queue,_that.currentIndex,_that.playing,_that.buffering,_that.position,_that.duration,_that.volume,_that.shuffle,_that.repeatMode,_that.activeTrackSource,_that.activeAudioSource,_that.sourceReadiness,_that.sourceShiftMessage,_that.errorMessage);case _:
   return null;
 
 }
@@ -241,7 +243,7 @@ return $default(_that.queue,_that.currentIndex,_that.playing,_that.buffering,_th
 
 
 class _ResonancePlaybackState extends ResonancePlaybackState {
-  const _ResonancePlaybackState({final  List<UnifiedTrack> queue = const <UnifiedTrack>[], this.currentIndex = -1, this.playing = false, this.buffering = false, this.position = Duration.zero, this.duration = Duration.zero, this.volume = 70, this.shuffle = false, this.repeatMode = PlaybackRepeatMode.off, this.activeTrackSource, this.activeAudioSource, this.errorMessage}): _queue = queue,super._();
+  const _ResonancePlaybackState({final  List<UnifiedTrack> queue = const <UnifiedTrack>[], this.currentIndex = -1, this.playing = false, this.buffering = false, this.position = Duration.zero, this.duration = Duration.zero, this.volume = 70, this.shuffle = false, this.repeatMode = PlaybackRepeatMode.off, this.activeTrackSource, this.activeAudioSource, final  Map<String, String> sourceReadiness = const <String, String>{}, this.sourceShiftMessage, this.errorMessage}): _queue = queue,_sourceReadiness = sourceReadiness,super._();
   
 
  final  List<UnifiedTrack> _queue;
@@ -261,6 +263,14 @@ class _ResonancePlaybackState extends ResonancePlaybackState {
 @override@JsonKey() final  PlaybackRepeatMode repeatMode;
 @override final  TrackSource? activeTrackSource;
 @override final  ResolvedAudioSource? activeAudioSource;
+ final  Map<String, String> _sourceReadiness;
+@override@JsonKey() Map<String, String> get sourceReadiness {
+  if (_sourceReadiness is EqualUnmodifiableMapView) return _sourceReadiness;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(_sourceReadiness);
+}
+
+@override final  String? sourceShiftMessage;
 @override final  String? errorMessage;
 
 /// Create a copy of ResonancePlaybackState
@@ -273,16 +283,16 @@ _$ResonancePlaybackStateCopyWith<_ResonancePlaybackState> get copyWith => __$Res
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ResonancePlaybackState&&const DeepCollectionEquality().equals(other._queue, _queue)&&(identical(other.currentIndex, currentIndex) || other.currentIndex == currentIndex)&&(identical(other.playing, playing) || other.playing == playing)&&(identical(other.buffering, buffering) || other.buffering == buffering)&&(identical(other.position, position) || other.position == position)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.volume, volume) || other.volume == volume)&&(identical(other.shuffle, shuffle) || other.shuffle == shuffle)&&(identical(other.repeatMode, repeatMode) || other.repeatMode == repeatMode)&&(identical(other.activeTrackSource, activeTrackSource) || other.activeTrackSource == activeTrackSource)&&(identical(other.activeAudioSource, activeAudioSource) || other.activeAudioSource == activeAudioSource)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ResonancePlaybackState&&const DeepCollectionEquality().equals(other._queue, _queue)&&(identical(other.currentIndex, currentIndex) || other.currentIndex == currentIndex)&&(identical(other.playing, playing) || other.playing == playing)&&(identical(other.buffering, buffering) || other.buffering == buffering)&&(identical(other.position, position) || other.position == position)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.volume, volume) || other.volume == volume)&&(identical(other.shuffle, shuffle) || other.shuffle == shuffle)&&(identical(other.repeatMode, repeatMode) || other.repeatMode == repeatMode)&&(identical(other.activeTrackSource, activeTrackSource) || other.activeTrackSource == activeTrackSource)&&(identical(other.activeAudioSource, activeAudioSource) || other.activeAudioSource == activeAudioSource)&&const DeepCollectionEquality().equals(other._sourceReadiness, _sourceReadiness)&&(identical(other.sourceShiftMessage, sourceShiftMessage) || other.sourceShiftMessage == sourceShiftMessage)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_queue),currentIndex,playing,buffering,position,duration,volume,shuffle,repeatMode,activeTrackSource,activeAudioSource,errorMessage);
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_queue),currentIndex,playing,buffering,position,duration,volume,shuffle,repeatMode,activeTrackSource,activeAudioSource,const DeepCollectionEquality().hash(_sourceReadiness),sourceShiftMessage,errorMessage);
 
 @override
 String toString() {
-  return 'ResonancePlaybackState(queue: $queue, currentIndex: $currentIndex, playing: $playing, buffering: $buffering, position: $position, duration: $duration, volume: $volume, shuffle: $shuffle, repeatMode: $repeatMode, activeTrackSource: $activeTrackSource, activeAudioSource: $activeAudioSource, errorMessage: $errorMessage)';
+  return 'ResonancePlaybackState(queue: $queue, currentIndex: $currentIndex, playing: $playing, buffering: $buffering, position: $position, duration: $duration, volume: $volume, shuffle: $shuffle, repeatMode: $repeatMode, activeTrackSource: $activeTrackSource, activeAudioSource: $activeAudioSource, sourceReadiness: $sourceReadiness, sourceShiftMessage: $sourceShiftMessage, errorMessage: $errorMessage)';
 }
 
 
@@ -293,7 +303,7 @@ abstract mixin class _$ResonancePlaybackStateCopyWith<$Res> implements $Resonanc
   factory _$ResonancePlaybackStateCopyWith(_ResonancePlaybackState value, $Res Function(_ResonancePlaybackState) _then) = __$ResonancePlaybackStateCopyWithImpl;
 @override @useResult
 $Res call({
- List<UnifiedTrack> queue, int currentIndex, bool playing, bool buffering, Duration position, Duration duration, double volume, bool shuffle, PlaybackRepeatMode repeatMode, TrackSource? activeTrackSource, ResolvedAudioSource? activeAudioSource, String? errorMessage
+ List<UnifiedTrack> queue, int currentIndex, bool playing, bool buffering, Duration position, Duration duration, double volume, bool shuffle, PlaybackRepeatMode repeatMode, TrackSource? activeTrackSource, ResolvedAudioSource? activeAudioSource, Map<String, String> sourceReadiness, String? sourceShiftMessage, String? errorMessage
 });
 
 
@@ -310,7 +320,7 @@ class __$ResonancePlaybackStateCopyWithImpl<$Res>
 
 /// Create a copy of ResonancePlaybackState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? queue = null,Object? currentIndex = null,Object? playing = null,Object? buffering = null,Object? position = null,Object? duration = null,Object? volume = null,Object? shuffle = null,Object? repeatMode = null,Object? activeTrackSource = freezed,Object? activeAudioSource = freezed,Object? errorMessage = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? queue = null,Object? currentIndex = null,Object? playing = null,Object? buffering = null,Object? position = null,Object? duration = null,Object? volume = null,Object? shuffle = null,Object? repeatMode = null,Object? activeTrackSource = freezed,Object? activeAudioSource = freezed,Object? sourceReadiness = null,Object? sourceShiftMessage = freezed,Object? errorMessage = freezed,}) {
   return _then(_ResonancePlaybackState(
 queue: null == queue ? _self._queue : queue // ignore: cast_nullable_to_non_nullable
 as List<UnifiedTrack>,currentIndex: null == currentIndex ? _self.currentIndex : currentIndex // ignore: cast_nullable_to_non_nullable
@@ -323,7 +333,9 @@ as double,shuffle: null == shuffle ? _self.shuffle : shuffle // ignore: cast_nul
 as bool,repeatMode: null == repeatMode ? _self.repeatMode : repeatMode // ignore: cast_nullable_to_non_nullable
 as PlaybackRepeatMode,activeTrackSource: freezed == activeTrackSource ? _self.activeTrackSource : activeTrackSource // ignore: cast_nullable_to_non_nullable
 as TrackSource?,activeAudioSource: freezed == activeAudioSource ? _self.activeAudioSource : activeAudioSource // ignore: cast_nullable_to_non_nullable
-as ResolvedAudioSource?,errorMessage: freezed == errorMessage ? _self.errorMessage : errorMessage // ignore: cast_nullable_to_non_nullable
+as ResolvedAudioSource?,sourceReadiness: null == sourceReadiness ? _self._sourceReadiness : sourceReadiness // ignore: cast_nullable_to_non_nullable
+as Map<String, String>,sourceShiftMessage: freezed == sourceShiftMessage ? _self.sourceShiftMessage : sourceShiftMessage // ignore: cast_nullable_to_non_nullable
+as String?,errorMessage: freezed == errorMessage ? _self.errorMessage : errorMessage // ignore: cast_nullable_to_non_nullable
 as String?,
   ));
 }

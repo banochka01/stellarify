@@ -14,6 +14,7 @@ abstract class ResolvedAudioSource with _$ResolvedAudioSource {
     required StreamProtocol protocol,
     String? codec,
     int? bitrate,
+    @Default(false) bool preview,
     DateTime? expiresAt,
     @Default(<String, String>{}) Map<String, String> headers,
   }) = _ResolvedAudioSource;

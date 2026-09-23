@@ -60,4 +60,6 @@ const _$MusicProviderEnumMap = {
   MusicProvider.youtube: 'youtube',
   MusicProvider.yandex: 'yandex',
   MusicProvider.soundcloud: 'soundcloud',
+  MusicProvider.spotify: 'spotify',
+  MusicProvider.vk: 'vk',
 };
