@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:resonance/core/errors/app_exception.dart';
+import 'package:resonance/core/playback/offline_downloads.dart';
 import 'package:resonance/core/playback/playback_engine.dart';
 import 'package:resonance/core/playback/resolved_source_cache.dart';
 import 'package:resonance/core/preferences/playback_flow_preferences.dart';
@@ -21,6 +22,7 @@ final class PlaybackService {
     required ProviderRegistry providers,
     required SourceSelectionPolicy sourceSelectionPolicy,
     PlaybackPersistence? persistence,
+    OfflineDownloads? offlineDownloads,
     ResolvedSourceCache? sourceCache,
     AudioQuality quality = AudioQuality.high,
     Random? random,
@@ -32,6 +34,7 @@ final class PlaybackService {
       providers: providers,
       sourceSelectionPolicy: sourceSelectionPolicy,
       persistence: persistence,
+      offlineDownloads: offlineDownloads,
       sourceCache: sourceCache,
       quality: quality,
       random: random,
@@ -45,6 +48,7 @@ final class PlaybackService {
     required this._providers,
     required this._sourceSelectionPolicy,
     required this._persistence,
+    required this._offlineDownloads,
     required ResolvedSourceCache? sourceCache,
     required this._quality,
     required Random? random,
@@ -87,6 +91,7 @@ final class PlaybackService {
     if (_authorizeSource == null ||
         _disposed ||
         !_state.playing ||
+        _state.activeAudioSource?.streamUrl.isScheme('file') == true ||
         _state.activeTrackSource == null) {
       return;
     }
@@ -98,7 +103,12 @@ final class PlaybackService {
 
   Future<void> _checkActiveAccess() async {
     final source = _state.activeTrackSource;
-    if (!_state.playing || source == null || _checkingAccess) return;
+    if (!_state.playing ||
+        source == null ||
+        _checkingAccess ||
+        _state.activeAudioSource?.streamUrl.isScheme('file') == true) {
+      return;
+    }
     _checkingAccess = true;
     try {
       await _authorizeSource?.call(source.provider);
@@ -116,6 +126,7 @@ final class PlaybackService {
   final ProviderRegistry _providers;
   final SourceSelectionPolicy _sourceSelectionPolicy;
   final PlaybackPersistence? _persistence;
+  final OfflineDownloads? _offlineDownloads;
   final ResolvedSourceCache _sourceCache;
   AudioQuality _quality;
   final Random _random;
@@ -274,7 +285,10 @@ final class PlaybackService {
       return;
     }
     final provider = _state.activeTrackSource?.provider;
-    if (provider != null) await _authorizeSource?.call(provider);
+    if (provider != null &&
+        _state.activeAudioSource?.streamUrl.isScheme('file') != true) {
+      await _authorizeSource?.call(provider);
+    }
     if (_state.activeAudioSource == null ||
         _state.activeAudioSource!.isExpired()) {
       await _openCurrent(play: true, start: _state.position);
@@ -500,6 +514,10 @@ final class PlaybackService {
   }
 
   Future<void> _prefetch(UnifiedTrack track) async {
+    if (_offlineDownloads?.contains(track.id) == true) {
+      _setSourceReadiness(track.id, 'ready');
+      return;
+    }
     _setSourceReadiness(track.id, 'checking');
     final sources = _sourceSelectionPolicy.orderedSources(
       track,
@@ -582,6 +600,26 @@ final class PlaybackService {
     final track = _state.currentTrack;
     if (track == null) {
       return;
+    }
+    final local = await _offlineDownloads?.localSource(track);
+    if (local != null) {
+      final source = _offlineDownloads!.downloadedSource(track.id);
+      if (source != null) {
+        _emit(_state.copyWith(buffering: true, errorMessage: null));
+        try {
+          await _activateSource(
+            track,
+            source,
+            local,
+            play: play,
+            start: start,
+            failedProviders: const [],
+          );
+          return;
+        } on Object {
+          // A corrupt local file should not block an available online source.
+        }
+      }
     }
     final sources = _sourceSelectionPolicy
         .orderedSources(

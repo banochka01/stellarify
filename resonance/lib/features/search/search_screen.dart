@@ -10,6 +10,7 @@ import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/music_graph/music_graph.dart';
 import 'package:resonance/features/player/track_action.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/offline_download_button.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
@@ -318,6 +319,7 @@ class _TrackResult extends ConsumerWidget {
             children: [
               ProviderBadge(provider: provider, compact: true),
               const SizedBox(width: 4),
+              OfflineDownloadButton(track: track),
               PopupMenuButton<String>(
                 tooltip: 'Действия',
                 onSelected: (value) {

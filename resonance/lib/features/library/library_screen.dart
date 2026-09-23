@@ -13,6 +13,7 @@ import 'package:resonance/features/library/library_transfer_dialog.dart';
 import 'package:resonance/features/library/playlist_import_progress_dialog.dart';
 import 'package:resonance/features/player/track_action.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/offline_download_button.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 
@@ -184,6 +185,7 @@ class _LibraryContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final offline = ref.watch(offlineDownloadsProvider).entries;
     final albums = <String, UnifiedTrack>{};
     final artists = <String, int>{};
     for (final track in state.tracks) {
@@ -198,6 +200,27 @@ class _LibraryContent extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (offline.isNotEmpty) ...[
+          _SectionHeader(
+            title: 'Скачано · доступно офлайн',
+            count: offline.length,
+            icon: Icons.download_done_rounded,
+          ),
+          const SizedBox(height: 14),
+          for (final entry in offline)
+            ListTile(
+              leading: TrackArtwork(
+                track: entry.track,
+                size: 48,
+                borderRadius: 4,
+              ),
+              title: Text(entry.track.title),
+              subtitle: Text(entry.track.artist),
+              trailing: OfflineDownloadButton(track: entry.track),
+              onTap: () => unawaited(playTrackOrOpenOfficial(ref, entry.track)),
+            ),
+          const SizedBox(height: 30),
+        ],
         _LibraryHero(
           state: state,
           albumCount: albums.length,
@@ -587,6 +610,7 @@ class _FavoriteTrack extends ConsumerWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            OfflineDownloadButton(track: track),
             IconButton(
               tooltip: 'Добавить в плейлист',
               onPressed: () => showAddToPlaylistDialog(context, ref, track),
@@ -752,6 +776,7 @@ class _PlaylistCard extends ConsumerWidget {
                           ),
                           title: Text(tracks[index].title),
                           subtitle: Text(tracks[index].artist),
+                          trailing: OfflineDownloadButton(track: tracks[index]),
                           onTap: () {
                             Navigator.pop(sheetContext);
                             final track = tracks[index];

@@ -133,7 +133,7 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "3.6.0",
+    version: process.env.CLIENT_VERSION || "3.7.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
       "Resonance 3.6 SourceShift: ручная смена источника, автоматическое продолжение с той же позиции и подготовка очереди.",
     downloads: {
