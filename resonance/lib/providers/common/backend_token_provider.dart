@@ -106,6 +106,7 @@ final class BackendTokenProvider
         protocol: _protocolFromJson(_requiredString(sourceJson, 'protocol')),
         codec: sourceJson['codec'] as String?,
         bitrate: (sourceJson['bitrate'] as num?)?.toInt(),
+        preview: sourceJson['preview'] == true,
         expiresAt: sourceJson['expiresAt'] is String
             ? DateTime.parse(sourceJson['expiresAt'] as String).toUtc()
             : null,

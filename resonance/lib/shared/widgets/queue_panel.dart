@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/app/providers.dart';
+import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
@@ -96,12 +97,12 @@ class QueuePanel extends ConsumerWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      trailing: track.sources.isEmpty
-                          ? null
-                          : ProviderBadge(
-                              provider: track.sources.first.provider,
-                              compact: true,
-                            ),
+                      trailing: _QueueSourceStatus(
+                        provider: track.sources.isEmpty
+                            ? null
+                            : track.sources.first.provider,
+                        readiness: state.sourceReadiness[track.id],
+                      ),
                     ),
                   );
                 },
@@ -109,6 +110,50 @@ class QueuePanel extends ConsumerWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _QueueSourceStatus extends StatelessWidget {
+  const _QueueSourceStatus({required this.provider, required this.readiness});
+
+  final MusicProvider? provider;
+  final String? readiness;
+
+  @override
+  Widget build(BuildContext context) {
+    final sourceProvider = provider;
+    final badge = sourceProvider == null
+        ? null
+        : ProviderBadge(provider: sourceProvider, compact: true);
+    final status = switch (readiness) {
+      'checking' => const SizedBox.square(
+        dimension: 14,
+        child: CircularProgressIndicator(strokeWidth: 1.5),
+      ),
+      'ready' => const Tooltip(
+        message: 'Следующий источник готов',
+        child: Icon(
+          Icons.offline_bolt_rounded,
+          size: 16,
+          color: ResonanceColors.primary,
+        ),
+      ),
+      'unavailable' => const Tooltip(
+        message: 'Источник будет проверен при запуске',
+        child: Icon(
+          Icons.cloud_off_rounded,
+          size: 16,
+          color: ResonanceColors.muted,
+        ),
+      ),
+      _ => null,
+    };
+    if (badge == null) return status ?? const SizedBox.shrink();
+    if (status == null) return badge;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [badge, const SizedBox(width: 5), status],
     );
   }
 }

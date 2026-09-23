@@ -1,5 +1,15 @@
 # Progress
 
+## Version 3.6.0 — SourceShift
+
+- [x] Manual source switching from Now Playing without losing position
+- [x] Automatic failover after stream, authorization and provider failures
+- [x] Full-track preference over short official previews
+- [x] Preview-end continuation through another canonical Music Graph source
+- [x] Visible source-change explanation and active source quality
+- [x] Next-track source preflight with queue readiness status
+- [x] Bounded recovery that does not immediately reopen the failed source
+
 ## Version 3.4.0 — Provider & media reliability
 
 - [x] YouTube Music connection card with official API-key guidance

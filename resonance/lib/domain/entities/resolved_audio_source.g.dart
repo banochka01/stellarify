@@ -19,6 +19,7 @@ _ResolvedAudioSource _$ResolvedAudioSourceFromJson(Map<String, dynamic> json) =>
         ),
         codec: $checkedConvert('codec', (v) => v as String?),
         bitrate: $checkedConvert('bitrate', (v) => (v as num?)?.toInt()),
+        preview: $checkedConvert('preview', (v) => v as bool? ?? false),
         expiresAt: $checkedConvert(
           'expiresAt',
           (v) => v == null ? null : DateTime.parse(v as String),
@@ -42,6 +43,7 @@ Map<String, dynamic> _$ResolvedAudioSourceToJson(
   'protocol': _$StreamProtocolEnumMap[instance.protocol]!,
   'codec': instance.codec,
   'bitrate': instance.bitrate,
+  'preview': instance.preview,
   'expiresAt': instance.expiresAt?.toIso8601String(),
   'headers': instance.headers,
 };

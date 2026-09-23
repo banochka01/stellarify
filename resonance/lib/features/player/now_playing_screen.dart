@@ -8,6 +8,7 @@ import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/playback/demo_track.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
+import 'package:resonance/domain/entities/track_source.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/lyrics/lyrics_service.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
@@ -31,7 +32,7 @@ class NowPlayingScreen extends ConsumerWidget {
       body: SafeArea(
         child: Column(
           children: [
-            _Header(current: track, next: next),
+            _Header(current: track, next: next, state: state),
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -118,17 +119,22 @@ class NowPlayingScreen extends ConsumerWidget {
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.current, required this.next});
+class _Header extends ConsumerWidget {
+  const _Header({
+    required this.current,
+    required this.next,
+    required this.state,
+  });
 
   final UnifiedTrack current;
   final UnifiedTrack? next;
+  final ResonancePlaybackState state;
 
   @override
-  Widget build(BuildContext context) {
-    final label = next == null
-        ? 'Далее: —'
-        : 'Далее: ${next!.title} — ${next!.artist}';
+  Widget build(BuildContext context, WidgetRef ref) {
+    final label =
+        state.sourceShiftMessage ??
+        (next == null ? 'Далее: —' : 'Далее: ${next!.title} — ${next!.artist}');
     return Container(
       height: 58,
       padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -158,8 +164,10 @@ class _Header extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFFBBB7B0),
+              style: TextStyle(
+                color: state.sourceShiftMessage == null
+                    ? const Color(0xFFBBB7B0)
+                    : Theme.of(context).colorScheme.primary,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
@@ -177,11 +185,7 @@ class _Header extends StatelessWidget {
             icon: const Icon(Icons.lyrics_rounded),
           ),
           const SizedBox(width: 8),
-          ProviderBadge(
-            provider:
-                current.preferredProvider ?? current.sources.first.provider,
-            compact: true,
-          ),
+          _SourceShiftPanel(state: state, track: current, compact: true),
         ],
       ),
     );
@@ -276,6 +280,188 @@ class _Details extends ConsumerWidget {
     return '${value.inMinutes}:$seconds';
   }
 }
+
+class _SourceShiftPanel extends ConsumerWidget {
+  const _SourceShiftPanel({
+    required this.state,
+    required this.track,
+    this.compact = false,
+  });
+
+  final ResonancePlaybackState state;
+  final UnifiedTrack track;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final active =
+        state.activeTrackSource ??
+        (track.sources.isEmpty ? null : track.sources.first);
+    if (active == null) return const SizedBox.shrink();
+    final resolved = state.activeAudioSource;
+    final details = <String>[
+      if (resolved?.preview == true) 'preview' else 'полный трек',
+      if (resolved?.bitrate case final bitrate?) '${bitrate ~/ 1000} кбит/с',
+    ].join(' · ');
+
+    if (compact) {
+      return Tooltip(
+        message: '${_providerTitle(active.provider)} · $details',
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: track.sources.length > 1
+              ? () => _showSourcePicker(context, ref, active)
+              : null,
+          child: Padding(
+            padding: const EdgeInsets.all(5),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ProviderBadge(provider: active.provider, compact: true),
+                if (track.sources.length > 1) ...[
+                  const SizedBox(width: 3),
+                  const Icon(Icons.swap_horiz_rounded, size: 16),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Material(
+      color: const Color(0xFF191816),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: track.sources.length > 1
+            ? () => _showSourcePicker(context, ref, active)
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          child: Row(
+            children: [
+              ProviderBadge(provider: active.provider, compact: true),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Источник · ${_providerTitle(active.provider)}',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      details,
+                      style: const TextStyle(
+                        color: Color(0xFF918D86),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (track.sources.length > 1) ...[
+                Text(
+                  '${track.sources.length} источника',
+                  style: const TextStyle(
+                    color: Color(0xFFBBB7B0),
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Icon(Icons.swap_horiz_rounded, size: 20),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showSourcePicker(
+    BuildContext context,
+    WidgetRef ref,
+    TrackSource active,
+  ) async {
+    final selected = await showModalBottomSheet<TrackSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Источник воспроизведения',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Позиция трека сохранится при переключении.',
+                style: TextStyle(color: Color(0xFF918D86)),
+              ),
+              const SizedBox(height: 14),
+              for (final source in track.sources)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: ProviderBadge(provider: source.provider),
+                  title: Text(_providerTitle(source.provider)),
+                  subtitle: Text(
+                    _sameSource(source, active)
+                        ? 'Сейчас играет · ${_qualityDetails(state)}'
+                        : 'Переключить без сброса позиции',
+                  ),
+                  trailing: _sameSource(source, active)
+                      ? const Icon(Icons.check_circle_rounded)
+                      : const Icon(Icons.chevron_right_rounded),
+                  onTap: _sameSource(source, active)
+                      ? null
+                      : () => Navigator.pop(context, source),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selected == null || !context.mounted) return;
+    try {
+      final service = await ref.read(playbackServiceProvider.future);
+      await service.switchSource(selected);
+    } on Object {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Источник ${_providerTitle(selected.provider)} сейчас недоступен.',
+          ),
+        ),
+      );
+    }
+  }
+
+  static bool _sameSource(TrackSource left, TrackSource right) =>
+      left.provider == right.provider && left.externalId == right.externalId;
+
+  static String _qualityDetails(ResonancePlaybackState state) {
+    final resolved = state.activeAudioSource;
+    return <String>[
+      if (resolved?.preview == true) 'preview' else 'полный трек',
+      if (resolved?.bitrate case final bitrate?) '${bitrate ~/ 1000} кбит/с',
+    ].join(' · ');
+  }
+}
+
+String _providerTitle(MusicProvider provider) => switch (provider) {
+  MusicProvider.soundcloud => 'SoundCloud',
+  MusicProvider.yandex => 'Яндекс Музыка',
+  MusicProvider.youtube => 'YouTube',
+  MusicProvider.spotify => 'Spotify',
+  MusicProvider.vk => 'VK Музыка',
+};
 
 class _Controls extends ConsumerWidget {
   const _Controls({required this.state, required this.desktop});
