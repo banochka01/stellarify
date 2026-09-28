@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
+import 'package:resonance/features/rooms/room_queue_panel.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 
@@ -70,10 +72,13 @@ class _RoomsScreenState extends ConsumerState<RoomsScreen> {
           child: KeyedSubtree(
             key: ValueKey(room.inRoom),
             child: room.inRoom
-                ? _ActiveRoom(
-                    room: room,
-                    isHost: controller.isHost,
-                    onLeave: controller.leave,
+                ? _RoomLayout(
+                    wide: !compact && MediaQuery.sizeOf(context).width >= 1100,
+                    room: _ActiveRoom(
+                      room: room,
+                      isHost: controller.isHost,
+                      onLeave: controller.leave,
+                    ),
                   )
                 : _JoinPanel(
                     name: _name,
@@ -91,6 +96,32 @@ class _RoomsScreenState extends ConsumerState<RoomsScreen> {
             style: const TextStyle(color: ResonanceColors.primary),
           ),
         ],
+      ],
+    );
+  }
+}
+
+class _RoomLayout extends StatelessWidget {
+  const _RoomLayout({required this.wide, required this.room});
+
+  final bool wide;
+  final Widget room;
+
+  @override
+  Widget build(BuildContext context) {
+    const queue = SizedBox(height: 460, child: RoomQueuePanel());
+    if (!wide) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [room, const SizedBox(height: 18), queue],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Flexible(child: room),
+        const SizedBox(width: 22),
+        const SizedBox(width: 380, child: queue),
       ],
     );
   }
@@ -231,6 +262,12 @@ class _ActiveRoom extends StatelessWidget {
               ? 'Вы ведущий — ваши трек, пауза и перемотка синхронизируются.'
               : 'Управляет ведущий. Позиция автоматически выравнивается.',
           style: const TextStyle(color: ResonanceColors.muted),
+        ),
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          onPressed: () => context.push('/stage'),
+          icon: const Icon(Icons.fullscreen_rounded),
+          label: const Text('Открыть Stage с очередью зала'),
         ),
         const SizedBox(height: 24),
         const Text(

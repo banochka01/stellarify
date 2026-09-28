@@ -16,6 +16,8 @@ type PlaybackState = {
   version: number;
 };
 
+type RoomProvider = "youtube" | "yandex" | "soundcloud" | "spotify" | "vk";
+
 type RoomTrack = {
   id: string;
   title: string;
@@ -26,12 +28,12 @@ type RoomTrack = {
   duration?: number;
   artworkUrl?: string;
   sources: Array<{
-    provider: "youtube" | "yandex" | "soundcloud";
+    provider: RoomProvider;
     externalId: string;
     externalUrl: string;
     metadata: Record<string, unknown>;
   }>;
-  preferredProvider?: "youtube" | "yandex" | "soundcloud";
+  preferredProvider?: RoomProvider;
 };
 
 type QueueEntry = {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
+import 'package:resonance/features/rooms/room_queue_panel.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/desktop_window_bar.dart';
 import 'package:resonance/shared/widgets/player_bar.dart';
@@ -185,8 +186,12 @@ class _DesktopSidebar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const _BrandMark(),
-          const SizedBox(height: 42),
+          // На Windows бренд уже есть в заголовке окна — не дублируем его.
+          if (!DesktopWindowBar.supported) ...[
+            const _BrandMark(),
+            const SizedBox(height: 42),
+          ] else
+            const SizedBox(height: 4),
           _SidebarItem(
             label: 'Главная',
             icon: Icons.home_rounded,
@@ -218,6 +223,11 @@ class _DesktopSidebar extends StatelessWidget {
             onTap: () => onSelected(4),
           ),
           const Spacer(),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: RoomChip(compact: true, onTap: () => onSelected(3)),
+          ),
+          const SizedBox(height: 18),
           const _SourceList(),
         ],
       ),

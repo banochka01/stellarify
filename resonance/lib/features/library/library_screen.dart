@@ -48,28 +48,44 @@ class LibraryScreen extends ConsumerWidget {
         ),
       ],
     );
+    // Одно главное действие, остальные — тихие вторичные кнопки.
+    final quiet = TextButton.styleFrom(
+      foregroundColor: const Color(0xFFD9D2C8),
+      backgroundColor: const Color(0x0FFFFFFF),
+      shape: const StadiumBorder(),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+      ),
+    );
     final actions = Wrap(
       spacing: 8,
       runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         FilledButton.icon(
           onPressed: () => _transferLibrary(context, ref),
+          style: FilledButton.styleFrom(shape: const StadiumBorder()),
           icon: const Icon(Icons.auto_awesome_rounded),
           label: Text(compact ? 'Перенести' : 'Перенести медиатеку'),
         ),
-        OutlinedButton.icon(
+        TextButton.icon(
           onPressed: () => context.go('/graph'),
-          icon: const Icon(Icons.hub_rounded),
+          style: quiet,
+          icon: const Icon(Icons.hub_rounded, size: 18),
           label: Text(compact ? 'Граф' : 'Music Graph'),
         ),
-        OutlinedButton.icon(
+        TextButton.icon(
           onPressed: () => _importPlaylist(context, ref),
-          icon: const Icon(Icons.link_rounded),
+          style: quiet,
+          icon: const Icon(Icons.link_rounded, size: 18),
           label: Text(compact ? 'Ссылка' : 'Импорт по ссылке'),
         ),
-        OutlinedButton.icon(
+        TextButton.icon(
           onPressed: () => _createPlaylist(context, ref),
-          icon: const Icon(Icons.add_rounded),
+          style: quiet,
+          icon: const Icon(Icons.add_rounded, size: 18),
           label: Text(compact ? 'Создать' : 'Новый плейлист'),
         ),
       ],

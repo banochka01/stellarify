@@ -9,6 +9,7 @@ import 'package:resonance/features/library/library_actions.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/music_graph/music_graph.dart';
 import 'package:resonance/features/player/track_action.dart';
+import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/offline_download_button.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
@@ -292,6 +293,9 @@ class _TrackResult extends ConsumerWidget {
             ?.favoriteIds
             .contains(track.id) ??
         false;
+    final inRoom = ref.watch(
+      roomPresenceProvider.select((room) => room.inRoom),
+    );
     return ResonancePressable(
       hoverScale: 1.003,
       hoverOffset: Offset.zero,
@@ -331,6 +335,22 @@ class _TrackResult extends ConsumerWidget {
                     );
                   } else if (value == 'playlist') {
                     unawaited(showAddToPlaylistDialog(context, ref, track));
+                  } else if (value == 'room') {
+                    final messenger = ScaffoldMessenger.of(context);
+                    unawaited(
+                      ref
+                          .read(roomControllerProvider.notifier)
+                          .addToQueue(track)
+                          .then(
+                            (error) => messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  error ?? 'Трек предложен в очередь зала',
+                                ),
+                              ),
+                            ),
+                          ),
+                    );
                   }
                 },
                 itemBuilder: (_) => [
@@ -357,6 +377,15 @@ class _TrackResult extends ConsumerWidget {
                       title: Text('Добавить в плейлист'),
                     ),
                   ),
+                  if (inRoom)
+                    const PopupMenuItem(
+                      value: 'room',
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.how_to_vote_rounded),
+                        title: Text('В очередь зала'),
+                      ),
+                    ),
                 ],
               ),
               IconButton(

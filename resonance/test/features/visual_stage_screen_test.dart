@@ -1,7 +1,9 @@
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:resonance/app/providers.dart';
+import 'package:resonance/core/database/app_database.dart';
 import 'package:resonance/core/playback/demo_track.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/features/lyrics/lyrics_service.dart';
@@ -39,6 +41,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          appDatabaseProvider.overrideWithValue(_memoryDatabase()),
           stageClipsProvider.overrideWith((ref, track) async => []),
           playbackStateProvider.overrideWith((ref) => Stream.value(state)),
           playbackVideoAvailableProvider.overrideWith(
@@ -85,6 +88,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            appDatabaseProvider.overrideWithValue(_memoryDatabase()),
             playbackStateProvider.overrideWith(
               (ref) => Stream.value(
                 ResonancePlaybackState(
@@ -151,6 +155,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            appDatabaseProvider.overrideWithValue(_memoryDatabase()),
             playbackStateProvider.overrideWith(
               (ref) => Stream.value(const ResonancePlaybackState()),
             ),
@@ -197,6 +202,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            appDatabaseProvider.overrideWithValue(_memoryDatabase()),
             stageClipsProvider.overrideWith((ref, track) async => []),
             playbackStateProvider.overrideWith((ref) => Stream.value(state)),
             playbackVideoAvailableProvider.overrideWith(
@@ -228,3 +234,5 @@ void main() {
     });
   }
 }
+
+AppDatabase _memoryDatabase() => AppDatabase(NativeDatabase.memory());

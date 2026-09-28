@@ -165,7 +165,7 @@ function App() {
                 <Apple size={18} /> Unsigned IPA
               </a>
             </div>
-            <p className="release-note">Resonance 3.6 · SourceShift автоматически продолжает трек через другой доступный источник · Ручное переключение без потери позиции · Подготовка следующего трека</p>
+            <p className="release-note">Resonance 3.8 Together Stage · Очередь зала с голосованием прямо на Stage · Офлайн-прослушивание · SourceShift без пауз</p>
           </div>
           <div className="hero-visual">
             <HeroStage />

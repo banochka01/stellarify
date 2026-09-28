@@ -71,6 +71,8 @@ class ArtworkFallback extends StatelessWidget {
   final String? fallbackAsset;
   final TextStyle? textStyle;
 
+  static const _ink = Color(0xFF14100E);
+
   static const _gradients = <List<Color>>[
     [Color(0xFFF05A49), Color(0xFF57190F)],
     [Color(0xFF7C66F2), Color(0xFF1C1340)],
@@ -114,13 +116,23 @@ class ArtworkFallback extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final body = fallbackAsset != null
-        ? Image.asset(fallbackAsset!, fit: BoxFit.cover, width: dimension, height: dimension)
+        ? Image.asset(
+            fallbackAsset!,
+            fit: BoxFit.cover,
+            width: dimension,
+            height: dimension,
+          )
         : DecoratedBox(
+            // Приглушённый градиент: заглушка не должна спорить с настоящими
+            // обложками по яркости.
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: gradientFor(track),
+              gradient: RadialGradient(
+                center: const Alignment(-.55, -.6),
+                radius: 1.35,
+                colors: [
+                  Color.lerp(gradientFor(track).first, _ink, .38)!,
+                  Color.lerp(gradientFor(track).last, _ink, .45)!,
+                ],
               ),
             ),
             child: Center(
@@ -133,13 +145,13 @@ class ArtworkFallback extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style:
                       (textStyle ??
-                          TextStyle(
-                            fontSize: dimension * 0.32,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.5,
-                            color: Colors.white.withValues(alpha: 0.92),
-                            height: 1,
-                          ))
+                              TextStyle(
+                                fontSize: dimension * 0.26,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.5,
+                                color: Colors.white.withValues(alpha: 0.72),
+                                height: 1,
+                              ))
                           .copyWith(height: 1),
                 ),
               ),
@@ -147,7 +159,10 @@ class ArtworkFallback extends StatelessWidget {
           );
     return SizedBox.square(
       dimension: dimension,
-      child: ClipRRect(borderRadius: BorderRadius.circular(borderRadius), child: body),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: body,
+      ),
     );
   }
 }

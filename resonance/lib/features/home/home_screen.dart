@@ -15,9 +15,9 @@ import 'package:resonance/features/player/track_action.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/features/wave/wave_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/ambient.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
-import 'package:resonance/shared/widgets/seek_timeline.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -112,9 +112,17 @@ class _CinematicPlayer extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
-              colors: [Color(0xF5080909), Color(0xA8080909), Color(0x38080909)],
+              colors: [Color(0xF5080707), Color(0xA8080707), Color(0x38080707)],
               stops: [0, .55, 1],
             ),
+          ),
+        ),
+        Opacity(
+          opacity: .7,
+          child: AmbientBackdrop(
+            track: track,
+            intensity: .8,
+            base: Colors.transparent,
           ),
         ),
         Padding(
@@ -189,11 +197,9 @@ class _CinematicPlayer extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 36),
-              _HeroProgress(state: state),
-              const SizedBox(height: 24),
-              _HeroControls(state: state),
-              const SizedBox(height: 24),
+              const SizedBox(height: 30),
+              _HeroActions(state: state),
+              const SizedBox(height: 22),
               _NextTrackPill(track: nextTrack),
               const Spacer(flex: 2),
             ],
@@ -211,36 +217,20 @@ class _HeroProgress extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final total = state.duration.inMilliseconds;
-    final value = total <= 0
-        ? 0.18
-        : (state.position.inMilliseconds / total).clamp(0.0, 1.0);
+    final track = state.currentTrack ?? demoTrack;
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 500),
-      child: Column(
-        children: [
-          SeekTimeline(
-            value: value,
-            height: 22,
-            onSeek: (fraction) => unawaited(
-              ref
-                  .read(playbackServiceProvider.future)
-                  .then(
-                    (service) => service.seek(
-                      Duration(milliseconds: (total * fraction).round()),
-                    ),
-                  ),
-            ),
-          ),
-          const SizedBox(height: 9),
-          Row(
-            children: [
-              Text(_formatDuration(state.position)),
-              const Spacer(),
-              Text(_formatDuration(state.duration)),
-            ],
-          ),
-        ],
+      child: AmbientProgress(
+        position: state.position,
+        duration: state.duration > Duration.zero
+            ? state.duration
+            : track.duration ?? Duration.zero,
+        accent: watchTrackPalette(ref, track).accent,
+        onSeek: (value) => fireAndForget(
+          () => ref
+              .read(playbackServiceProvider.future)
+              .then((service) => service.seek(value)),
+        ),
       ),
     );
   }
@@ -260,8 +250,13 @@ class _HeroControls extends ConsumerWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          IconButton(
+          RoundControl(
+            size: 46,
             tooltip: wave.active ? 'Не нравится' : 'Перемешать',
+            active: !wave.active && state.shuffle,
+            icon: wave.active
+                ? Icons.thumb_down_alt_outlined
+                : Icons.shuffle_rounded,
             onPressed: wave.active
                 ? () => unawaited(
                     ref
@@ -271,44 +266,40 @@ class _HeroControls extends ConsumerWidget {
                 : () => unawaited(
                     service.then((value) => value.setShuffle(!state.shuffle)),
                   ),
-            icon: Icon(
-              wave.active
-                  ? Icons.thumb_down_alt_outlined
-                  : Icons.shuffle_rounded,
-            ),
           ),
-          IconButton(
+          RoundControl(
+            size: 46,
+            tooltip: 'Предыдущий трек',
+            icon: Icons.skip_previous_rounded,
             onPressed: () =>
                 unawaited(service.then((value) => value.previous())),
-            icon: const Icon(Icons.skip_previous_rounded),
           ),
-          SizedBox.square(
-            dimension: 66,
-            child: IconButton.filled(
-              onPressed: () => unawaited(
-                service.then((value) {
-                  if (state.currentTrack == null) {
-                    return value.playTrack(demoTrack);
-                  }
-                  return state.playing ? value.pause() : value.play();
-                }),
-              ),
-              iconSize: 30,
-              icon: state.buffering
-                  ? const CircularProgressIndicator(strokeWidth: 2)
-                  : Icon(
-                      state.playing
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                    ),
+          CreamPlayButton(
+            size: 64,
+            playing: state.playing,
+            buffering: state.buffering,
+            onPressed: () => unawaited(
+              service.then((value) {
+                if (state.currentTrack == null) {
+                  return value.playTrack(demoTrack);
+                }
+                return state.playing ? value.pause() : value.play();
+              }),
             ),
           ),
-          IconButton(
+          RoundControl(
+            size: 46,
+            tooltip: 'Следующий трек',
+            icon: Icons.skip_next_rounded,
             onPressed: () => unawaited(service.then((value) => value.next())),
-            icon: const Icon(Icons.skip_next_rounded),
           ),
-          IconButton(
+          RoundControl(
+            size: 46,
             tooltip: wave.active ? 'Нравится' : 'Повтор',
+            active: !wave.active && state.repeatMode != PlaybackRepeatMode.off,
+            icon: wave.active
+                ? Icons.thumb_up_alt_outlined
+                : Icons.repeat_rounded,
             onPressed: wave.active
                 ? () => unawaited(
                     ref
@@ -324,12 +315,77 @@ class _HeroControls extends ConsumerWidget {
                       ),
                     ),
                   ),
-            icon: Icon(
-              wave.active ? Icons.thumb_up_alt_outlined : Icons.repeat_rounded,
-            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Действия hero на десктопе: основная кнопка, вход в Stage и оценка Wave.
+/// Перемотка и переключение треков — в нижнем плеере.
+class _HeroActions extends ConsumerWidget {
+  const _HeroActions({required this.state});
+
+  final ResonancePlaybackState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final wave = ref.watch(waveControllerProvider);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        CreamPlayButton(
+          size: 60,
+          playing: state.playing,
+          buffering: state.buffering,
+          onPressed: () => fireAndForget(
+            () => ref.read(playbackServiceProvider.future).then((service) {
+              if (state.currentTrack == null) {
+                return service.playTrack(demoTrack);
+              }
+              return state.playing ? service.pause() : service.play();
+            }),
+          ),
+        ),
+        const SizedBox(width: 16),
+        OutlinedButton.icon(
+          onPressed: () => context.push('/stage'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFFF1ECE2),
+            backgroundColor: const Color(0x14FFFFFF),
+            side: const BorderSide(color: Color(0x2EFFFFFF)),
+            shape: const StadiumBorder(),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          ),
+          icon: const Icon(Icons.lyrics_rounded, size: 18),
+          label: const Text('Visual Stage'),
+        ),
+        if (wave.active) ...[
+          const SizedBox(width: 12),
+          RoundControl(
+            tooltip: 'Не нравится',
+            icon: Icons.thumb_down_alt_outlined,
+            size: 48,
+            onPressed: () => unawaited(
+              ref
+                  .read(waveControllerProvider.notifier)
+                  .rateCurrent(liked: false),
+            ),
+          ),
+          const SizedBox(width: 10),
+          RoundControl(
+            tooltip: 'Нравится',
+            icon: Icons.thumb_up_alt_outlined,
+            size: 48,
+            onPressed: () => unawaited(
+              ref
+                  .read(waveControllerProvider.notifier)
+                  .rateCurrent(liked: true),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -485,7 +541,7 @@ class _RecentRail extends StatelessWidget {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: tracks.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 16),
+              separatorBuilder: (_, _) => const SizedBox(height: 14),
               itemBuilder: (context, index) =>
                   _RecentTrack(track: tracks[index]),
             ),
@@ -544,8 +600,8 @@ class _RecentTrack extends ConsumerWidget {
           children: [
             TrackArtwork(
               track: track,
-              size: 52,
-              borderRadius: 4,
+              size: 48,
+              borderRadius: 10,
               fallbackAsset: 'assets/images/resonance_fallback_cover.png',
             ),
             const SizedBox(width: 12),
@@ -562,18 +618,27 @@ class _RecentTrack extends ConsumerWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    track.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: ResonanceColors.muted,
-                    ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          track.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: ResonanceColors.muted,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Transform.scale(
+                        scale: .8,
+                        child: ProviderBadge(provider: provider, compact: true),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 5),
-                  ProviderBadge(provider: provider, compact: true),
                 ],
               ),
             ),
@@ -600,14 +665,14 @@ class _CompactHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 20, 18, 28),
+      padding: const EdgeInsets.fromLTRB(18, 20, 18, 40),
       children: [
         const ResonanceEntrance(child: _WaveCommandCenter()),
         const SizedBox(height: 22),
         Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: ResonanceColors.border),
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(color: const Color(0x1FFFFFFF)),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x52000000),
@@ -617,7 +682,7 @@ class _CompactHome extends StatelessWidget {
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(19),
+            borderRadius: BorderRadius.circular(25),
             child: AspectRatio(
               aspectRatio: 1.08,
               child: Stack(
@@ -690,7 +755,7 @@ class _CompactHome extends StatelessWidget {
         ),
         const SizedBox(height: 22),
         _HeroProgress(state: state),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
         _HeroControls(state: state),
         const SizedBox(height: 16),
         _NextTrackPill(track: nextTrack),
@@ -1197,10 +1262,4 @@ String? _waveReason(UnifiedTrack track) {
     if (reason is String && reason.trim().isNotEmpty) return reason.trim();
   }
   return null;
-}
-
-String _formatDuration(Duration duration) {
-  final minutes = duration.inMinutes;
-  final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
-  return '$minutes:$seconds';
 }

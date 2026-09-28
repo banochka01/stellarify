@@ -7,6 +7,11 @@ VK and YouTube Music catalog access. YouTube uses the official Data API for
 search and import; YouTube-only tracks open in the official player rather than
 having their streams extracted.
 
+Version 3.8.0 "Together Stage" brings the shared room queue into the native
+client: listeners suggest tracks and vote for them right on Visual Stage, and
+the host automatically plays the top-voted track next. Stage, the full-screen
+player and Home get an artwork-driven ambient palette and round glass controls.
+
 Version 3.7.0 adds offline listening. Use the download button on a track in
 Search, a playlist, Favorites, or Now Playing. Completed downloads appear in
 the Library and are played from application support storage without a network

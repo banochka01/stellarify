@@ -14,9 +14,14 @@ import 'package:resonance/core/playback/playback_service.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
+import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/lyrics/lyrics_service.dart';
 import 'package:resonance/features/player/clip_service.dart';
 import 'package:resonance/features/player/stage_clip_video.dart';
+import 'package:resonance/features/rooms/room_controller.dart';
+import 'package:resonance/features/rooms/room_queue_panel.dart';
+import 'package:resonance/shared/widgets/ambient.dart';
+import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -44,6 +49,7 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
   final Set<String> _failedUrls = {};
   bool _backgroundEnabled = true;
   bool _focusMode = false;
+  bool _queueOpen = true;
   Future<void>? _fullscreenEntry;
 
   @override
@@ -113,6 +119,9 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
     final effectiveMode = _mode == VisualStageMode.video && !hasVideo
         ? VisualStageMode.lyrics
         : _mode;
+    final inRoom = ref.watch(
+      roomPresenceProvider.select((room) => room.inRoom),
+    );
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () {
@@ -162,10 +171,11 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Color(0x9907070C),
-                      Color(0x5507070C),
-                      Color(0xF207070C),
+                      Color(0x66070605),
+                      Color(0x14070605),
+                      Color(0xCC070605),
                     ],
+                    stops: [0, .45, 1],
                   ),
                 ),
               ),
@@ -176,9 +186,17 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
                       _StageHeader(
                         mode: effectiveMode,
                         hasVideo: hasVideo,
+                        queueOpen: _queueOpen,
                         onModeChanged: (value) => setState(() => _mode = value),
                         onSources: () => _showSources(track),
                         onFocus: () => setState(() => _focusMode = true),
+                        onQueue: () {
+                          if (MediaQuery.sizeOf(context).width >= 1100) {
+                            setState(() => _queueOpen = !_queueOpen);
+                          } else {
+                            unawaited(showRoomQueueSheet(context));
+                          }
+                        },
                       ),
                     _sourceStatus(clips, selected, nativeVideo, track),
                     Expanded(
@@ -193,11 +211,19 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
                                 track: track,
                                 videoMode:
                                     effectiveMode == VisualStageMode.video,
+                                showQueue:
+                                    inRoom &&
+                                    _queueOpen &&
+                                    constraints.maxWidth >= 1100,
                               )
                             : _MobileStage(state: state, track: track),
                       ),
                     ),
-                    if (!_focusMode) _StageTransport(state: state),
+                    if (!_focusMode)
+                      _StageTransport(
+                        state: state,
+                        showProgress: effectiveMode == VisualStageMode.video,
+                      ),
                     if (_focusMode)
                       Padding(
                         padding: const EdgeInsets.all(24),
@@ -247,6 +273,11 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: TextButton.icon(
+        style: TextButton.styleFrom(
+          foregroundColor: const Color(0xFFB9B1A8),
+          visualDensity: VisualDensity.compact,
+          shape: const StadiumBorder(),
+        ),
         onPressed: () {
           if (clips.hasError || _failedUrls.isNotEmpty && selected == null) {
             setState(_failedUrls.clear);
@@ -264,13 +295,13 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
         },
         icon: Icon(
           clips.isLoading ? Icons.hourglass_top_rounded : Icons.movie_outlined,
-          size: 16,
+          size: 14,
         ),
         label: Text(
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Color(0xFFD3CED4), fontSize: 12),
+          style: const TextStyle(color: Color(0xFFB9B1A8), fontSize: 11),
         ),
       ),
     );
@@ -489,71 +520,74 @@ class _StageBackground extends ConsumerWidget {
       );
     }
     final artwork = track.artworkUrl;
+    // Тёплый ambient по палитре обложки; размытая обложка — лишь фактура.
     return Stack(
       fit: StackFit.expand,
       children: [
+        AmbientBackdrop(track: track, intensity: 1.15),
         if (artwork != null)
-          ImageFiltered(
-            imageFilter: ImageFilter.blur(sigmaX: 44, sigmaY: 44),
-            child: Transform.scale(
-              scale: 1.14,
-              child: Image.network(
-                artwork.toString(),
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _ambientGradient(track),
+          Opacity(
+            opacity: .22,
+            child: ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
+              child: Transform.scale(
+                scale: 1.2,
+                child: Image.network(
+                  highQualityArtworkUrl(artwork, targetSize: 400),
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
               ),
             ),
-          )
-        else
-          _ambientGradient(track),
-        const DecoratedBox(decoration: BoxDecoration(color: Color(0x99000000))),
+          ),
       ],
-    );
-  }
-
-  Widget _ambientGradient(UnifiedTrack track) {
-    final colors = ArtworkFallback.gradientFor(track);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [colors.first.withValues(alpha: 0.55), colors.last],
-        ),
-      ),
     );
   }
 }
 
-class _StageHeader extends StatelessWidget {
+class _StageHeader extends ConsumerWidget {
   const _StageHeader({
     required this.mode,
     required this.hasVideo,
+    required this.queueOpen,
     required this.onModeChanged,
     required this.onSources,
     required this.onFocus,
+    required this.onQueue,
   });
 
   final VisualStageMode mode;
   final bool hasVideo;
+  final bool queueOpen;
   final ValueChanged<VisualStageMode> onModeChanged;
   final VoidCallback onSources;
   final VoidCallback onFocus;
+  final VoidCallback onQueue;
 
   @override
-  Widget build(BuildContext context) {
-    final compact = MediaQuery.sizeOf(context).width < 560;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final width = MediaQuery.sizeOf(context).width;
+    final compact = width < 560;
+    final room = ref.watch(roomPresenceProvider);
     return Padding(
-      padding: EdgeInsets.fromLTRB(compact ? 10 : 18, 12, compact ? 10 : 18, 8),
+      padding: EdgeInsets.fromLTRB(compact ? 10 : 22, 12, compact ? 10 : 22, 8),
       child: Row(
         children: [
-          IconButton.filledTonal(
+          IconButton(
             tooltip: 'Закрыть полноэкранный режим',
             onPressed: context.pop,
+            style: IconButton.styleFrom(
+              backgroundColor: const Color(0x1AFFFFFF),
+              side: const BorderSide(color: Color(0x1FFFFFFF)),
+            ),
             icon: const Icon(Icons.keyboard_arrow_down_rounded),
           ),
-          if (MediaQuery.sizeOf(context).width >= 800) ...[
-            const SizedBox(width: 16),
+          const SizedBox(width: 12),
+          if (room.inRoom)
+            Flexible(
+              child: RoomChip(compact: compact, onTap: onQueue),
+            )
+          else if (width >= 800)
             const Text(
               'RESONANCE / STAGE',
               style: TextStyle(
@@ -563,8 +597,19 @@ class _StageHeader extends StatelessWidget {
                 color: Color(0xFFD3CED4),
               ),
             ),
-          ],
           const Spacer(),
+          if (room.inRoom)
+            IconButton(
+              tooltip: queueOpen ? 'Скрыть очередь зала' : 'Очередь зала',
+              isSelected: queueOpen && width >= 1100,
+              onPressed: onQueue,
+              icon: Badge.count(
+                count: room.queue.length,
+                isLabelVisible: room.queue.isNotEmpty,
+                backgroundColor: const Color(0xFFFF5A36),
+                child: const Icon(Icons.queue_music_rounded),
+              ),
+            ),
           IconButton(
             tooltip: 'Видеоисточники',
             onPressed: onSources,
@@ -575,8 +620,15 @@ class _StageHeader extends StatelessWidget {
             onPressed: onFocus,
             icon: const Icon(Icons.center_focus_strong_rounded),
           ),
+          const SizedBox(width: 4),
           SegmentedButton<VisualStageMode>(
             showSelectedIcon: false,
+            style: SegmentedButton.styleFrom(
+              backgroundColor: const Color(0x14FFFFFF),
+              selectedBackgroundColor: const Color(0x33FF8A5B),
+              selectedForegroundColor: const Color(0xFFF1ECE2),
+              side: const BorderSide(color: Color(0x24FFFFFF)),
+            ),
             segments: [
               ButtonSegment(
                 value: VisualStageMode.video,
@@ -610,32 +662,48 @@ class _DesktopStage extends StatelessWidget {
     required this.state,
     required this.track,
     required this.videoMode,
+    required this.showQueue,
   });
 
   final ResonancePlaybackState state;
   final UnifiedTrack track;
   final bool videoMode;
+  final bool showQueue;
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(48, 18, 48, 18),
+    padding: EdgeInsets.fromLTRB(56, 18, showQueue ? 28 : 56, 12),
     child: Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
           flex: 8,
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.center,
-            child: _StageIdentity(
-              track: track,
-              compact: videoMode || MediaQuery.sizeOf(context).height < 600,
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.center,
+              child: _StageIdentity(
+                state: state,
+                track: track,
+                compact: videoMode || MediaQuery.sizeOf(context).height < 600,
+              ),
             ),
           ),
         ),
-        const SizedBox(width: 54),
+        const SizedBox(width: 56),
         Expanded(
           flex: 12,
           child: _FullscreenLyrics(track: track, position: state.position),
+        ),
+        AnimatedSize(
+          duration: ResonanceMotion.standard,
+          curve: ResonanceMotion.curve,
+          child: showQueue
+              ? const Padding(
+                  padding: EdgeInsets.only(left: 28, bottom: 12),
+                  child: SizedBox(width: 340, child: RoomQueuePanel()),
+                )
+              : const SizedBox(height: double.infinity),
         ),
       ],
     ),
@@ -650,14 +718,14 @@ class _MobileStage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+    padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
     child: Column(
       children: [
         FittedBox(
           fit: BoxFit.scaleDown,
-          child: _StageIdentity(track: track, compact: true),
+          child: _StageIdentity(state: state, track: track, compact: true),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 6),
         Expanded(
           child: _FullscreenLyrics(track: track, position: state.position),
         ),
@@ -666,55 +734,110 @@ class _MobileStage extends StatelessWidget {
   );
 }
 
-class _StageIdentity extends StatelessWidget {
-  const _StageIdentity({required this.track, required this.compact});
+class _StageIdentity extends ConsumerWidget {
+  const _StageIdentity({
+    required this.state,
+    required this.track,
+    required this.compact,
+  });
 
+  final ResonancePlaybackState state;
   final UnifiedTrack track;
   final bool compact;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final viewport = MediaQuery.sizeOf(context);
     final short = viewport.height < 600;
     // Обложка должна занимать заметную часть экрана: до 440px на десктопе,
-    // ~60% ширины в портрете и до 40% высоты в сжатых (ландшафт) сценариях.
+    // ~62% ширины в портрете и до 40% высоты в сжатых (ландшафт) сценариях.
     final width = short
         ? min(viewport.height * .32, 260.0)
         : compact
-        ? min(viewport.width * .58, 300.0)
-        : min(viewport.width * .3, 440.0);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Hero(
-          tag: 'stage-art-${track.id}',
-          child: TrackArtwork(track: track, size: width, borderRadius: 24),
-        ),
-        SizedBox(height: short ? 14 : 22),
-        Text(
-          track.title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: short ? 24 : (compact ? 26 : 34),
-            height: 1.05,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -1.1,
-            color: const Color(0xFFF7F2E9),
+        ? min(viewport.width * .62, 320.0)
+        : min(viewport.width * .27, 420.0);
+    final palette = watchTrackPalette(ref, track);
+    final provider =
+        state.activeTrackSource?.provider ??
+        track.preferredProvider ??
+        track.sources.firstOrNull?.provider;
+    final duration = state.duration > Duration.zero
+        ? state.duration
+        : track.duration ?? Duration.zero;
+    return SizedBox(
+      width: max(width, 280),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(26),
+                boxShadow: [
+                  BoxShadow(
+                    color: palette.glow.withValues(alpha: .35),
+                    blurRadius: 60,
+                    offset: const Offset(0, 24),
+                  ),
+                ],
+              ),
+              child: Hero(
+                tag: 'stage-art-${track.id}',
+                child: TrackArtwork(
+                  track: track,
+                  size: width,
+                  borderRadius: 26,
+                ),
+              ),
+            ),
           ),
-        ),
-        SizedBox(height: short ? 5 : 8),
-        Text(
-          track.artist,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: const Color(0xFFB9B3AB),
-            fontSize: short ? 13 : 16,
+          SizedBox(height: short ? 16 : 26),
+          Text(
+            track.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: short ? 24 : (compact ? 26 : 32),
+              height: 1.05,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -1,
+              color: const Color(0xFFF7F2E9),
+            ),
           ),
-        ),
-      ],
+          SizedBox(height: short ? 6 : 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  track.artist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: const Color(0xFFB9B3AB),
+                    fontSize: short ? 13 : 15,
+                  ),
+                ),
+              ),
+              if (provider != null) ...[
+                const SizedBox(width: 10),
+                ProviderBadge(provider: provider, compact: true),
+              ],
+            ],
+          ),
+          SizedBox(height: short ? 12 : 20),
+          AmbientProgress(
+            position: state.position,
+            duration: duration,
+            accent: palette.accent,
+            onSeek: (value) => fireAndForget(
+              () => ref
+                  .read(playbackServiceProvider.future)
+                  .then((service) => service.seek(value)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -903,25 +1026,14 @@ class _StageMessage extends StatelessWidget {
 }
 
 class _StageTransport extends ConsumerStatefulWidget {
-  const _StageTransport({required this.state});
+  const _StageTransport({required this.state, required this.showProgress});
   final ResonancePlaybackState state;
+  final bool showProgress;
   @override
   ConsumerState<_StageTransport> createState() => _StageTransportState();
 }
 
 class _StageTransportState extends ConsumerState<_StageTransport> {
-  double? _dragPosition;
-  String _time(int ms) =>
-      '${ms ~/ 60000}:${((ms ~/ 1000) % 60).toString().padLeft(2, '0')}';
-
-  @override
-  void didUpdateWidget(covariant _StageTransport oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.state.currentTrack?.id != widget.state.currentTrack?.id) {
-      _dragPosition = null;
-    }
-  }
-
   Future<void> _run(Future<void> Function(PlaybackService) action) async {
     try {
       await action(await ref.read(playbackServiceProvider.future));
@@ -939,146 +1051,112 @@ class _StageTransportState extends ConsumerState<_StageTransport> {
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
-    final duration = max(
-      1,
-      (state.duration > Duration.zero
-              ? state.duration
-              : state.currentTrack?.duration ?? Duration.zero)
-          .inMilliseconds,
-    );
-    final position = (_dragPosition ?? state.position.inMilliseconds.toDouble())
-        .clamp(0.0, duration.toDouble());
-    final compact = MediaQuery.sizeOf(context).height < 500;
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1040),
-        child: Container(
-          margin: EdgeInsets.fromLTRB(16, 8, 16, compact ? 8 : 24),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xB31A191F),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0x26FFFFFF)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    _time(position.round()),
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                  Expanded(
-                    child: Slider(
-                      value: position,
-                      max: duration.toDouble(),
-                      semanticFormatterCallback: (value) =>
-                          _time(value.round()),
-                      onChangeStart: (value) =>
-                          setState(() => _dragPosition = value),
-                      onChanged: duration <= 1
-                          ? null
-                          : (value) => setState(() => _dragPosition = value),
-                      onChangeEnd: (value) {
-                        setState(() => _dragPosition = null);
-                        unawaited(
-                          _run(
-                            (service) => service.seek(
-                              Duration(milliseconds: value.round()),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  Text(
-                    _time(duration),
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
+    final track = state.currentTrack ?? demoTrack;
+    final size = MediaQuery.sizeOf(context);
+    final compact = size.height < 500 || size.width < 420;
+    final control = compact ? 44.0 : 52.0;
+    final gap = compact ? 12.0 : 20.0;
+    final favorite =
+        ref
+            .watch(libraryControllerProvider)
+            .valueOrNull
+            ?.favoriteIds
+            .contains(track.id) ??
+        false;
+    final accent = watchTrackPalette(ref, track).accent;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 8, 20, compact ? 12 : 30),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.showProgress)
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: AmbientProgress(
+                  position: state.position,
+                  duration: state.duration > Duration.zero
+                      ? state.duration
+                      : track.duration ?? Duration.zero,
+                  accent: accent,
+                  onSeek: (value) =>
+                      unawaited(_run((service) => service.seek(value))),
+                ),
               ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    tooltip: 'Перемешать',
-                    isSelected: state.shuffle,
-                    onPressed: () => unawaited(
-                      _run((service) => service.setShuffle(!state.shuffle)),
-                    ),
-                    icon: const Icon(Icons.shuffle_rounded),
+            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              RoundControl(
+                tooltip: favorite ? 'Убрать из избранного' : 'В избранное',
+                icon: favorite
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                active: favorite,
+                size: control,
+                onPressed: () => unawaited(
+                  ref
+                      .read(libraryControllerProvider.notifier)
+                      .toggleFavorite(track),
+                ),
+              ),
+              SizedBox(width: gap),
+              RoundControl(
+                tooltip: 'Предыдущий трек',
+                icon: Icons.skip_previous_rounded,
+                size: control,
+                onPressed: () =>
+                    unawaited(_run((service) => service.previous())),
+              ),
+              SizedBox(width: gap),
+              CreamPlayButton(
+                playing: state.playing,
+                buffering: state.buffering,
+                size: compact ? 60 : 68,
+                onPressed: () => unawaited(
+                  _run(
+                    (service) => state.currentTrack == null
+                        ? service.playTrack(demoTrack)
+                        : state.playing
+                        ? service.pause()
+                        : service.play(),
                   ),
-                  const Spacer(),
-                  IconButton(
-                    tooltip: 'Предыдущий трек',
-                    iconSize: 32,
-                    onPressed: () =>
-                        unawaited(_run((service) => service.previous())),
-                    icon: const Icon(Icons.skip_previous_rounded),
+                ),
+              ),
+              SizedBox(width: gap),
+              RoundControl(
+                tooltip: 'Следующий трек',
+                icon: Icons.skip_next_rounded,
+                size: control,
+                onPressed: () => unawaited(_run((service) => service.next())),
+              ),
+              SizedBox(width: gap),
+              RoundControl(
+                tooltip: switch (state.repeatMode) {
+                  PlaybackRepeatMode.off => 'Повтор выключен',
+                  PlaybackRepeatMode.all => 'Повтор очереди',
+                  PlaybackRepeatMode.one => 'Повтор трека',
+                },
+                icon: state.repeatMode == PlaybackRepeatMode.one
+                    ? Icons.repeat_one_rounded
+                    : Icons.repeat_rounded,
+                active: state.repeatMode != PlaybackRepeatMode.off,
+                size: control,
+                onPressed: () => unawaited(
+                  _run(
+                    (service) =>
+                        service.setRepeatMode(switch (state.repeatMode) {
+                          PlaybackRepeatMode.off => PlaybackRepeatMode.all,
+                          PlaybackRepeatMode.all => PlaybackRepeatMode.one,
+                          PlaybackRepeatMode.one => PlaybackRepeatMode.off,
+                        }),
                   ),
-                  const SizedBox(width: 8),
-                  IconButton.filled(
-                    tooltip: state.playing ? 'Пауза' : 'Воспроизвести',
-                    iconSize: compact ? 28 : 36,
-                    padding: EdgeInsets.all(compact ? 8 : 16),
-                    onPressed: () => unawaited(
-                      _run(
-                        (service) => state.currentTrack == null
-                            ? service.playTrack(demoTrack)
-                            : state.playing
-                            ? service.pause()
-                            : service.play(),
-                      ),
-                    ),
-                    icon: state.buffering
-                        ? const SizedBox.square(
-                            dimension: 28,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Icon(
-                            state.playing
-                                ? Icons.pause_rounded
-                                : Icons.play_arrow_rounded,
-                          ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    tooltip: 'Следующий трек',
-                    iconSize: 32,
-                    onPressed: () =>
-                        unawaited(_run((service) => service.next())),
-                    icon: const Icon(Icons.skip_next_rounded),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    tooltip: switch (state.repeatMode) {
-                      PlaybackRepeatMode.off => 'Повтор выключен',
-                      PlaybackRepeatMode.all => 'Повтор очереди',
-                      PlaybackRepeatMode.one => 'Повтор трека',
-                    },
-                    isSelected: state.repeatMode != PlaybackRepeatMode.off,
-                    onPressed: () => unawaited(
-                      _run(
-                        (service) =>
-                            service.setRepeatMode(switch (state.repeatMode) {
-                              PlaybackRepeatMode.off => PlaybackRepeatMode.all,
-                              PlaybackRepeatMode.all => PlaybackRepeatMode.one,
-                              PlaybackRepeatMode.one => PlaybackRepeatMode.off,
-                            }),
-                      ),
-                    ),
-                    icon: Icon(
-                      state.repeatMode == PlaybackRepeatMode.one
-                          ? Icons.repeat_one_rounded
-                          : Icons.repeat_rounded,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ],
           ),
-        ),
+        ],
       ),
     );
   }

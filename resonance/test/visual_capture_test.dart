@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +9,7 @@ import 'package:resonance/app/providers.dart';
 import 'package:resonance/app/resonance_app.dart';
 import 'package:resonance/app/router.dart';
 import 'package:resonance/core/database/app_database.dart';
+import 'package:resonance/core/playback/offline_downloads.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/provider_capabilities.dart';
@@ -425,6 +428,14 @@ Widget _testApp({
         lyricsProvider.overrideWith((ref, track) async => lyrics),
       playbackEngineProvider.overrideWithValue(FakePlaybackEngine()),
       playbackPersistenceProvider.overrideWithValue(null),
+      // В тестах нет path_provider: офлайн-хранилище — во временной папке.
+      offlineDownloadsProvider.overrideWith(
+        (ref) => OfflineDownloads(
+          providers: ref.watch(providerRegistryProvider),
+          authorizeSource: (_) async {},
+          directory: () async => Directory.systemTemp.createTemp('offline'),
+        ),
+      ),
     ],
     child: const ResonanceApp(),
   );

@@ -10,7 +10,11 @@ import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/track_source.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
+import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/lyrics/lyrics_service.dart';
+import 'package:resonance/features/rooms/room_controller.dart';
+import 'package:resonance/features/rooms/room_queue_panel.dart';
+import 'package:resonance/shared/widgets/ambient.dart';
 import 'package:resonance/shared/widgets/offline_download_button.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
@@ -30,82 +34,86 @@ class NowPlayingScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _Header(current: track, next: next, state: state),
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact = constraints.maxWidth < 760;
-                  if (compact) {
-                    return SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(22, 22, 22, 30),
-                      child: Column(
-                        children: [
-                          ResonanceTrackSwap(
-                            child: TrackArtwork(
-                              key: ValueKey(track.id),
-                              track: track,
-                              size: min(constraints.maxWidth - 44, 430),
-                              borderRadius: 2,
-                              fallbackAsset:
-                                  'assets/images/resonance_fallback_cover.png',
-                            ),
-                          ),
-                          const SizedBox(height: 30),
-                          _Details(state: state, track: track, desktop: false),
-                        ],
-                      ),
-                    );
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.fromLTRB(54, 34, 64, 42),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          flex: 9,
-                          child: LayoutBuilder(
-                            builder: (context, artworkConstraints) {
-                              final size = min(
-                                artworkConstraints.maxWidth,
-                                artworkConstraints.maxHeight,
-                              );
-                              return Align(
-                                alignment: Alignment.centerLeft,
-                                child: ResonanceTrackSwap(
-                                  child: TrackArtwork(
-                                    key: ValueKey(track.id),
-                                    track: track,
-                                    size: size,
-                                    borderRadius: 2,
-                                    fallbackAsset:
-                                        'assets/images/resonance_fallback_cover.png',
-                                  ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          AmbientBackdrop(track: track),
+          SafeArea(
+            child: Column(
+              children: [
+                _Header(current: track, next: next, state: state),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compact = constraints.maxWidth < 760;
+                      if (compact) {
+                        return SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(22, 22, 22, 30),
+                          child: Column(
+                            children: [
+                              ResonanceTrackSwap(
+                                child: _GlowingArtwork(
+                                  key: ValueKey(track.id),
+                                  track: track,
+                                  size: min(constraints.maxWidth - 44, 430),
                                 ),
-                              );
-                            },
+                              ),
+                              const SizedBox(height: 30),
+                              _Details(
+                                state: state,
+                                track: track,
+                                desktop: false,
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(width: 66),
-                        Expanded(
-                          flex: 11,
-                          child: SingleChildScrollView(
-                            child: _Details(
-                              state: state,
-                              track: track,
-                              desktop: true,
+                        );
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(54, 34, 64, 42),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              flex: 9,
+                              child: LayoutBuilder(
+                                builder: (context, artworkConstraints) {
+                                  final size = min(
+                                    artworkConstraints.maxWidth,
+                                    artworkConstraints.maxHeight,
+                                  );
+                                  return Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: ResonanceTrackSwap(
+                                      child: _GlowingArtwork(
+                                        key: ValueKey(track.id),
+                                        track: track,
+                                        size: size,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 66),
+                            Expanded(
+                              flex: 11,
+                              child: SingleChildScrollView(
+                                child: _Details(
+                                  state: state,
+                                  track: track,
+                                  desktop: true,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -133,6 +141,9 @@ class _Header extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final inRoom = ref.watch(
+      roomPresenceProvider.select((room) => room.inRoom),
+    );
     final label =
         state.sourceShiftMessage ??
         (next == null ? 'Далее: —' : 'Далее: ${next!.title} — ${next!.artist}');
@@ -140,7 +151,7 @@ class _Header extends ConsumerWidget {
       height: 58,
       padding: const EdgeInsets.symmetric(horizontal: 18),
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFF292724))),
+        border: Border(bottom: BorderSide(color: Color(0x1AFFFFFF))),
       ),
       child: Row(
         children: [
@@ -150,14 +161,20 @@ class _Header extends ConsumerWidget {
             icon: const Icon(Icons.arrow_back_rounded),
           ),
           const SizedBox(width: 10),
-          const Text(
-            'RESONANCE',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 2.4,
+          if (inRoom)
+            RoomChip(
+              compact: true,
+              onTap: () => unawaited(showRoomQueueSheet(context)),
+            )
+          else
+            const Text(
+              'RESONANCE',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 2.4,
+              ),
             ),
-          ),
           const SizedBox(width: 24),
           Expanded(
             child: Text(
@@ -228,27 +245,34 @@ class _Details extends ConsumerWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: const Color(0xFFF3EFE7),
-                fontSize: desktop ? 58 : 40,
-                height: 0.96,
-                letterSpacing: desktop ? -3.2 : -2.2,
-                fontWeight: FontWeight.w300,
+                fontSize: desktop ? 54 : 36,
+                height: 1.06,
+                letterSpacing: desktop ? -2.6 : -1.6,
+                fontWeight: FontWeight.w800,
               ),
             ),
           ),
         ),
-        const SizedBox(height: 16),
-        Text(
-          track.artist,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: const Color(0xFF9B9690),
-            fontSize: desktop ? 20 : 17,
-            fontWeight: FontWeight.w400,
-          ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                track.artist,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: const Color(0xFFA8A098),
+                  fontSize: desktop ? 20 : 17,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ),
+            OfflineDownloadButton(track: track),
+            _FavoriteButton(track: track),
+          ],
         ),
-        OfflineDownloadButton(track: track),
-        SizedBox(height: desktop ? 58 : 38),
+        SizedBox(height: desktop ? 36 : 30),
         _Waveform(
           value: positionMs / maxMs,
           phase: state.position.inMilliseconds / 1000,
@@ -269,9 +293,9 @@ class _Details extends ConsumerWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [Text(_time(state.position)), Text(_time(duration))],
         ),
-        SizedBox(height: desktop ? 34 : 26),
+        SizedBox(height: desktop ? 24 : 22),
         _Controls(state: state, desktop: desktop),
-        SizedBox(height: desktop ? 34 : 28),
+        SizedBox(height: desktop ? 26 : 24),
         _LyricsPanel(track: track, position: state.position, desktop: desktop),
       ],
     );
@@ -473,86 +497,57 @@ class _Controls extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    Future<void> run(FutureOr<void> Function(dynamic) action) async {
-      final service = await ref.read(playbackServiceProvider.future);
-      await action(service);
-    }
+    void run(Future<void> Function(dynamic) action) => fireAndForget(
+      () async => action(await ref.read(playbackServiceProvider.future)),
+    );
+    final control = desktop ? 54.0 : 48.0;
 
     return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _Control(
+        RoundControl(
           tooltip: 'Перемешать',
           icon: Icons.shuffle_rounded,
           active: state.shuffle,
-          onPressed: () =>
-              unawaited(run((service) => service.setShuffle(!state.shuffle))),
+          size: control,
+          onPressed: () => run((service) => service.setShuffle(!state.shuffle)),
         ),
-        const Spacer(),
-        _Control(
+        RoundControl(
           tooltip: 'Предыдущий',
           icon: Icons.skip_previous_rounded,
-          size: desktop ? 38 : 34,
-          onPressed: () => unawaited(run((service) => service.previous())),
+          size: control,
+          onPressed: () => run((service) => service.previous()),
         ),
-        SizedBox(width: desktop ? 22 : 12),
-        IconButton.filled(
-          tooltip: state.playing ? 'Пауза' : 'Воспроизвести',
-          iconSize: desktop ? 38 : 34,
-          padding: EdgeInsets.all(desktop ? 18 : 15),
-          style: IconButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            foregroundColor: const Color(0xFF080706),
-          ),
-          onPressed: () => unawaited(
-            run((service) {
-              if (state.currentTrack == null) {
-                return service.playTrack(demoTrack);
-              }
-              return state.playing ? service.pause() : service.play();
-            }),
-          ),
-          icon: state.buffering
-              ? const SizedBox.square(
-                  dimension: 26,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Color(0xFF080706),
-                  ),
-                )
-              : AnimatedSwitcher(
-                  duration: ResonanceMotion.quick,
-                  transitionBuilder: (child, animation) =>
-                      ScaleTransition(scale: animation, child: child),
-                  child: Icon(
-                    state.playing
-                        ? Icons.pause_rounded
-                        : Icons.play_arrow_rounded,
-                    key: ValueKey(state.playing),
-                  ),
-                ),
+        CreamPlayButton(
+          size: desktop ? 76 : 68,
+          playing: state.playing,
+          buffering: state.buffering,
+          onPressed: () => run((service) {
+            if (state.currentTrack == null) {
+              return service.playTrack(demoTrack);
+            }
+            return state.playing ? service.pause() : service.play();
+          }),
         ),
-        SizedBox(width: desktop ? 22 : 12),
-        _Control(
+        RoundControl(
           tooltip: 'Следующий',
           icon: Icons.skip_next_rounded,
-          size: desktop ? 38 : 34,
-          onPressed: () => unawaited(run((service) => service.next())),
+          size: control,
+          onPressed: () => run((service) => service.next()),
         ),
-        const Spacer(),
-        _Control(
+        RoundControl(
           tooltip: 'Повтор',
           icon: state.repeatMode == PlaybackRepeatMode.one
               ? Icons.repeat_one_rounded
               : Icons.repeat_rounded,
           active: state.repeatMode != PlaybackRepeatMode.off,
-          onPressed: () => unawaited(
-            run(
-              (service) => service.setRepeatMode(switch (state.repeatMode) {
-                PlaybackRepeatMode.off => PlaybackRepeatMode.all,
-                PlaybackRepeatMode.all => PlaybackRepeatMode.one,
-                PlaybackRepeatMode.one => PlaybackRepeatMode.off,
-              }),
-            ),
+          size: control,
+          onPressed: () => run(
+            (service) => service.setRepeatMode(switch (state.repeatMode) {
+              PlaybackRepeatMode.off => PlaybackRepeatMode.all,
+              PlaybackRepeatMode.all => PlaybackRepeatMode.one,
+              PlaybackRepeatMode.one => PlaybackRepeatMode.off,
+            }),
           ),
         ),
       ],
@@ -560,31 +555,60 @@ class _Controls extends ConsumerWidget {
   }
 }
 
-class _Control extends StatelessWidget {
-  const _Control({
-    required this.tooltip,
-    required this.icon,
-    required this.onPressed,
-    this.active = false,
-    this.size = 26,
-  });
+class _FavoriteButton extends ConsumerWidget {
+  const _FavoriteButton({required this.track});
 
-  final String tooltip;
-  final IconData icon;
-  final VoidCallback onPressed;
-  final bool active;
+  final UnifiedTrack track;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final favorite =
+        ref
+            .watch(libraryControllerProvider)
+            .valueOrNull
+            ?.favoriteIds
+            .contains(track.id) ??
+        false;
+    return IconButton(
+      visualDensity: VisualDensity.compact,
+      tooltip: favorite ? 'Убрать из избранного' : 'В избранное',
+      onPressed: () => unawaited(
+        ref.read(libraryControllerProvider.notifier).toggleFavorite(track),
+      ),
+      icon: Icon(
+        favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+        color: favorite ? const Color(0xFFFF8A5B) : const Color(0xFFD4D0C9),
+      ),
+    );
+  }
+}
+
+class _GlowingArtwork extends ConsumerWidget {
+  const _GlowingArtwork({required this.track, required this.size, super.key});
+
+  final UnifiedTrack track;
   final double size;
 
   @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: tooltip,
-      onPressed: onPressed,
-      iconSize: size,
-      color: active
-          ? Theme.of(context).colorScheme.primary
-          : const Color(0xFFD4D0C9),
-      icon: Icon(icon),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = watchTrackPalette(ref, track);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: palette.glow.withValues(alpha: .38),
+            blurRadius: 70,
+            offset: const Offset(0, 28),
+          ),
+        ],
+      ),
+      child: TrackArtwork(
+        track: track,
+        size: size,
+        borderRadius: 24,
+        fallbackAsset: 'assets/images/resonance_fallback_cover.png',
+      ),
     );
   }
 }
@@ -720,8 +744,8 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
       height: widget.desktop ? 270 : 320,
       width: double.infinity,
       decoration: BoxDecoration(
-        color: const Color(0xFF11100F).withValues(alpha: .78),
-        border: Border.all(color: const Color(0xFF302E2A)),
+        color: const Color(0x8C0F0C0B),
+        border: Border.all(color: const Color(0x1AFFFFFF)),
         borderRadius: BorderRadius.circular(22),
       ),
       child: lyrics.when(

@@ -1,5 +1,21 @@
 # Progress
 
+## Version 3.8.0 — Together Stage
+
+- [x] Room queue in the native client: suggest, vote, remove, host plays the leader
+- [x] Host hands playback to the top-voted track as the current one ends
+- [x] "Очередь зала" panel on Visual Stage, rooms screen and phone bottom sheet
+- [x] Room chip with participant avatars in Stage, player and sidebar
+- [x] Artwork-driven ambient palette for Stage, player and Home
+- [x] Glass round controls with a cream primary play button
+- [x] Single control zone on desktop Home, calmer artwork fallbacks and library actions
+
+## Version 3.7.0 — Offline listening
+
+- [x] Download and remove tracks from Search, playlists, Favorites and Now Playing
+- [x] Offline playback from application support storage without network requests
+- [x] Progressive HTTPS audio only, 150 MB cap, atomic manifest
+
 ## Version 3.6.0 — SourceShift
 
 - [x] Manual source switching from Now Playing without losing position

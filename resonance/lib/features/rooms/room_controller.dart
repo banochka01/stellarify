@@ -15,12 +15,32 @@ class RoomParticipant {
   final String name;
 }
 
+class RoomQueueEntry {
+  const RoomQueueEntry({
+    required this.id,
+    required this.track,
+    required this.addedById,
+    required this.addedByName,
+    required this.voters,
+  });
+
+  final String id;
+  final UnifiedTrack track;
+  final String addedById;
+  final String addedByName;
+  final List<String> voters;
+
+  int get votes => voters.length;
+}
+
 class ListeningRoomState {
   const ListeningRoomState({
     this.connected = false,
     this.code,
     this.hostId,
+    this.selfId,
     this.participants = const [],
+    this.queue = const [],
     this.error,
     this.busy = false,
   });
@@ -28,17 +48,30 @@ class ListeningRoomState {
   final bool connected;
   final String? code;
   final String? hostId;
+  final String? selfId;
   final List<RoomParticipant> participants;
+
+  /// Очередь зала, уже отсортированная сервером по голосам.
+  final List<RoomQueueEntry> queue;
   final String? error;
   final bool busy;
 
   bool get inRoom => code != null;
+  bool get isHost => inRoom && selfId != null && hostId == selfId;
+
+  bool votedFor(RoomQueueEntry entry) =>
+      selfId != null && entry.voters.contains(selfId);
+
+  bool canRemove(RoomQueueEntry entry) =>
+      isHost || (selfId != null && entry.addedById == selfId);
 
   ListeningRoomState copyWith({
     bool? connected,
     String? code,
     String? hostId,
+    String? selfId,
     List<RoomParticipant>? participants,
+    List<RoomQueueEntry>? queue,
     String? error,
     bool clearError = false,
     bool? busy,
@@ -47,11 +80,19 @@ class ListeningRoomState {
     connected: connected ?? this.connected,
     code: clearRoom ? null : code ?? this.code,
     hostId: clearRoom ? null : hostId ?? this.hostId,
+    selfId: selfId ?? this.selfId,
     participants: clearRoom ? const [] : participants ?? this.participants,
+    queue: clearRoom ? const [] : queue ?? this.queue,
     error: clearError ? null : error ?? this.error,
     busy: busy ?? this.busy,
   );
 }
+
+/// Зеркало состояния комнаты для пассивных виджетов (сайдбар, Stage):
+/// чтение не создаёт [RoomController] и не открывает сокет.
+final roomPresenceProvider = StateProvider<ListeningRoomState>(
+  (ref) => const ListeningRoomState(),
+);
 
 final roomControllerProvider =
     StateNotifierProvider<RoomController, ListeningRoomState>((ref) {
@@ -62,6 +103,10 @@ final roomControllerProvider =
 
 class RoomController extends StateNotifier<ListeningRoomState> {
   RoomController(this._ref) : super(const ListeningRoomState()) {
+    addListener(
+      (value) => _ref.read(roomPresenceProvider.notifier).state = value,
+      fireImmediately: false,
+    );
     final endpoint = BackendEndpoint.requireCurrent();
     _socket = io.io(
       endpoint.toString(),
@@ -74,7 +119,11 @@ class RoomController extends StateNotifier<ListeningRoomState> {
     _socket.onConnect((_) {
       _connecting = false;
       _reconnectTimer?.cancel();
-      state = state.copyWith(connected: true, clearError: true);
+      state = state.copyWith(
+        connected: true,
+        selfId: _socket.id,
+        clearError: true,
+      );
       if (state.inRoom) unawaited(_resumeRoom());
     });
     _socket.onDisconnect((_) {
@@ -113,6 +162,7 @@ class RoomController extends StateNotifier<ListeningRoomState> {
   bool _connecting = false;
   bool _disposed = false;
   String _participantName = 'Слушатель';
+  String? _autoAdvancedFor;
 
   bool get isHost => state.inRoom && state.hostId == _socket.id;
 
@@ -196,6 +246,83 @@ class RoomController extends StateNotifier<ListeningRoomState> {
     state = state.copyWith(clearRoom: true, clearError: true, busy: false);
   }
 
+  /// Добавляет трек в очередь зала. Возвращает текст ошибки или `null`.
+  Future<String?> addToQueue(UnifiedTrack track) async {
+    final response = await _request('room:queue-add', {
+      'code': state.code,
+      'track': track.toJson(),
+    });
+    return response['ok'] == true
+        ? null
+        : response['error']?.toString() ?? 'Не удалось добавить трек.';
+  }
+
+  Future<void> vote(String entryId) async {
+    final response = await _request('room:queue-vote', {
+      'code': state.code,
+      'entryId': entryId,
+    });
+    _reportFailure(response, 'Голос не засчитан.');
+  }
+
+  Future<void> removeFromQueue(String entryId) async {
+    final response = await _request('room:queue-remove', {
+      'code': state.code,
+      'entryId': entryId,
+    });
+    _reportFailure(response, 'Не удалось убрать трек.');
+  }
+
+  /// Ведущий включает трек, набравший больше всего голосов.
+  Future<void> playNextFromQueue() async {
+    if (!isHost) return;
+    final snapshot = state.queue;
+    final response = await _request('room:queue-next', {'code': state.code});
+    if (!_reportFailure(response, 'Очередь зала пуста.')) return;
+    final trackId = response['trackId']?.toString();
+    final track =
+        snapshot
+            .where((entry) => entry.track.id == trackId)
+            .firstOrNull
+            ?.track ??
+        snapshot.firstOrNull?.track;
+    if (track == null) return;
+    final PlaybackService service =
+        _playbackService ?? await _ref.read(playbackServiceProvider.future);
+    await service.playTrack(track);
+  }
+
+  bool _reportFailure(Map<String, dynamic> response, String fallback) {
+    if (response['ok'] == true) return true;
+    state = state.copyWith(error: response['error']?.toString() ?? fallback);
+    return false;
+  }
+
+  Future<Map<String, dynamic>> _request(
+    String event,
+    Map<String, dynamic> payload,
+  ) {
+    if (!state.inRoom || !_socket.connected) {
+      unawaited(_connectAuthorized());
+      return Future.value(const {
+        'ok': false,
+        'error': 'Сервер комнат ещё подключается.',
+      });
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    _socket.emitWithAck(
+      event,
+      payload,
+      ack: (raw) {
+        if (!completer.isCompleted) completer.complete(_stringMap(raw));
+      },
+    );
+    return completer.future.timeout(
+      const Duration(seconds: 8),
+      onTimeout: () => const {'ok': false, 'error': 'Сервер не ответил.'},
+    );
+  }
+
   void _perform(String event, Map<String, dynamic> payload) {
     if (!_socket.connected) {
       unawaited(_connectAuthorized());
@@ -241,7 +368,9 @@ class RoomController extends StateNotifier<ListeningRoomState> {
     state = state.copyWith(
       code: room['code']?.toString(),
       hostId: room['hostId']?.toString(),
+      selfId: _socket.id,
       participants: participants,
+      queue: parseRoomQueue(room['queue']),
       busy: false,
       clearError: true,
     );
@@ -283,6 +412,7 @@ class RoomController extends StateNotifier<ListeningRoomState> {
 
   void _publishPlayback(ResonancePlaybackState playback, {bool force = false}) {
     if (!isHost) return;
+    _maybeAdvanceQueue(playback);
     final now = DateTime.now();
     final trackChanged = playback.currentTrack?.id != _lastTrackId;
     final playChanged = playback.playing != _lastPlaying;
@@ -303,11 +433,24 @@ class RoomController extends StateNotifier<ListeningRoomState> {
     });
   }
 
-  Map<String, dynamic> _stringMap(dynamic value) {
-    if (value is Map<String, dynamic>) return value;
-    if (value is Map) return Map<String, dynamic>.from(value);
-    return const {};
+  /// За пару секунд до конца трека ведущий передаёт слово очереди зала,
+  /// чтобы локальная очередь не успела переключиться первой.
+  void _maybeAdvanceQueue(ResonancePlaybackState playback) {
+    final track = playback.currentTrack;
+    final duration = playback.duration;
+    if (track == null ||
+        state.queue.isEmpty ||
+        !playback.playing ||
+        duration < const Duration(seconds: 5) ||
+        _autoAdvancedFor == track.id ||
+        duration - playback.position > const Duration(milliseconds: 1500)) {
+      return;
+    }
+    _autoAdvancedFor = track.id;
+    unawaited(playNextFromQueue());
   }
+
+  Map<String, dynamic> _stringMap(dynamic value) => _asStringMap(value);
 
   @override
   void dispose() {
@@ -317,4 +460,39 @@ class RoomController extends StateNotifier<ListeningRoomState> {
     _socket.dispose();
     super.dispose();
   }
+}
+
+Map<String, dynamic> _asStringMap(dynamic value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) return Map<String, dynamic>.from(value);
+  return const {};
+}
+
+/// Разбирает очередь из `room:state`; повреждённые записи пропускаются,
+/// чтобы одна из них не ломала всю комнату.
+List<RoomQueueEntry> parseRoomQueue(dynamic raw) {
+  final queue = <RoomQueueEntry>[];
+  for (final value in raw is List ? raw : const []) {
+    final item = _asStringMap(value);
+    final addedBy = _asStringMap(item['addedBy']);
+    final id = item['id']?.toString() ?? '';
+    if (id.isEmpty) continue;
+    try {
+      queue.add(
+        RoomQueueEntry(
+          id: id,
+          track: UnifiedTrack.fromJson(_asStringMap(item['track'])),
+          addedById: addedBy['id']?.toString() ?? '',
+          addedByName: addedBy['name']?.toString() ?? 'Слушатель',
+          voters: [
+            for (final voter in item['voters'] as List? ?? const [])
+              voter.toString(),
+          ],
+        ),
+      );
+    } on Object {
+      continue;
+    }
+  }
+  return List.unmodifiable(queue);
 }

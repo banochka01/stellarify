@@ -5,7 +5,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.server
-    image: resonance-api:20260924-offline-3.7.0
+    image: resonance-api:20260928-together-stage-3.8.0
     container_name: resonance-api
     restart: unless-stopped
     env_file:
