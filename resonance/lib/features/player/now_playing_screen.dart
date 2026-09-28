@@ -11,11 +11,12 @@ import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/track_source.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_controller.dart';
-import 'package:resonance/features/lyrics/lyrics_service.dart';
+import 'package:resonance/features/lyrics/lyrics_follow.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/features/rooms/room_queue_panel.dart';
 import 'package:resonance/shared/widgets/ambient.dart';
 import 'package:resonance/shared/widgets/offline_download_button.dart';
+import 'package:resonance/shared/widgets/playback_position.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
@@ -26,9 +27,7 @@ class NowPlayingScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state =
-        ref.watch(playbackStateProvider).valueOrNull ??
-        const ResonancePlaybackState();
+    final state = ref.watch(playbackFrameProvider);
     final track = state.currentTrack ?? demoTrack;
     final next = _nextTrack(state);
 
@@ -225,11 +224,6 @@ class _Details extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final flow = ref.watch(playbackFlowControllerProvider);
     final fallbackDuration = track.duration ?? const Duration(seconds: 1);
-    final duration = state.duration > Duration.zero
-        ? state.duration
-        : fallbackDuration;
-    final maxMs = max(1, duration.inMilliseconds);
-    final positionMs = state.position.inMilliseconds.clamp(0, maxMs);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -273,30 +267,53 @@ class _Details extends ConsumerWidget {
           ],
         ),
         SizedBox(height: desktop ? 36 : 30),
-        _Waveform(
-          value: positionMs / maxMs,
-          phase: state.position.inMilliseconds / 1000,
-          alive: state.playing && flow.visualizer,
-          activeColor: Theme.of(context).colorScheme.primary,
-          onSeek: (value) => unawaited(
-            ref
-                .read(playbackServiceProvider.future)
-                .then(
-                  (service) => service.seek(
-                    Duration(milliseconds: (maxMs * value).round()),
+        // Волна и время идут плавно и перестраиваются отдельно от экрана.
+        SmoothPlaybackPosition(
+          fallbackDuration: fallbackDuration,
+          builder: (context, position, duration) {
+            final maxMs = max(1, duration.inMilliseconds);
+            final positionMs = position.inMilliseconds.clamp(0, maxMs);
+            const times = TextStyle(
+              color: Color(0xFFA8A098),
+              fontSize: 12,
+              fontFeatures: [FontFeature.tabularFigures()],
+            );
+            return Column(
+              children: [
+                _Waveform(
+                  value: positionMs / maxMs,
+                  phase: positionMs / 1000,
+                  alive: state.playing && flow.visualizer,
+                  activeColor: Theme.of(context).colorScheme.primary,
+                  onSeek: (value) => unawaited(
+                    ref
+                        .read(playbackServiceProvider.future)
+                        .then(
+                          (service) => service.seek(
+                            Duration(milliseconds: (maxMs * value).round()),
+                          ),
+                        ),
                   ),
                 ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [Text(_time(state.position)), Text(_time(duration))],
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _time(Duration(milliseconds: positionMs)),
+                      style: times,
+                    ),
+                    Text(_time(duration), style: times),
+                  ],
+                ),
+              ],
+            );
+          },
         ),
         SizedBox(height: desktop ? 24 : 22),
         _Controls(state: state, desktop: desktop),
         SizedBox(height: desktop ? 26 : 24),
-        _LyricsPanel(track: track, position: state.position, desktop: desktop),
+        _LyricsPanel(track: track, desktop: desktop),
       ],
     );
   }
@@ -702,14 +719,9 @@ class _WaveformPainter extends CustomPainter {
 }
 
 class _LyricsPanel extends ConsumerStatefulWidget {
-  const _LyricsPanel({
-    required this.track,
-    required this.position,
-    required this.desktop,
-  });
+  const _LyricsPanel({required this.track, required this.desktop});
 
   final UnifiedTrack track;
-  final Duration position;
   final bool desktop;
 
   @override
@@ -744,8 +756,12 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
       height: widget.desktop ? 270 : 320,
       width: double.infinity,
       decoration: BoxDecoration(
-        color: const Color(0x8C0F0C0B),
-        border: Border.all(color: const Color(0x1AFFFFFF)),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0x99151110), Color(0x730C0A09)],
+        ),
+        border: Border.all(color: const Color(0x1FFFFFFF)),
         borderRadius: BorderRadius.circular(22),
       ),
       child: lyrics.when(
@@ -781,10 +797,21 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
               (_) => GlobalKey(),
             );
           }
+          // Перестраиваемся только при смене строки, а не на каждый тик.
           final active = document.synced
-              ? _activeLine(document.lines, widget.position)
+              ? ref.watch(
+                  playbackPositionProvider.select(
+                    (position) => activeLyricLine(document.lines, position),
+                  ),
+                )
               : -1;
           _ensureActiveVisible(active);
+          const style = TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 21,
+            height: 1.25,
+            fontWeight: FontWeight.w700,
+          );
           return Column(
             children: [
               Padding(
@@ -824,34 +851,18 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
                     controller: _scrollController,
                     padding: const EdgeInsets.fromLTRB(22, 28, 22, 48),
                     itemCount: document.lines.length,
-                    itemBuilder: (context, index) {
-                      final selected = index == active || !document.synced;
-                      final reduced =
-                          MediaQuery.maybeOf(context)?.disableAnimations ??
-                          false;
-                      return Padding(
-                        key: _lineKeys[index],
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: AnimatedDefaultTextStyle(
-                          duration: reduced
-                              ? Duration.zero
-                              : ResonanceMotion.standard,
-                          curve: ResonanceMotion.curve,
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            color: selected
-                                ? const Color(0xFFF5F1E9)
-                                : const Color(0xFF716D67),
-                            fontSize: selected && document.synced ? 22 : 17,
-                            height: 1.25,
-                            fontWeight: selected
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                          ),
-                          child: Text(document.lines[index].text),
-                        ),
-                      );
-                    },
+                    itemBuilder: (context, index) => Padding(
+                      key: _lineKeys[index],
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: LyricLineText(
+                        text: document.lines[index].text,
+                        style: style,
+                        active: index == active || !document.synced,
+                        activeColor: const Color(0xFFF5F1E9),
+                        dimColor: const Color(0xFF6F6A64),
+                        inactiveScale: document.synced ? .84 : 1,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -862,32 +873,23 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
     );
   }
 
-  int _activeLine(List<LyricLine> lines, Duration position) {
-    var active = -1;
-    for (var index = 0; index < lines.length; index++) {
-      final start = lines[index].start;
-      if (start == null || start > position) break;
-      active = index;
-    }
-    return active;
-  }
-
   void _ensureActiveVisible(int active) {
     if (active < 0 || active == _lastActive || active >= _lineKeys.length) {
       return;
     }
+    final first = _lastActive < 0;
     _lastActive = active;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final context = _lineKeys[active].currentContext;
-      if (context == null) return;
-      final reduced =
-          MediaQuery.maybeOf(this.context)?.disableAnimations ?? false;
-      Scrollable.ensureVisible(
-        context,
+      followLyricLine(
+        controller: _scrollController,
+        line: _lineKeys[active],
+        index: active,
+        count: _lineKeys.length,
         alignment: .42,
-        duration: reduced ? Duration.zero : ResonanceMotion.gentle,
-        curve: ResonanceMotion.curve,
+        duration: first
+            ? Duration.zero
+            : ResonanceMotion.durationOf(context, ResonanceMotion.gentle * 2),
       );
     });
   }

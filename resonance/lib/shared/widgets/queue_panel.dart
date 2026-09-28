@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
-import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/playback_position.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 
@@ -12,9 +12,7 @@ class QueuePanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state =
-        ref.watch(playbackStateProvider).valueOrNull ??
-        const ResonancePlaybackState();
+    final state = ref.watch(playbackFrameProvider);
     return Container(
       width: 286,
       padding: const EdgeInsets.all(20),

@@ -86,9 +86,18 @@ class _ResonanceEntranceState extends State<ResonanceEntrance>
 }
 
 class ResonanceAnimatedSwap extends StatelessWidget {
-  const ResonanceAnimatedSwap({required this.child, super.key});
+  const ResonanceAnimatedSwap({
+    required this.child,
+    this.alignment = Alignment.center,
+    super.key,
+  });
 
   final Widget child;
+
+  /// Как выравнивать старый и новый вариант друг относительно друга. Для
+  /// текста, прижатого к краю, нужен край — иначе на время перехода более
+  /// узкая строка съезжает к центру, а в конце прыгает обратно.
+  final AlignmentGeometry alignment;
 
   @override
   Widget build(BuildContext context) {
@@ -98,6 +107,10 @@ class ResonanceAnimatedSwap extends StatelessWidget {
       reverseDuration: reduced ? Duration.zero : ResonanceMotion.quick,
       switchInCurve: ResonanceMotion.curve,
       switchOutCurve: ResonanceMotion.exitCurve,
+      layoutBuilder: (currentChild, previousChildren) => Stack(
+        alignment: alignment,
+        children: [...previousChildren, ?currentChild],
+      ),
       transitionBuilder: (child, animation) => FadeTransition(
         opacity: animation,
         child: SlideTransition(
@@ -138,6 +151,33 @@ class ResonanceTrackSwap extends StatelessWidget {
         ),
       ),
       child: child,
+    );
+  }
+}
+
+/// Мягкая смена полноэкранного фона: без сдвига, старый кадр гаснет медленно,
+/// поэтому между обложками не мелькает пустота.
+class ResonanceCrossfade extends StatelessWidget {
+  const ResonanceCrossfade({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final duration = reduced ? Duration.zero : ResonanceMotion.gentle * 2;
+    return RepaintBoundary(
+      child: AnimatedSwitcher(
+        duration: duration,
+        reverseDuration: duration,
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        layoutBuilder: (currentChild, previousChildren) => Stack(
+          fit: StackFit.expand,
+          children: [...previousChildren, ?currentChild],
+        ),
+        child: child,
+      ),
     );
   }
 }

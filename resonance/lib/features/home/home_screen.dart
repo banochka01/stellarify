@@ -16,6 +16,7 @@ import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/features/wave/wave_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/ambient.dart';
+import 'package:resonance/shared/widgets/playback_position.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
@@ -39,8 +40,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final playback = ref.watch(playbackStateProvider);
-    final state = playback.valueOrNull ?? const ResonancePlaybackState();
+    final state = ref.watch(playbackFrameProvider);
     final track = state.currentTrack ?? demoTrack;
     final library = ref.watch(libraryControllerProvider).valueOrNull;
     final recent = <UnifiedTrack>[
@@ -157,6 +157,7 @@ class _CinematicPlayer extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               ResonanceAnimatedSwap(
+                alignment: AlignmentDirectional.topStart,
                 child: Column(
                   key: ValueKey('track-copy-${track.id}'),
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -221,7 +222,6 @@ class _HeroProgress extends ConsumerWidget {
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 500),
       child: AmbientProgress(
-        position: state.position,
         duration: state.duration > Duration.zero
             ? state.duration
             : track.duration ?? Duration.zero,
@@ -724,6 +724,7 @@ class _CompactHome extends StatelessWidget {
         ),
         const SizedBox(height: 22),
         ResonanceAnimatedSwap(
+          alignment: AlignmentDirectional.topStart,
           child: Column(
             key: ValueKey('compact-track-${track.id}'),
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1250,7 +1251,7 @@ class _TrackBackdrop extends ConsumerWidget {
               alignment: Alignment.centerRight,
             ),
           );
-    return ResonanceAnimatedSwap(
+    return ResonanceCrossfade(
       child: SizedBox.expand(key: ValueKey(track.id), child: image),
     );
   }

@@ -114,9 +114,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "3.8.0",
+    version: process.env.CLIENT_VERSION || "3.8.1",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Resonance 3.8 Together Stage: очередь зала с голосованием на Stage, тёплый ambient по цветам обложки, офлайн-прослушивание и SourceShift.",
+      "Resonance 3.8.1 Together Stage: плавные анимации, обновлённый плеер, очередь зала с голосованием на Stage, тёплый ambient по цветам обложки, офлайн-прослушивание и SourceShift.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       windowsPortable: "https://music.webcordes.ru/downloads/windows-portable",

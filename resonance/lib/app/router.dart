@@ -89,10 +89,32 @@ final resonanceRouter = GoRouter(
     GoRoute(
       path: '/stage',
       name: 'visual-stage',
-      builder: (context, state) => VisualStageScreen(
-        initialMode: state.uri.queryParameters['mode'] == 'video'
-            ? VisualStageMode.video
-            : VisualStageMode.lyrics,
+      pageBuilder: (context, state) => CustomTransitionPage<void>(
+        key: state.pageKey,
+        transitionDuration: ResonanceMotion.gentle,
+        reverseTransitionDuration: ResonanceMotion.standard,
+        child: VisualStageScreen(
+          initialMode: state.uri.queryParameters['mode'] == 'video'
+              ? VisualStageMode.video
+              : VisualStageMode.lyrics,
+        ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+            return child;
+          }
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: ResonanceMotion.curve,
+            reverseCurve: Curves.easeInCubic,
+          );
+          return FadeTransition(
+            opacity: curved,
+            child: ScaleTransition(
+              scale: Tween(begin: 1.04, end: 1.0).animate(curved),
+              child: child,
+            ),
+          );
+        },
       ),
     ),
   ],

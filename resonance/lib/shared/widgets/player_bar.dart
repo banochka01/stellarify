@@ -9,6 +9,7 @@ import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/playback_position.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/seek_timeline.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
@@ -20,15 +21,10 @@ class PlayerBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final playback = ref.watch(playbackStateProvider);
-    final state = playback.valueOrNull ?? const ResonancePlaybackState();
+    final state = ref.watch(playbackFrameProvider);
     final track = state.currentTrack ?? demoTrack;
     final library = ref.watch(libraryControllerProvider).valueOrNull;
     final favorite = library?.favoriteIds.contains(track.id) ?? false;
-    final durationMs = state.duration.inMilliseconds;
-    final progress = durationMs <= 0
-        ? 0.0
-        : (state.position.inMilliseconds / durationMs).clamp(0.0, 1.0);
 
     return Material(
       color: const Color(0xFF0A0A09),
@@ -39,18 +35,27 @@ class PlayerBar extends ConsumerWidget {
         ),
         child: Column(
           children: [
-            SeekTimeline(
-              value: progress,
-              height: 14,
-              onSeek: (value) => unawaited(
-                ref
-                    .read(playbackServiceProvider.future)
-                    .then(
-                      (service) => service.seek(
-                        Duration(milliseconds: (durationMs * value).round()),
-                      ),
-                    ),
-              ),
+            SmoothPlaybackPosition(
+              builder: (context, position, duration) {
+                final durationMs = duration.inMilliseconds;
+                return SeekTimeline(
+                  value: durationMs <= 0
+                      ? 0
+                      : position.inMilliseconds / durationMs,
+                  height: 14,
+                  onSeek: (value) => unawaited(
+                    ref
+                        .read(playbackServiceProvider.future)
+                        .then(
+                          (service) => service.seek(
+                            Duration(
+                              milliseconds: (durationMs * value).round(),
+                            ),
+                          ),
+                        ),
+                  ),
+                );
+              },
             ),
             Expanded(
               child: InkWell(

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
+import 'package:resonance/shared/widgets/playback_position.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 
@@ -106,44 +107,70 @@ class AmbientBackdrop extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = watchTrackPalette(ref, track);
-    return TweenAnimationBuilder<TrackPalette>(
-      tween: _PaletteTween(end: palette),
-      duration: MediaQuery.disableAnimationsOf(context)
-          ? Duration.zero
-          : ResonanceMotion.gentle * 2,
-      curve: ResonanceMotion.curve,
-      builder: (context, value, _) => DecoratedBox(
-        decoration: BoxDecoration(color: base),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: const Alignment(-.75, -.85),
-                  radius: 1.25,
-                  colors: [
-                    value.glow.withValues(alpha: .42 * intensity),
-                    value.glow.withValues(alpha: .10 * intensity),
-                    Colors.transparent,
-                  ],
-                  stops: const [0, .45, 1],
+    // Фон перерисовывается только при смене палитры, а не вместе с
+    // прогрессом и текстом поверх него.
+    return RepaintBoundary(
+      child: TweenAnimationBuilder<TrackPalette>(
+        tween: _PaletteTween(end: palette),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : ResonanceMotion.gentle * 2,
+        curve: ResonanceMotion.curve,
+        builder: (context, value, _) => DecoratedBox(
+          decoration: BoxDecoration(color: base),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: const Alignment(-.75, -.85),
+                    radius: 1.25,
+                    colors: [
+                      value.glow.withValues(alpha: .42 * intensity),
+                      value.glow.withValues(alpha: .10 * intensity),
+                      Colors.transparent,
+                    ],
+                    stops: const [0, .45, 1],
+                  ),
                 ),
               ),
-            ),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: const Alignment(.85, .95),
-                  radius: 1.1,
-                  colors: [
-                    value.shadow.withValues(alpha: .30 * intensity),
-                    Colors.transparent,
-                  ],
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: const Alignment(.85, .95),
+                    radius: 1.1,
+                    colors: [
+                      value.shadow.withValues(alpha: .30 * intensity),
+                      Colors.transparent,
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: const Alignment(.9, -.55),
+                    radius: .8,
+                    colors: [
+                      value.accent.withValues(alpha: .10 * intensity),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+              // Мягкая виньетка собирает взгляд к центру и прячет края.
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    radius: 1.2,
+                    colors: [Colors.transparent, Color(0x66000000)],
+                    stops: [.55, 1],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -157,7 +184,7 @@ class _PaletteTween extends Tween<TrackPalette> {
   TrackPalette lerp(double t) => TrackPalette.lerp(begin!, end!, t);
 }
 
-/// Круглая «стеклянная» кнопка управления из концептов 2026-09.
+//// Круглая «стеклянная» кнопка управления из концептов 2026-09.
 class RoundControl extends StatelessWidget {
   const RoundControl({
     required this.icon,
@@ -177,35 +204,76 @@ class RoundControl extends StatelessWidget {
   final Color activeColor;
 
   @override
-  Widget build(BuildContext context) => Tooltip(
-    message: tooltip,
-    child: ResonancePressable(
-      child: SizedBox.square(
-        dimension: size,
-        child: Material(
-          color: active
-              ? activeColor.withValues(alpha: .16)
-              : const Color(0x14FFFFFF),
-          shape: CircleBorder(
-            side: BorderSide(
-              color: active
-                  ? activeColor.withValues(alpha: .55)
-                  : const Color(0x24FFFFFF),
+  Widget build(BuildContext context) {
+    final duration = ResonanceMotion.durationOf(
+      context,
+      ResonanceMotion.standard,
+    );
+    return Tooltip(
+      message: tooltip,
+      child: ResonancePressable(
+        enabled: onPressed != null,
+        child: AnimatedContainer(
+          duration: duration,
+          curve: ResonanceMotion.curve,
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: active
+                  ? [
+                      activeColor.withValues(alpha: .26),
+                      activeColor.withValues(alpha: .10),
+                    ]
+                  : const [Color(0x1FFFFFFF), Color(0x0AFFFFFF)],
             ),
+            border: Border.all(
+              color: active
+                  ? activeColor.withValues(alpha: .6)
+                  : const Color(0x26FFFFFF),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: activeColor.withValues(alpha: active ? .22 : 0),
+                blurRadius: 22,
+              ),
+            ],
           ),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onPressed,
-            child: Icon(
-              icon,
-              size: size * .42,
-              color: active ? activeColor : const Color(0xFFEDE7DE),
+          child: Material(
+            type: MaterialType.transparency,
+            shape: const CircleBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onPressed,
+              child: Center(
+                child: AnimatedSwitcher(
+                  duration: duration,
+                  switchInCurve: ResonanceMotion.curve,
+                  switchOutCurve: ResonanceMotion.exitCurve,
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: ScaleTransition(
+                      scale: Tween(begin: .7, end: 1.0).animate(animation),
+                      child: child,
+                    ),
+                  ),
+                  child: Icon(
+                    icon,
+                    key: ValueKey(icon),
+                    size: size * .42,
+                    color: active ? activeColor : const Color(0xFFEDE7DE),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// Главная кнопка воспроизведения: кремовый круг с мягким свечением.
@@ -224,64 +292,84 @@ class CreamPlayButton extends StatelessWidget {
   final VoidCallback? onPressed;
 
   static const cream = Color(0xFFF1ECE2);
+  static const ink = Color(0xFF14110F);
 
   @override
-  Widget build(BuildContext context) => Tooltip(
-    message: playing ? 'Пауза' : 'Воспроизвести',
-    child: ResonancePressable(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x40F1ECE2),
-              blurRadius: 32,
-              spreadRadius: 1,
+  Widget build(BuildContext context) {
+    final duration = ResonanceMotion.durationOf(
+      context,
+      ResonanceMotion.standard,
+    );
+    final Widget glyph = buffering
+        ? SizedBox.square(
+            key: const ValueKey('buffering'),
+            dimension: size * .36,
+            child: const CircularProgressIndicator(
+              strokeWidth: 2.2,
+              color: ink,
             ),
-          ],
-        ),
-        child: Material(
-          color: cream,
-          shape: const CircleBorder(),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onPressed,
-            child: Center(
-              child: buffering
-                  ? SizedBox.square(
-                      dimension: size * .36,
-                      child: const CircularProgressIndicator(
-                        strokeWidth: 2.2,
-                        color: Color(0xFF14110F),
-                      ),
-                    )
-                  : AnimatedSwitcher(
-                      duration: ResonanceMotion.quick,
-                      transitionBuilder: (child, animation) =>
-                          ScaleTransition(scale: animation, child: child),
-                      child: Icon(
-                        playing
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        key: ValueKey(playing),
-                        size: size * .46,
-                        color: const Color(0xFF14110F),
-                      ),
+          )
+        : Icon(
+            playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+            key: ValueKey(playing),
+            size: size * .46,
+            color: ink,
+          );
+    return Tooltip(
+      message: playing ? 'Пауза' : 'Воспроизвести',
+      child: ResonancePressable(
+        pressedScale: .94,
+        hoverScale: 1.03,
+        child: AnimatedContainer(
+          duration: duration,
+          curve: ResonanceMotion.curve,
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: cream.withValues(alpha: playing ? .34 : .18),
+                blurRadius: playing ? 38 : 24,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Material(
+            color: cream,
+            shape: const CircleBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onPressed,
+              child: Center(
+                child: AnimatedSwitcher(
+                  duration: duration,
+                  switchInCurve: ResonanceMotion.curve,
+                  switchOutCurve: ResonanceMotion.exitCurve,
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: ScaleTransition(
+                      scale: Tween(begin: .6, end: 1.0).animate(animation),
+                      child: child,
                     ),
+                  ),
+                  child: glyph,
+                ),
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// Тонкая линия прогресса с тёплым градиентом, как в концептах.
+///
+/// Позицию берёт сама из плеера и двигается плавно, кадр за кадром. Перемотка
+/// отправляется один раз — когда палец или мышь отпущены.
 class AmbientProgress extends StatefulWidget {
   const AmbientProgress({
-    required this.position,
     required this.duration,
     required this.onSeek,
     this.accent = const Color(0xFFFF8A5B),
@@ -289,7 +377,7 @@ class AmbientProgress extends StatefulWidget {
     super.key,
   });
 
-  final Duration position;
+  /// Длительность из метаданных трека, пока движок её не сообщил.
   final Duration duration;
   final ValueChanged<Duration> onSeek;
   final Color accent;
@@ -301,40 +389,97 @@ class AmbientProgress extends StatefulWidget {
 
 class _AmbientProgressState extends State<AmbientProgress> {
   double? _drag;
+  bool _hovered = false;
+
+  /// После отпускания держим выбранную точку, пока движок не догонит её.
+  Duration? _pendingSeek;
 
   static String _time(Duration value) =>
       '${value.inMinutes}:${value.inSeconds.remainder(60).toString().padLeft(2, '0')}';
 
   @override
-  Widget build(BuildContext context) {
-    final total = widget.duration.inMilliseconds;
-    final fraction =
-        _drag ??
-        (total <= 0
-            ? 0.0
-            : (widget.position.inMilliseconds / total).clamp(0.0, 1.0));
-    final times = const TextStyle(
-      color: Color(0xFF9D968E),
-      fontSize: 11,
-      fontFeatures: [FontFeature.tabularFigures()],
-    );
-    final bar = LayoutBuilder(
+  Widget build(BuildContext context) => SmoothPlaybackPosition(
+    fallbackDuration: widget.duration,
+    builder: (context, position, duration) {
+      final total = duration.inMilliseconds;
+      final pending = _pendingSeek;
+      if (pending != null && (position - pending).inMilliseconds.abs() < 900) {
+        _pendingSeek = null;
+      }
+      final effective = _pendingSeek ?? position;
+      final fraction =
+          _drag ??
+          (total <= 0
+              ? 0.0
+              : (effective.inMilliseconds / total).clamp(0.0, 1.0));
+      final shown = _drag == null
+          ? effective
+          : Duration(milliseconds: (total * _drag!).round());
+      final bar = _bar(context, fraction, total, shown);
+      if (!widget.showTimes) return bar;
+      const times = TextStyle(
+        color: Color(0xFF9D968E),
+        fontSize: 11,
+        fontWeight: FontWeight.w500,
+        fontFeatures: [FontFeature.tabularFigures()],
+      );
+      return Row(
+        children: [
+          SizedBox(width: 38, child: Text(_time(shown), style: times)),
+          const SizedBox(width: 8),
+          Expanded(child: bar),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 38,
+            child: Text(
+              _time(duration),
+              style: times,
+              textAlign: TextAlign.right,
+            ),
+          ),
+        ],
+      );
+    },
+  );
+
+  Widget _bar(
+    BuildContext context,
+    double fraction,
+    int total,
+    Duration shown,
+  ) {
+    final active = _drag != null || _hovered;
+    final duration = ResonanceMotion.durationOf(context, ResonanceMotion.quick);
+    return LayoutBuilder(
       builder: (context, constraints) {
-        double at(Offset point) =>
-            (point.dx / constraints.maxWidth).clamp(0.0, 1.0);
+        final width = constraints.maxWidth;
+        double at(Offset point) => (point.dx / width).clamp(0.0, 1.0);
         void commit() {
           final value = _drag;
           if (value == null || total <= 0) return;
-          setState(() => _drag = null);
-          widget.onSeek(Duration(milliseconds: (total * value).round()));
+          final target = Duration(milliseconds: (total * value).round());
+          setState(() {
+            _drag = null;
+            _pendingSeek = target;
+          });
+          widget.onSeek(target);
+          // Если перемотка не удалась, не держим ползунок в чужой точке.
+          Future<void>.delayed(const Duration(milliseconds: 1500), () {
+            if (mounted && _pendingSeek == target) {
+              setState(() => _pendingSeek = null);
+            }
+          });
         }
 
+        final thickness = active ? 5.0 : 3.0;
         return Semantics(
           slider: true,
           label: 'Позиция воспроизведения',
-          value: _time(widget.position),
+          value: _time(shown),
           child: MouseRegion(
             cursor: total > 0 ? SystemMouseCursors.click : MouseCursor.defer,
+            onEnter: (_) => setState(() => _hovered = true),
+            onExit: (_) => setState(() => _hovered = false),
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTapDown: total <= 0
@@ -342,40 +487,72 @@ class _AmbientProgressState extends State<AmbientProgress> {
                   : (details) =>
                         setState(() => _drag = at(details.localPosition)),
               onTapUp: total <= 0 ? null : (_) => commit(),
+              onHorizontalDragStart: total <= 0
+                  ? null
+                  : (details) =>
+                        setState(() => _drag = at(details.localPosition)),
               onHorizontalDragUpdate: total <= 0
                   ? null
                   : (details) =>
                         setState(() => _drag = at(details.localPosition)),
               onHorizontalDragEnd: total <= 0 ? null : (_) => commit(),
+              onHorizontalDragCancel: () => setState(() => _drag = null),
               child: SizedBox(
-                height: 22,
-                child: Center(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(3),
-                    child: SizedBox(
-                      height: _drag == null ? 3 : 5,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          const ColoredBox(color: Color(0x2EFFFFFF)),
-                          FractionallySizedBox(
-                            alignment: Alignment.centerLeft,
-                            widthFactor: fraction,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    const Color(0xFFFF5A36),
-                                    widget.accent,
-                                  ],
-                                ),
-                              ),
-                            ),
+                height: 24,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.centerLeft,
+                  children: [
+                    AnimatedContainer(
+                      duration: duration,
+                      curve: ResonanceMotion.curve,
+                      height: thickness,
+                      decoration: BoxDecoration(
+                        color: const Color(0x2EFFFFFF),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                    // Ширина меняется каждый кадр — без анимации, иначе
+                    // заливка отстаёт от ползунка.
+                    Container(
+                      height: thickness,
+                      width: width * fraction,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(99),
+                        gradient: LinearGradient(
+                          colors: [const Color(0xFFFF5A36), widget.accent],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: widget.accent.withValues(alpha: .35),
+                            blurRadius: 10,
                           ),
                         ],
                       ),
                     ),
-                  ),
+                    Positioned(
+                      left: width * fraction - 7,
+                      child: AnimatedScale(
+                        duration: duration,
+                        curve: ResonanceMotion.curve,
+                        scale: active ? 1 : 0,
+                        child: Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF7F2E9),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: widget.accent.withValues(alpha: .55),
+                                blurRadius: 12,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -383,22 +560,9 @@ class _AmbientProgressState extends State<AmbientProgress> {
         );
       },
     );
-    if (!widget.showTimes) return bar;
-    final shown = _drag == null
-        ? widget.position
-        : Duration(milliseconds: (total * _drag!).round());
-    return Row(
-      children: [
-        Text(_time(shown), style: times),
-        const SizedBox(width: 12),
-        Expanded(child: bar),
-        const SizedBox(width: 12),
-        Text(_time(widget.duration), style: times),
-      ],
-    );
   }
 }
 
-/// Запускает действие без ожидания и гасит ошибку, чтобы жест не падал.
+// Запускает действие без ожидания и гасит ошибку, чтобы жест не падал.
 void fireAndForget(Future<void> Function() action) =>
     unawaited(action().catchError((Object _) {}));

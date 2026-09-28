@@ -15,12 +15,13 @@ import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_controller.dart';
-import 'package:resonance/features/lyrics/lyrics_service.dart';
+import 'package:resonance/features/lyrics/lyrics_follow.dart';
 import 'package:resonance/features/player/clip_service.dart';
 import 'package:resonance/features/player/stage_clip_video.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/features/rooms/room_queue_panel.dart';
 import 'package:resonance/shared/widgets/ambient.dart';
+import 'package:resonance/shared/widgets/playback_position.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
@@ -52,12 +53,39 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
   bool _queueOpen = true;
   Future<void>? _fullscreenEntry;
 
+  bool _fullscreenScheduled = false;
+
   @override
-  void initState() {
-    super.initState();
-    if (!Platform.environment.containsKey('FLUTTER_TEST')) {
-      _fullscreenEntry = _enterFullscreen();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_fullscreenScheduled ||
+        Platform.environment.containsKey('FLUTTER_TEST')) {
+      return;
     }
+    _fullscreenScheduled = true;
+    // Окно разворачивается после анимации входа: ресайз посреди перехода
+    // заставляет каждый кадр заново раскладывать сцену, и переход рвётся.
+    final animation = ModalRoute.of(context)?.animation;
+    if (animation == null || animation.isCompleted) {
+      _fullscreenEntry = _enterFullscreen();
+      return;
+    }
+    final entered = Completer<void>();
+    _fullscreenEntry = entered.future;
+    void onStatus(AnimationStatus status) {
+      if (status != AnimationStatus.completed &&
+          status != AnimationStatus.dismissed) {
+        return;
+      }
+      animation.removeStatusListener(onStatus);
+      if (mounted && status == AnimationStatus.completed) {
+        entered.complete(_enterFullscreen());
+      } else {
+        entered.complete();
+      }
+    }
+
+    animation.addStatusListener(onStatus);
   }
 
   Future<void> _enterFullscreen() async {
@@ -89,9 +117,7 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state =
-        ref.watch(playbackStateProvider).valueOrNull ??
-        const ResonancePlaybackState();
+    final state = ref.watch(playbackFrameProvider);
     final track = state.currentTrack ?? demoTrack;
     if (_trackId != track.id) {
       _trackId = track.id;
@@ -146,14 +172,16 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
           body: Stack(
             fit: StackFit.expand,
             children: [
-              _StageBackground(
-                track: track,
-                video:
-                    hasVideo &&
-                        nativeVideo &&
-                        effectiveMode == VisualStageMode.video
-                    ? _StageVideo.bright
-                    : _StageVideo.none,
+              RepaintBoundary(
+                child: _StageBackground(
+                  track: track,
+                  video:
+                      hasVideo &&
+                          nativeVideo &&
+                          effectiveMode == VisualStageMode.video
+                      ? _StageVideo.bright
+                      : _StageVideo.none,
+                ),
               ),
               if (hasVideo &&
                   !nativeVideo &&
@@ -182,8 +210,9 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
               SafeArea(
                 child: Column(
                   children: [
-                    if (!_focusMode)
-                      _StageHeader(
+                    _Collapsible(
+                      visible: !_focusMode,
+                      child: _StageHeader(
                         mode: effectiveMode,
                         hasVideo: hasVideo,
                         queueOpen: _queueOpen,
@@ -198,41 +227,56 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
                           }
                         },
                       ),
+                    ),
                     _sourceStatus(clips, selected, nativeVideo, track),
                     Expanded(
                       child: LayoutBuilder(
-                        builder: (context, constraints) => _focusMode
-                            ? const SizedBox.expand()
-                            : effectiveMode == VisualStageMode.video
-                            ? _ClipIdentity(track: track)
-                            : constraints.maxWidth >= 700
-                            ? _DesktopStage(
-                                state: state,
-                                track: track,
-                                videoMode:
-                                    effectiveMode == VisualStageMode.video,
-                                showQueue:
-                                    inRoom &&
-                                    _queueOpen &&
-                                    constraints.maxWidth >= 1100,
-                              )
-                            : _MobileStage(state: state, track: track),
+                        builder: (context, constraints) =>
+                            ResonanceAnimatedSwap(
+                              child: KeyedSubtree(
+                                key: ValueKey(
+                                  '$effectiveMode-$_focusMode-'
+                                  '${constraints.maxWidth >= 700}',
+                                ),
+                                child: _focusMode
+                                    ? const SizedBox.expand()
+                                    : effectiveMode == VisualStageMode.video
+                                    ? _ClipIdentity(track: track)
+                                    : constraints.maxWidth >= 700
+                                    ? _DesktopStage(
+                                        state: state,
+                                        track: track,
+                                        videoMode:
+                                            effectiveMode ==
+                                            VisualStageMode.video,
+                                        showQueue:
+                                            inRoom &&
+                                            _queueOpen &&
+                                            constraints.maxWidth >= 1100,
+                                      )
+                                    : _MobileStage(state: state, track: track),
+                              ),
+                            ),
                       ),
                     ),
-                    if (!_focusMode)
-                      _StageTransport(
+                    _Collapsible(
+                      visible: !_focusMode,
+                      child: _StageTransport(
                         state: state,
                         showProgress: effectiveMode == VisualStageMode.video,
                       ),
-                    if (_focusMode)
-                      Padding(
+                    ),
+                    _Collapsible(
+                      visible: _focusMode,
+                      child: Padding(
                         padding: const EdgeInsets.all(24),
-                        child: IconButton.filledTonal(
+                        child: RoundControl(
                           tooltip: 'Показать управление',
+                          icon: Icons.unfold_more_rounded,
                           onPressed: () => setState(() => _focusMode = false),
-                          icon: const Icon(Icons.unfold_more_rounded),
                         ),
                       ),
+                    ),
                   ],
                 ),
               ),
@@ -436,6 +480,39 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
   );
 }
 
+/// Плавно убирает и возвращает полосы управления в режиме фокуса.
+class _Collapsible extends StatelessWidget {
+  const _Collapsible({required this.visible, required this.child});
+
+  final bool visible;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = ResonanceMotion.durationOf(
+      context,
+      ResonanceMotion.standard,
+    );
+    return AnimatedSize(
+      duration: duration,
+      curve: ResonanceMotion.curve,
+      alignment: Alignment.topCenter,
+      child: AnimatedSwitcher(
+        duration: duration,
+        switchInCurve: ResonanceMotion.curve,
+        switchOutCurve: ResonanceMotion.exitCurve,
+        child: visible
+            ? KeyedSubtree(key: const ValueKey(true), child: child)
+            : const SizedBox(
+                key: ValueKey(false),
+                width: double.infinity,
+                height: 0,
+              ),
+      ),
+    );
+  }
+}
+
 class _ClipIdentity extends StatelessWidget {
   const _ClipIdentity({required this.track});
   final UnifiedTrack track;
@@ -494,9 +571,15 @@ class _StageBackground extends ConsumerWidget {
       return Stack(
         fit: StackFit.expand,
         children: [
-          AnimatedOpacity(
-            opacity: 1,
-            duration: ResonanceMotion.standard,
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: 1),
+            duration: ResonanceMotion.durationOf(
+              context,
+              ResonanceMotion.gentle * 2,
+            ),
+            curve: Curves.easeOutCubic,
+            builder: (context, opacity, child) =>
+                Opacity(opacity: opacity, child: child),
             child: Video(
               controller: controller,
               controls: NoVideoControls,
@@ -528,14 +611,26 @@ class _StageBackground extends ConsumerWidget {
         if (artwork != null)
           Opacity(
             opacity: .22,
-            child: ImageFiltered(
-              imageFilter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
-              child: Transform.scale(
-                scale: 1.2,
-                child: Image.network(
-                  highQualityArtworkUrl(artwork, targetSize: 400),
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+            child: ResonanceCrossfade(
+              child: ImageFiltered(
+                key: ValueKey(artwork),
+                imageFilter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
+                child: Transform.scale(
+                  scale: 1.2,
+                  child: Image.network(
+                    highQualityArtworkUrl(artwork, targetSize: 400),
+                    fit: BoxFit.cover,
+                    // Маленькая декодированная копия: размытие всё равно
+                    // съедает детали, а памяти и кадров нужно меньше.
+                    cacheWidth: 200,
+                    frameBuilder: (context, child, frame, sync) =>
+                        AnimatedOpacity(
+                          opacity: sync || frame != null ? 1 : 0,
+                          duration: ResonanceMotion.gentle,
+                          child: child,
+                        ),
+                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  ),
                 ),
               ),
             ),
@@ -691,10 +786,7 @@ class _DesktopStage extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 56),
-        Expanded(
-          flex: 12,
-          child: _FullscreenLyrics(track: track, position: state.position),
-        ),
+        Expanded(flex: 12, child: _FullscreenLyrics(track: track)),
         AnimatedSize(
           duration: ResonanceMotion.standard,
           curve: ResonanceMotion.curve,
@@ -726,9 +818,7 @@ class _MobileStage extends StatelessWidget {
           child: _StageIdentity(state: state, track: track, compact: true),
         ),
         const SizedBox(height: 6),
-        Expanded(
-          child: _FullscreenLyrics(track: track, position: state.position),
-        ),
+        Expanded(child: _FullscreenLyrics(track: track)),
       ],
     ),
   );
@@ -771,20 +861,25 @@ class _StageIdentity extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Center(
-            child: DecoratedBox(
+            child: AnimatedContainer(
+              duration: ResonanceMotion.durationOf(
+                context,
+                ResonanceMotion.gentle * 2,
+              ),
+              curve: ResonanceMotion.curve,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(26),
                 boxShadow: [
                   BoxShadow(
-                    color: palette.glow.withValues(alpha: .35),
-                    blurRadius: 60,
+                    color: palette.glow.withValues(alpha: .38),
+                    blurRadius: 64,
                     offset: const Offset(0, 24),
                   ),
                 ],
               ),
-              child: Hero(
-                tag: 'stage-art-${track.id}',
+              child: ResonanceTrackSwap(
                 child: TrackArtwork(
+                  key: ValueKey('stage-art-${track.id}'),
                   track: track,
                   size: width,
                   borderRadius: 26,
@@ -793,41 +888,49 @@ class _StageIdentity extends ConsumerWidget {
             ),
           ),
           SizedBox(height: short ? 16 : 26),
-          Text(
-            track.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: short ? 24 : (compact ? 26 : 32),
-              height: 1.05,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -1,
-              color: const Color(0xFFF7F2E9),
-            ),
-          ),
-          SizedBox(height: short ? 6 : 8),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  track.artist,
-                  maxLines: 1,
+          ResonanceAnimatedSwap(
+            alignment: AlignmentDirectional.topStart,
+            child: Column(
+              key: ValueKey('stage-copy-${track.id}'),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  track.title,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: const Color(0xFFB9B3AB),
-                    fontSize: short ? 13 : 15,
+                    fontSize: short ? 24 : (compact ? 26 : 32),
+                    height: 1.05,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -1,
+                    color: const Color(0xFFF7F2E9),
                   ),
                 ),
-              ),
-              if (provider != null) ...[
-                const SizedBox(width: 10),
-                ProviderBadge(provider: provider, compact: true),
+                SizedBox(height: short ? 6 : 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        track.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: const Color(0xFFB9B3AB),
+                          fontSize: short ? 13 : 15,
+                        ),
+                      ),
+                    ),
+                    if (provider != null) ...[
+                      const SizedBox(width: 10),
+                      ProviderBadge(provider: provider, compact: true),
+                    ],
+                  ],
+                ),
               ],
-            ],
+            ),
           ),
           SizedBox(height: short ? 12 : 20),
           AmbientProgress(
-            position: state.position,
             duration: duration,
             accent: palette.accent,
             onSeek: (value) => fireAndForget(
@@ -843,10 +946,9 @@ class _StageIdentity extends ConsumerWidget {
 }
 
 class _FullscreenLyrics extends ConsumerStatefulWidget {
-  const _FullscreenLyrics({required this.track, required this.position});
+  const _FullscreenLyrics({required this.track});
 
   final UnifiedTrack track;
-  final Duration position;
 
   @override
   ConsumerState<_FullscreenLyrics> createState() => _FullscreenLyricsState();
@@ -876,9 +978,19 @@ class _FullscreenLyricsState extends ConsumerState<_FullscreenLyrics> {
   @override
   Widget build(BuildContext context) {
     final lyrics = ref.watch(lyricsProvider(widget.track));
-    return lyrics.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+    final Widget body = lyrics.when(
+      loading: () => const Center(
+        key: ValueKey('loading'),
+        child: SizedBox.square(
+          dimension: 28,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.4,
+            color: Color(0xFFB9B1A8),
+          ),
+        ),
+      ),
       error: (_, _) => _StageMessage(
+        key: const ValueKey('error'),
         icon: Icons.cloud_off_rounded,
         label: 'Текст сейчас недоступен',
         onRetry: () => ref.invalidate(lyricsProvider(widget.track)),
@@ -886,12 +998,14 @@ class _FullscreenLyricsState extends ConsumerState<_FullscreenLyrics> {
       data: (document) {
         if (document == null) {
           return const _StageMessage(
+            key: ValueKey('empty'),
             icon: Icons.lyrics_outlined,
             label: 'Текст пока не найден',
           );
         }
         if (document.instrumental && document.lines.isEmpty) {
           return const _StageMessage(
+            key: ValueKey('instrumental'),
             icon: Icons.graphic_eq_rounded,
             label: 'Инструментальная композиция',
           );
@@ -899,108 +1013,119 @@ class _FullscreenLyricsState extends ConsumerState<_FullscreenLyrics> {
         if (_keys.length != document.lines.length) {
           _keys = List.generate(document.lines.length, (_) => GlobalKey());
         }
+        // Перестраиваемся только когда меняется строка, а не на каждый тик.
         final active = document.synced
-            ? _activeLine(document.lines, widget.position)
+            ? ref.watch(
+                playbackPositionProvider.select(
+                  (position) => activeLyricLine(document.lines, position),
+                ),
+              )
             : -1;
         _reveal(active);
-        return ListView.builder(
-          controller: _controller,
-          padding: const EdgeInsets.symmetric(vertical: 90),
-          itemCount: document.lines.length,
-          itemBuilder: (context, index) {
-            final selected = active == index || !document.synced;
-            final distance = active < 0 ? 0 : (index - active).abs();
-            final narrow = MediaQuery.sizeOf(context).width < 600;
-            return Semantics(
-              button: document.lines[index].start != null,
-              selected: selected,
-              child: InkWell(
-                key: _keys[index],
-                borderRadius: BorderRadius.circular(14),
-                onTap: document.lines[index].start == null
-                    ? null
-                    : () => unawaited(
-                        ref
-                            .read(playbackServiceProvider.future)
-                            .then(
-                              (service) =>
-                                  service.seek(document.lines[index].start!),
-                            ),
-                      ),
-                child: AnimatedDefaultTextStyle(
-                  duration: MediaQuery.disableAnimationsOf(context)
-                      ? Duration.zero
-                      : ResonanceMotion.standard,
-                  curve: ResonanceMotion.curve,
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    color: selected
-                        ? const Color(0xFFF7F2E9)
-                        : Color.lerp(
-                            const Color(0xFFB9B3AD),
-                            const Color(0xFF817B76),
-                            min(distance / 5, 1),
-                          ),
-                    fontSize: selected && document.synced
-                        ? (narrow ? 30 : 48)
-                        : (narrow ? 23 : 34),
-                    height: 1.12,
-                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                    letterSpacing: selected ? -1.8 : -1.2,
-                    shadows: selected
-                        ? const [
-                            Shadow(color: Color(0x99000000), blurRadius: 18),
-                          ]
-                        : null,
-                  ),
+        final narrow = MediaQuery.sizeOf(context).width < 600;
+        final style = TextStyle(
+          fontFamily: 'Inter',
+          fontSize: narrow ? 30 : 46,
+          height: 1.14,
+          fontWeight: FontWeight.w800,
+          letterSpacing: narrow ? -1.1 : -1.8,
+          shadows: const [Shadow(color: Color(0x80000000), blurRadius: 18)],
+        );
+        return ShaderMask(
+          key: ValueKey('lyrics-${widget.track.id}'),
+          shaderCallback: (bounds) => const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.transparent,
+              Colors.white,
+              Colors.white,
+              Colors.transparent,
+            ],
+            stops: [0, .14, .82, 1],
+          ).createShader(bounds),
+          blendMode: BlendMode.dstIn,
+          child: ListView.builder(
+            controller: _controller,
+            padding: const EdgeInsets.symmetric(vertical: 120),
+            itemCount: document.lines.length,
+            itemBuilder: (context, index) {
+              final line = document.lines[index];
+              final selected = active == index || !document.synced;
+              final distance = active < 0 ? 0 : (index - active).abs();
+              return Semantics(
+                button: line.start != null,
+                selected: selected,
+                child: InkWell(
+                  key: _keys[index],
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: line.start == null
+                      ? null
+                      : () => unawaited(
+                          ref
+                              .read(playbackServiceProvider.future)
+                              .then((service) => service.seek(line.start!)),
+                        ),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
+                    padding: EdgeInsets.symmetric(
                       horizontal: 18,
-                      vertical: 15,
+                      vertical: narrow ? 10 : 12,
                     ),
-                    child: Text(document.lines[index].text),
+                    child: LyricLineText(
+                      text: line.text,
+                      style: style,
+                      active: selected,
+                      dimColor: Color.lerp(
+                        const Color(0xB3B9B3AD),
+                        const Color(0x59817B76),
+                        min(distance / 5, 1),
+                      )!,
+                      inactiveScale: document.synced ? .8 : 1,
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );
-  }
-
-  int _activeLine(List<LyricLine> lines, Duration position) {
-    var result = -1;
-    for (var index = 0; index < lines.length; index++) {
-      final start = lines[index].start;
-      if (start == null || start > position) break;
-      result = index;
-    }
-    return result;
+    // Один список на экране: новый трек мягко проявляется, без двух
+    // ListView с общим контроллером.
+    return ResonanceEntrance(
+      key: ValueKey('stage-lyrics-${widget.track.id}'),
+      offset: const Offset(0, .02),
+      child: body,
+    );
   }
 
   void _reveal(int active) {
     if (active < 0 || active == _lastActive || active >= _keys.length) return;
+    final first = _lastActive < 0;
     _lastActive = active;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final target = _keys[active].currentContext;
-      if (target == null) return;
-      Scrollable.ensureVisible(
-        target,
-        alignment: .45,
-        duration: MediaQuery.disableAnimationsOf(context)
+      followLyricLine(
+        controller: _controller,
+        line: _keys[active],
+        index: active,
+        count: _keys.length,
+        alignment: .42,
+        duration: first
             ? Duration.zero
-            : ResonanceMotion.gentle,
-        curve: ResonanceMotion.curve,
+            : ResonanceMotion.durationOf(context, ResonanceMotion.gentle * 2),
       );
     });
   }
 }
 
 class _StageMessage extends StatelessWidget {
-  const _StageMessage({required this.icon, required this.label, this.onRetry});
-
+  const _StageMessage({
+    required this.icon,
+    required this.label,
+    this.onRetry,
+    super.key,
+  });
   final IconData icon;
   final String label;
   final VoidCallback? onRetry;
@@ -1075,7 +1200,6 @@ class _StageTransportState extends ConsumerState<_StageTransport> {
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 14),
                 child: AmbientProgress(
-                  position: state.position,
                   duration: state.duration > Duration.zero
                       ? state.duration
                       : track.duration ?? Duration.zero,

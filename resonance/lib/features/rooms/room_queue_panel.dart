@@ -8,6 +8,7 @@ import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/music_graph/music_graph.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
+import 'package:resonance/shared/widgets/playback_position.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
@@ -587,7 +588,7 @@ class _RoomTrackPickerState extends ConsumerState<_RoomTrackPicker> {
 
   @override
   Widget build(BuildContext context) {
-    final playback = ref.watch(playbackStateProvider).valueOrNull;
+    final playback = ref.watch(playbackFrameProvider);
     final library = ref.watch(libraryControllerProvider).valueOrNull;
     final queued = {
       for (final entry in ref.watch(roomControllerProvider).queue)
@@ -596,7 +597,7 @@ class _RoomTrackPickerState extends ConsumerState<_RoomTrackPicker> {
     final query = _query.text.trim().toLowerCase();
     final local =
         <String, UnifiedTrack>{
-          for (final track in [...?playback?.queue, ...?library?.favorites])
+          for (final track in [...playback.queue, ...?library?.favorites])
             track.id: track,
         }.values.where(
           (track) =>

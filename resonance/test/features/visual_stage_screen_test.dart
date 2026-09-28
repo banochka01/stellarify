@@ -125,7 +125,14 @@ void main() {
       await tester.tap(find.text('Текст'));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('test-video')), findsNothing);
-      expect(find.byType(Hero), findsWidgets);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget.key is ValueKey<String> &&
+              (widget.key! as ValueKey<String>).value.startsWith('stage-art-'),
+        ),
+        findsOneWidget,
+      );
       await tester.tap(find.text('Клип'));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('test-video')), findsOneWidget);

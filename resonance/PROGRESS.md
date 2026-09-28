@@ -1,5 +1,14 @@
 # Progress
 
+## Version 3.8.1 — Smooth Stage
+
+- [x] Screens no longer rebuild on every playback position tick; progress, waveform and times interpolate per frame
+- [x] Seek bars show the drag point and seek once on release; hover thumb and thicker track
+- [x] Lyrics highlight via scale and colour (no relayout), scroll only their own list, fade edges on Stage
+- [x] Stage fades in and goes fullscreen after the transition; blurred cover and video cross-fade
+- [x] Track text swaps stay aligned; backdrop cross-fades without a black flash
+- [x] Round controls and play button animate state changes; ambient backdrop gains accent light and vignette
+
 ## Version 3.8.0 — Together Stage
 
 - [x] Room queue in the native client: suggest, vote, remove, host plays the leader
