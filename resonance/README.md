@@ -7,6 +7,14 @@ VK and YouTube Music catalog access. YouTube uses the official Data API for
 search and import; YouTube-only tracks open in the official player rather than
 having their streams extracted.
 
+Version 3.7.0 adds offline listening. Use the download button on a track in
+Search, a playlist, Favorites, or Now Playing. Completed downloads appear in
+the Library and are played from application support storage without a network
+request. The same button removes a download. Only full progressive HTTPS audio
+files can be saved; HLS streams, short previews, and metadata-only sources are
+not downloadable. A download is capped at 150 MB. Files stay on this device
+and are not included in cloud library sync.
+
 Version 3.4.0 exposes YouTube Music configuration in Settings, explains the
 exact credential type for every provider, fixes provider-specific validation
 messages, broadens direct Apple Music video-preview discovery, keeps artwork

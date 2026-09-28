@@ -13,6 +13,7 @@ import 'package:resonance/core/networking/soundcloud_proxy_preference.dart';
 import 'package:resonance/core/playback/audio_focus_coordinator.dart';
 import 'package:resonance/core/playback/audio_output_controller.dart';
 import 'package:resonance/core/playback/demo_audio_source_resolver.dart';
+import 'package:resonance/core/playback/offline_downloads.dart';
 import 'package:resonance/core/playback/playback_engine.dart';
 import 'package:resonance/core/playback/playback_service.dart';
 import 'package:resonance/core/playback/resolved_source_cache.dart';
@@ -251,6 +252,18 @@ final providerRegistryProvider = Provider<ProviderRegistry>((ref) {
   );
 });
 
+final offlineDownloadsProvider = ChangeNotifierProvider<OfflineDownloads>((
+  ref,
+) {
+  final downloads = OfflineDownloads(
+    providers: ref.watch(providerRegistryProvider),
+    // Resonance бесплатен: загрузка не требует отдельного доступа.
+    authorizeSource: (_) async {},
+  );
+  unawaited(downloads.initialize());
+  return downloads;
+});
+
 final playlistImportServiceProvider = Provider<PlaylistImportService>((ref) {
   return PlaylistImportService(
     ref.watch(resonanceHttpClientProvider).dio,
@@ -293,6 +306,7 @@ final playbackServiceProvider = FutureProvider<PlaybackService>((ref) async {
     providers: ref.watch(providerRegistryProvider),
     sourceSelectionPolicy: ref.watch(sourceSelectionPolicyProvider),
     persistence: ref.watch(playbackPersistenceProvider),
+    offlineDownloads: ref.read(offlineDownloadsProvider),
     sourceCache: ref.watch(resolvedSourceCacheProvider),
     quality: onboarding.quality,
     flowSettings: flowSettings,

@@ -11,6 +11,7 @@ import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/track_source.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/lyrics/lyrics_service.dart';
+import 'package:resonance/shared/widgets/offline_download_button.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
@@ -246,6 +247,7 @@ class _Details extends ConsumerWidget {
             fontWeight: FontWeight.w400,
           ),
         ),
+        OfflineDownloadButton(track: track),
         SizedBox(height: desktop ? 58 : 38),
         _Waveform(
           value: positionMs / maxMs,
