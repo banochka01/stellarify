@@ -91,6 +91,7 @@ flutter:
   assets:
     - assets/audio/resonance_test.wav
     - assets/images/resonance_fallback_cover.png
+    - assets/images/resonance_mark.png
     - assets/images/resonance_cinematic_background.png
   fonts:
     - family: Inter

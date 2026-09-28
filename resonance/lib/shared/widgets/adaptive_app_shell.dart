@@ -6,6 +6,7 @@ import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/desktop_window_bar.dart';
 import 'package:resonance/shared/widgets/player_bar.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
+import 'package:resonance/shared/widgets/resonance_logo.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 
 class AdaptiveAppShell extends StatelessWidget {
@@ -299,11 +300,7 @@ class _BrandMark extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(
-          Icons.graphic_eq_rounded,
-          size: 25,
-          color: Theme.of(context).colorScheme.primary,
-        ),
+        const ResonanceLogo(size: 28),
         const SizedBox(width: 10),
         const Expanded(
           child: Text(

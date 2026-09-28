@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/resonance_logo.dart';
 import 'package:window_manager/window_manager.dart';
 
 class DesktopWindowBar extends StatelessWidget {
@@ -38,23 +39,7 @@ class DesktopWindowBar extends StatelessWidget {
                   padding: EdgeInsets.only(left: 14),
                   child: Row(
                     children: [
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: Color(0x24FF5A36),
-                          borderRadius: BorderRadius.all(Radius.circular(9)),
-                          border: Border.fromBorderSide(
-                            BorderSide(color: Color(0x55FF5A36)),
-                          ),
-                        ),
-                        child: SizedBox.square(
-                          dimension: 28,
-                          child: Icon(
-                            Icons.graphic_eq_rounded,
-                            size: 17,
-                            color: ResonanceColors.primary,
-                          ),
-                        ),
-                      ),
+                      ResonanceLogo(),
                       SizedBox(width: 10),
                       Text(
                         'RESONANCE',

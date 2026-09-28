@@ -40,7 +40,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .brand { display: inline-flex; align-items: center; gap: 11px; font-weight: 600; font-size: 17px; width: max-content; }
-.brand-mark { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; color: #090908; background: var(--paper); }
+.brand-mark { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px; background: #111; border: 1px solid rgba(255,255,255,.12); }
+.brand-mark img { display: block; }
 .site-header nav { display: flex; gap: 36px; color: #8c8982; font-size: 13px; }
 .site-header nav a, .header-download { transition: color .2s ease, background .2s ease, transform .2s ease; }
 .site-header nav a:hover { color: var(--paper); }

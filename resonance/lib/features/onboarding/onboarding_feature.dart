@@ -8,6 +8,7 @@ import 'package:resonance/core/preferences/appearance_preferences.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/resonance_logo.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -384,15 +385,7 @@ class _OnboardingHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary,
-            borderRadius: BorderRadius.circular(11),
-          ),
-          child: const Icon(Icons.graphic_eq_rounded, color: Colors.black),
-        ),
+        const ResonanceLogo(size: 34),
         if (!compact) ...[
           const SizedBox(width: 12),
           const Text(

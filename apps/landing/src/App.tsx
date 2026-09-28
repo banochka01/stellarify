@@ -116,7 +116,7 @@ function App() {
     <div ref={root} className="site-shell">
       <header className="site-header">
         <a className="brand" href="#top" aria-label="Resonance — наверх">
-          <span className="brand-mark"><Volume2 size={19} /></span>
+          <span className="brand-mark"><img src="/assets/resonance-mark.png" alt="" width={24} height={24} /></span>
           <span>Resonance</span>
         </a>
         <nav aria-label="Основная навигация">
@@ -496,7 +496,7 @@ function App() {
       </main>
 
       <footer>
-        <a className="brand" href="#top"><span className="brand-mark"><Volume2 size={17} /></span>Resonance</a>
+        <a className="brand" href="#top"><span className="brand-mark"><img src="/assets/resonance-mark.png" alt="" width={22} height={22} /></span>Resonance</a>
         <nav className="footer-nav" aria-label="Разделы лендинга">
           <a href="#features">Возможности</a>
           <a href="#rooms">Комнаты</a>
