@@ -16,7 +16,7 @@ publish_to: "none"
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 3.8.1+33
+version: 3.9.0+34
 
 environment:
   sdk: ^3.12.2
@@ -94,9 +94,15 @@ flutter:
     - assets/images/resonance_mark.png
     - assets/images/resonance_cinematic_background.png
   fonts:
-    - family: Inter
+    - family: Manrope
       fonts:
-        - asset: assets/fonts/InterVariable.ttf
+        - asset: assets/fonts/Manrope.ttf
+    - family: Unbounded
+      fonts:
+        - asset: assets/fonts/Unbounded.ttf
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

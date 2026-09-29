@@ -30,7 +30,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Midnight Signal'), findsWidgets);
-    expect(find.text('Главная'), findsWidgets);
+    expect(find.text('Волна'), findsWidgets);
     expect(find.byIcon(Icons.play_arrow_rounded), findsWidgets);
   });
 
@@ -56,7 +56,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Главная'));
+    await tester.tap(find.text('Волна'));
     await tester.pumpAndSettle();
 
     expect(find.text('Midnight Signal'), findsWidgets);

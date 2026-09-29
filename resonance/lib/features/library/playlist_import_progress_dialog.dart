@@ -74,7 +74,7 @@ class _PlaylistImportProgressDialogState
             ] else ...[
               const Icon(
                 Icons.error_outline_rounded,
-                color: Color(0xFFFFA69D),
+                color: Color(0xFFB499FF),
                 size: 34,
               ),
               const SizedBox(height: 14),

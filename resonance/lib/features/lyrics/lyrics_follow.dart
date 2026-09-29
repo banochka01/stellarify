@@ -75,7 +75,7 @@ class LyricLineText extends StatelessWidget {
     required this.style,
     required this.active,
     required this.dimColor,
-    this.activeColor = const Color(0xFFF7F2E9),
+    this.activeColor = const Color(0xFFF0EBF5),
     this.inactiveScale = .86,
     super.key,
   });

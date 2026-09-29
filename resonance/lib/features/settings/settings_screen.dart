@@ -1433,11 +1433,11 @@ class _ThemeSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const entries = [
-      (ResonanceThemePreset.graphite, 'Графит', Icons.contrast_rounded),
-      (ResonanceThemePreset.midnight, 'Полночь', Icons.nightlight_round),
+      (ResonanceThemePreset.graphite, 'Эфир', Icons.graphic_eq_rounded),
+      (ResonanceThemePreset.midnight, 'Графит', Icons.contrast_rounded),
       (
         ResonanceThemePreset.ember,
-        'Эмбер',
+        'Янтарь',
         Icons.local_fire_department_outlined,
       ),
     ];

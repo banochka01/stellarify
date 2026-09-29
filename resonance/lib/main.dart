@@ -21,7 +21,7 @@ Future<void> main() async {
       size: Size(1280, 800),
       minimumSize: Size(980, 640),
       center: true,
-      backgroundColor: Color(0xFF080909),
+      backgroundColor: Color(0xFF08060B),
       titleBarStyle: TitleBarStyle.hidden,
       windowButtonVisibility: false,
     );

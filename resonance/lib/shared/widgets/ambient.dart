@@ -22,7 +22,7 @@ class TrackPalette {
     return TrackPalette(
       glow: colors.first,
       shadow: colors.last,
-      accent: Color.lerp(colors.first, const Color(0xFFFFE2C9), .35)!,
+      accent: Color.lerp(colors.first, const Color(0xFFB499FF), .35)!,
     );
   }
 
@@ -96,7 +96,7 @@ class AmbientBackdrop extends ConsumerWidget {
   const AmbientBackdrop({
     required this.track,
     this.intensity = 1,
-    this.base = const Color(0xFF0A0807),
+    this.base = const Color(0xFF08060B),
     super.key,
   });
 
@@ -192,7 +192,7 @@ class RoundControl extends StatelessWidget {
     required this.onPressed,
     this.active = false,
     this.size = 52,
-    this.activeColor = const Color(0xFFFF8A5B),
+    this.activeColor = const Color(0xFFB499FF),
     super.key,
   });
 
@@ -264,7 +264,7 @@ class RoundControl extends StatelessWidget {
                     icon,
                     key: ValueKey(icon),
                     size: size * .42,
-                    color: active ? activeColor : const Color(0xFFEDE7DE),
+                    color: active ? activeColor : const Color(0xFFE6DDEE),
                   ),
                 ),
               ),
@@ -291,8 +291,8 @@ class CreamPlayButton extends StatelessWidget {
   final double size;
   final VoidCallback? onPressed;
 
-  static const cream = Color(0xFFF1ECE2);
-  static const ink = Color(0xFF14110F);
+  static const cream = Color(0xFFEAE2F1);
+  static const ink = Color(0xFF110D16);
 
   @override
   Widget build(BuildContext context) {
@@ -372,7 +372,7 @@ class AmbientProgress extends StatefulWidget {
   const AmbientProgress({
     required this.duration,
     required this.onSeek,
-    this.accent = const Color(0xFFFF8A5B),
+    this.accent = const Color(0xFFB499FF),
     this.showTimes = true,
     super.key,
   });
@@ -418,7 +418,7 @@ class _AmbientProgressState extends State<AmbientProgress> {
       final bar = _bar(context, fraction, total, shown);
       if (!widget.showTimes) return bar;
       const times = TextStyle(
-        color: Color(0xFF9D968E),
+        color: Color(0xFF9689A2),
         fontSize: 11,
         fontWeight: FontWeight.w500,
         fontFeatures: [FontFeature.tabularFigures()],
@@ -520,7 +520,7 @@ class _AmbientProgressState extends State<AmbientProgress> {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(99),
                         gradient: LinearGradient(
-                          colors: [const Color(0xFFFF5A36), widget.accent],
+                          colors: [const Color(0xFFB499FF), widget.accent],
                         ),
                         boxShadow: [
                           BoxShadow(
@@ -540,7 +540,7 @@ class _AmbientProgressState extends State<AmbientProgress> {
                           width: 14,
                           height: 14,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF7F2E9),
+                            color: const Color(0xFFF0EBF5),
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(

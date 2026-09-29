@@ -636,17 +636,17 @@ class _PersonalizationStep extends StatelessWidget {
             segments: const [
               ButtonSegment(
                 value: ResonanceThemePreset.graphite,
-                label: Text('Графит'),
-                icon: Icon(Icons.circle_outlined),
+                label: Text('Эфир'),
+                icon: Icon(Icons.graphic_eq_rounded),
               ),
               ButtonSegment(
                 value: ResonanceThemePreset.midnight,
-                label: Text('Полночь'),
-                icon: Icon(Icons.nights_stay_rounded),
+                label: Text('Графит'),
+                icon: Icon(Icons.contrast_rounded),
               ),
               ButtonSegment(
                 value: ResonanceThemePreset.ember,
-                label: Text('Жар'),
+                label: Text('Янтарь'),
                 icon: Icon(Icons.local_fire_department_rounded),
               ),
             ],

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 
@@ -48,7 +50,6 @@ class _SeekTimelineState extends State<SeekTimeline> {
     final colors = Theme.of(context).colorScheme;
     final active = _drag != null || _hovered;
     final duration = ResonanceMotion.durationOf(context, ResonanceMotion.quick);
-    final thickness = active ? 5.0 : 3.0;
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
@@ -78,21 +79,13 @@ class _SeekTimelineState extends State<SeekTimeline> {
                   clipBehavior: Clip.none,
                   alignment: Alignment.centerLeft,
                   children: [
-                    AnimatedContainer(
-                      duration: duration,
-                      curve: ResonanceMotion.curve,
-                      height: thickness,
-                      color: colors.outline.withValues(alpha: .7),
-                    ),
-                    Container(
-                      height: thickness,
-                      width: width * safeValue,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [const Color(0xFFFF5A36), colors.primary],
-                        ),
-                        borderRadius: const BorderRadius.horizontal(
-                          right: Radius.circular(99),
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _WaveformPainter(
+                          progress: safeValue,
+                          active: active,
+                          played: colors.primary,
+                          rest: colors.outline,
                         ),
                       ),
                     ),
@@ -106,7 +99,7 @@ class _SeekTimelineState extends State<SeekTimeline> {
                           width: 12,
                           height: 12,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF7F2E9),
+                            color: const Color(0xFFF0EBF5),
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
@@ -127,4 +120,55 @@ class _SeekTimelineState extends State<SeekTimeline> {
       },
     );
   }
+}
+
+/// Прогресс как волновая форма: столбики с детерминированной высотой,
+/// сыгранная часть — акцентом. Высоты стабильны между кадрами.
+class _WaveformPainter extends CustomPainter {
+  _WaveformPainter({
+    required this.progress,
+    required this.active,
+    required this.played,
+    required this.rest,
+  });
+
+  final double progress;
+  final bool active;
+  final Color played;
+  final Color rest;
+
+  static double _height(int i) {
+    final noise = ((i * 7919 + 104729) % 997) / 997;
+    final swell = (math.sin(i * .31) + 1) / 2;
+    return .28 + swell * .42 + noise * .3;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const step = 4.0;
+    const bar = 2.2;
+    final count = (size.width / step).floor();
+    if (count <= 0) return;
+    final scale = active ? 1.0 : .78;
+    final paint = Paint()..strokeCap = StrokeCap.round;
+    for (var i = 0; i < count; i++) {
+      final x = i * step + bar / 2;
+      final h = size.height * _height(i) * scale;
+      paint
+        ..color = x / size.width <= progress ? played : rest
+        ..strokeWidth = bar;
+      canvas.drawLine(
+        Offset(x, (size.height - h) / 2),
+        Offset(x, (size.height + h) / 2),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WaveformPainter old) =>
+      old.progress != progress ||
+      old.active != active ||
+      old.played != played ||
+      old.rest != rest;
 }

@@ -112,7 +112,7 @@ class _CinematicPlayer extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
-              colors: [Color(0xF5080707), Color(0xA8080707), Color(0x38080707)],
+              colors: [Color(0xF5070609), Color(0xA8070609), Color(0x38070609)],
               stops: [0, .55, 1],
             ),
           ),
@@ -170,10 +170,11 @@ class _CinematicPlayer extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: ResonanceColors.text,
-                          fontSize: 60,
-                          height: .92,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -3.4,
+                          fontFamily: ResonanceFonts.display,
+                          fontSize: 46,
+                          height: 1.0,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -1.6,
                         ),
                       ),
                     ),
@@ -183,7 +184,7 @@ class _CinematicPlayer extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xFFB7B0AA),
+                        color: Color(0xFFB0A7BA),
                         fontSize: 22,
                         fontWeight: FontWeight.w500,
                         letterSpacing: -.5,
@@ -352,7 +353,7 @@ class _HeroActions extends ConsumerWidget {
         OutlinedButton.icon(
           onPressed: () => context.push('/stage'),
           style: OutlinedButton.styleFrom(
-            foregroundColor: const Color(0xFFF1ECE2),
+            foregroundColor: const Color(0xFFEAE2F1),
             backgroundColor: const Color(0x14FFFFFF),
             side: const BorderSide(color: Color(0x2EFFFFFF)),
             shape: const StadiumBorder(),
@@ -427,7 +428,7 @@ class _PlaybackSignal extends StatelessWidget {
           vertical: compact ? 8 : 7,
         ),
         decoration: BoxDecoration(
-          color: compact ? const Color(0xC20A0A0A) : const Color(0x990A0A0A),
+          color: compact ? const Color(0xC20A070D) : const Color(0x990A070D),
           borderRadius: BorderRadius.circular(compact ? 12 : 999),
           border: Border.all(color: const Color(0x40FFFFFF)),
         ),
@@ -440,11 +441,11 @@ class _PlaybackSignal extends StatelessWidget {
               height: 7,
               decoration: BoxDecoration(
                 color: state.playing
-                    ? ResonanceColors.primary
+                    ? ResonanceColors.live
                     : ResonanceColors.muted,
                 shape: BoxShape.circle,
                 boxShadow: state.playing
-                    ? const [BoxShadow(color: Color(0x88FF5538), blurRadius: 8)]
+                    ? const [BoxShadow(color: Color(0x88D8F15A), blurRadius: 8)]
                     : null,
               ),
             ),
@@ -452,8 +453,9 @@ class _PlaybackSignal extends StatelessWidget {
             Text(
               status,
               style: const TextStyle(
+                fontFamily: ResonanceFonts.mono,
                 fontSize: 9,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w600,
                 letterSpacing: 1.05,
               ),
             ),
@@ -492,7 +494,7 @@ class _NextTrackPill extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 500),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xB20D0D0D),
+        color: const Color(0xB20D0A10),
         border: Border.all(color: ResonanceColors.border),
         borderRadius: BorderRadius.circular(10),
       ),
@@ -502,7 +504,7 @@ class _NextTrackPill extends StatelessWidget {
             : 'Далее: ${track!.title} — ${track!.artist}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(color: Color(0xFFC8C1B8), fontSize: 12),
+        style: const TextStyle(color: Color(0xFFC0AAD6), fontSize: 12),
       ),
     );
   }
@@ -518,7 +520,7 @@ class _RecentRail extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(22, 34, 18, 24),
       decoration: const BoxDecoration(
-        color: Color(0xFF080909),
+        color: Color(0xFF08060B),
         border: Border(left: BorderSide(color: ResonanceColors.border)),
       ),
       child: Column(
@@ -734,6 +736,7 @@ class _CompactHome extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
+                  fontFamily: ResonanceFonts.display,
                   fontSize: 38,
                   height: .95,
                   fontWeight: FontWeight.w800,
@@ -797,7 +800,7 @@ class _WaveCommandCenterState extends ConsumerState<_WaveCommandCenter> {
       'Знакомое + немного нового',
       Icons.center_focus_strong_rounded,
       'Мой персональный микс на сегодня: любимое и немного новых открытий',
-      Color(0xFFFF6A43),
+      Color(0xFFB499FF),
     ),
     _WaveScene(
       'Дорога',
@@ -869,7 +872,7 @@ class _WaveCommandCenterState extends ConsumerState<_WaveCommandCenter> {
       constraints: const BoxConstraints(maxWidth: 620),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: const Color(0xD90B0B0C),
+          color: const Color(0xD90B090E),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: ResonanceColors.border),
           boxShadow: const [
@@ -1071,7 +1074,7 @@ class _WaveMixCard extends StatelessWidget {
               end: Alignment.bottomRight,
               colors: [
                 scene.color.withValues(alpha: .22),
-                const Color(0xFF111111),
+                const Color(0xFF110D15),
               ],
             ),
           ),

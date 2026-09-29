@@ -29,11 +29,20 @@ void main() {
 
   setUpAll(() async {
     database = AppDatabase(NativeDatabase.memory());
-    final inter = FontLoader('Inter')
-      ..addFont(rootBundle.load('assets/fonts/InterVariable.ttf'));
+    final body = FontLoader('Manrope')
+      ..addFont(rootBundle.load('assets/fonts/Manrope.ttf'));
+    final display = FontLoader('Unbounded')
+      ..addFont(rootBundle.load('assets/fonts/Unbounded.ttf'));
+    final mono = FontLoader('JetBrainsMono')
+      ..addFont(rootBundle.load('assets/fonts/JetBrainsMono.ttf'));
     final materialIcons = FontLoader('MaterialIcons')
       ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
-    await Future.wait([inter.load(), materialIcons.load()]);
+    await Future.wait([
+      body.load(),
+      display.load(),
+      mono.load(),
+      materialIcons.load(),
+    ]);
   });
 
   tearDownAll(() => database.close());
@@ -106,7 +115,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(tester.getSize(find.byType(MaterialApp)), const Size(1440, 1024));
-    expect(find.byTooltip('Главная'), findsOneWidget);
+    expect(find.byTooltip('Волна'), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
 
     await expectLater(

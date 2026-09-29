@@ -13,11 +13,11 @@ import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 
-const _panelFill = Color(0xB3120E0C);
+const _panelFill = Color(0xB30F0B13);
 const _panelBorder = Color(0x1FFFFFFF);
-const _warm = Color(0xFFFF8A5B);
-const _cream = Color(0xFFF1ECE2);
-const _soft = Color(0xFFA59D94);
+const _warm = Color(0xFFB499FF);
+const _cream = Color(0xFFEAE2F1);
+const _soft = Color(0xFF9C91A8);
 
 String listenersLabel(int count) {
   final mod10 = count % 10;
@@ -43,7 +43,7 @@ class RoomChip extends ConsumerWidget {
     if (!room.inRoom) return const SizedBox.shrink();
     final count = room.participants.length;
     return Material(
-      color: const Color(0x99100C0A),
+      color: const Color(0x990D0A10),
       shape: const StadiumBorder(side: BorderSide(color: _panelBorder)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -87,9 +87,9 @@ class _LiveDot extends StatelessWidget {
     width: 7,
     height: 7,
     decoration: const BoxDecoration(
-      color: Color(0xFFFF5A36),
+      color: Color(0xFFD8F15A),
       shape: BoxShape.circle,
-      boxShadow: [BoxShadow(color: Color(0x99FF5A36), blurRadius: 8)],
+      boxShadow: [BoxShadow(color: Color(0x99D8F15A), blurRadius: 8)],
     ),
   );
 }
@@ -108,10 +108,10 @@ class ParticipantStack extends StatelessWidget {
   final int limit;
 
   static const _tones = [
-    Color(0xFFB8643F),
-    Color(0xFF8C4A3A),
-    Color(0xFF6F6A64),
-    Color(0xFFC0473A),
+    Color(0xFF8F66FF),
+    Color(0xFF503A8C),
+    Color(0xFF695D76),
+    Color(0xFF8F66FF),
     Color(0xFF4F6FA8),
     Color(0xFF3F8C68),
   ];
@@ -146,7 +146,7 @@ class ParticipantStack extends StatelessWidget {
               left: step * shown.length,
               child: _Avatar(
                 label: '+$extra',
-                color: const Color(0xFF2B2522),
+                color: const Color(0xFF261C31),
                 size: size,
                 raw: true,
               ),
@@ -178,7 +178,7 @@ class _Avatar extends StatelessWidget {
     decoration: BoxDecoration(
       color: color,
       shape: BoxShape.circle,
-      border: Border.all(color: const Color(0xFF120E0C), width: 1.5),
+      border: Border.all(color: const Color(0xFF0F0B13), width: 1.5),
     ),
     child: Text(
       raw ? label : label.characters.first.toUpperCase(),
@@ -340,10 +340,10 @@ class _QueueEntryTile extends StatelessWidget {
       curve: ResonanceMotion.curve,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: leading ? const Color(0x33B8432C) : Colors.transparent,
+        color: leading ? const Color(0x1FD8F15A) : Colors.transparent,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: leading ? const Color(0x80C0503A) : Colors.transparent,
+          color: leading ? const Color(0x99D8F15A) : Colors.transparent,
         ),
       ),
       child: Row(
@@ -429,11 +429,11 @@ class _VoteButton extends StatelessWidget {
         SizedBox.square(
           dimension: 28,
           child: Material(
-            color: voted ? const Color(0x2EFF8A5B) : const Color(0x0FFFFFFF),
+            color: voted ? const Color(0x2EB499FF) : const Color(0x0FFFFFFF),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
               side: BorderSide(
-                color: voted ? const Color(0x99FF8A5B) : _panelBorder,
+                color: voted ? const Color(0x99B499FF) : _panelBorder,
               ),
             ),
             child: InkWell(
@@ -487,7 +487,7 @@ Future<void> showRoomQueueSheet(BuildContext context) =>
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF141010),
+      backgroundColor: const Color(0xFF120D17),
       builder: (context) => SafeArea(
         child: SizedBox(
           height: MediaQuery.sizeOf(context).height * .62,
@@ -505,7 +505,7 @@ Future<void> showRoomTrackPicker(BuildContext context) =>
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF141010),
+      backgroundColor: const Color(0xFF120D17),
       builder: (context) => SizedBox(
         height: MediaQuery.sizeOf(context).height * .78,
         child: const _RoomTrackPicker(),

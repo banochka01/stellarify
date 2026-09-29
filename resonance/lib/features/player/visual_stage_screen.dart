@@ -168,7 +168,7 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
       child: Focus(
         autofocus: true,
         child: Scaffold(
-          backgroundColor: const Color(0xFF050505),
+          backgroundColor: const Color(0xFF050406),
           body: Stack(
             fit: StackFit.expand,
             children: [
@@ -199,9 +199,9 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Color(0x66070605),
-                      Color(0x14070605),
-                      Color(0xCC070605),
+                      Color(0x66060408),
+                      Color(0x14060408),
+                      Color(0xCC060408),
                     ],
                     stops: [0, .45, 1],
                   ),
@@ -318,7 +318,7 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: TextButton.icon(
         style: TextButton.styleFrom(
-          foregroundColor: const Color(0xFFB9B1A8),
+          foregroundColor: const Color(0xFFB0A7BA),
           visualDensity: VisualDensity.compact,
           shape: const StadiumBorder(),
         ),
@@ -345,7 +345,7 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Color(0xFFB9B1A8), fontSize: 11),
+          style: const TextStyle(color: Color(0xFFB0A7BA), fontSize: 11),
         ),
       ),
     );
@@ -545,7 +545,7 @@ class _ClipIdentity extends StatelessWidget {
                   track.artist,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Color(0xFFD3CED4)),
+                  style: const TextStyle(color: Color(0xFFD1C1E1)),
                 ),
               ],
             ),
@@ -584,7 +584,7 @@ class _StageBackground extends ConsumerWidget {
               controller: controller,
               controls: NoVideoControls,
               fit: BoxFit.cover,
-              fill: const Color(0xFF050505),
+              fill: const Color(0xFF050406),
             ),
           ),
           // Слои поверх клипа: затемнение, чтобы обложка, текст и кнопки
@@ -689,7 +689,7 @@ class _StageHeader extends ConsumerWidget {
                 fontSize: 11,
                 letterSpacing: 2,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFFD3CED4),
+                color: Color(0xFFD1C1E1),
               ),
             ),
           const Spacer(),
@@ -701,7 +701,7 @@ class _StageHeader extends ConsumerWidget {
               icon: Badge.count(
                 count: room.queue.length,
                 isLabelVisible: room.queue.isNotEmpty,
-                backgroundColor: const Color(0xFFFF5A36),
+                backgroundColor: const Color(0xFFB499FF),
                 child: const Icon(Icons.queue_music_rounded),
               ),
             ),
@@ -720,8 +720,8 @@ class _StageHeader extends ConsumerWidget {
             showSelectedIcon: false,
             style: SegmentedButton.styleFrom(
               backgroundColor: const Color(0x14FFFFFF),
-              selectedBackgroundColor: const Color(0x33FF8A5B),
-              selectedForegroundColor: const Color(0xFFF1ECE2),
+              selectedBackgroundColor: const Color(0x33B499FF),
+              selectedForegroundColor: const Color(0xFFEAE2F1),
               side: const BorderSide(color: Color(0x24FFFFFF)),
             ),
             segments: [
@@ -903,7 +903,7 @@ class _StageIdentity extends ConsumerWidget {
                     height: 1.05,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -1,
-                    color: const Color(0xFFF7F2E9),
+                    color: const Color(0xFFF0EBF5),
                   ),
                 ),
                 SizedBox(height: short ? 6 : 8),
@@ -915,7 +915,7 @@ class _StageIdentity extends ConsumerWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: const Color(0xFFB9B3AB),
+                          color: const Color(0xFFB2A9BB),
                           fontSize: short ? 13 : 15,
                         ),
                       ),
@@ -985,7 +985,7 @@ class _FullscreenLyricsState extends ConsumerState<_FullscreenLyrics> {
           dimension: 28,
           child: CircularProgressIndicator(
             strokeWidth: 2.4,
-            color: Color(0xFFB9B1A8),
+            color: Color(0xFFB0A7BA),
           ),
         ),
       ),
@@ -1024,7 +1024,7 @@ class _FullscreenLyricsState extends ConsumerState<_FullscreenLyrics> {
         _reveal(active);
         final narrow = MediaQuery.sizeOf(context).width < 600;
         final style = TextStyle(
-          fontFamily: 'Inter',
+          fontFamily: 'Manrope',
           fontSize: narrow ? 30 : 46,
           height: 1.14,
           fontWeight: FontWeight.w800,
@@ -1076,8 +1076,8 @@ class _FullscreenLyricsState extends ConsumerState<_FullscreenLyrics> {
                       style: style,
                       active: selected,
                       dimColor: Color.lerp(
-                        const Color(0xB3B9B3AD),
-                        const Color(0x59817B76),
+                        const Color(0xB3B3AABC),
+                        const Color(0x597B6D8A),
                         min(distance / 5, 1),
                       )!,
                       inactiveScale: document.synced ? .8 : 1,
@@ -1135,7 +1135,7 @@ class _StageMessage extends StatelessWidget {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 42, color: const Color(0xFFAAA39B)),
+        Icon(icon, size: 42, color: const Color(0xFFA297AE)),
         const SizedBox(height: 16),
         Text(
           label,

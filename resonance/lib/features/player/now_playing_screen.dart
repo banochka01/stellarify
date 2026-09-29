@@ -183,7 +183,7 @@ class _Header extends ConsumerWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: state.sourceShiftMessage == null
-                    ? const Color(0xFFBBB7B0)
+                    ? const Color(0xFFB5ADBE)
                     : Theme.of(context).colorScheme.primary,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
@@ -238,7 +238,7 @@ class _Details extends ConsumerWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: const Color(0xFFF3EFE7),
+                color: const Color(0xFFEDE7F3),
                 fontSize: desktop ? 54 : 36,
                 height: 1.06,
                 letterSpacing: desktop ? -2.6 : -1.6,
@@ -256,7 +256,7 @@ class _Details extends ConsumerWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: const Color(0xFFA8A098),
+                  color: const Color(0xFFA095AB),
                   fontSize: desktop ? 20 : 17,
                   fontWeight: FontWeight.w400,
                 ),
@@ -274,7 +274,7 @@ class _Details extends ConsumerWidget {
             final maxMs = max(1, duration.inMilliseconds);
             final positionMs = position.inMilliseconds.clamp(0, maxMs);
             const times = TextStyle(
-              color: Color(0xFFA8A098),
+              color: Color(0xFFA095AB),
               fontSize: 12,
               fontFeatures: [FontFeature.tabularFigures()],
             );
@@ -373,7 +373,7 @@ class _SourceShiftPanel extends ConsumerWidget {
     }
 
     return Material(
-      color: const Color(0xFF191816),
+      color: const Color(0xFF17111E),
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -398,7 +398,7 @@ class _SourceShiftPanel extends ConsumerWidget {
                     Text(
                       details,
                       style: const TextStyle(
-                        color: Color(0xFF918D86),
+                        color: Color(0xFF8C7E99),
                         fontSize: 12,
                       ),
                     ),
@@ -409,7 +409,7 @@ class _SourceShiftPanel extends ConsumerWidget {
                 Text(
                   '${track.sources.length} источника',
                   style: const TextStyle(
-                    color: Color(0xFFBBB7B0),
+                    color: Color(0xFFB5ADBE),
                     fontSize: 12,
                   ),
                 ),
@@ -445,7 +445,7 @@ class _SourceShiftPanel extends ConsumerWidget {
               const SizedBox(height: 6),
               const Text(
                 'Позиция трека сохранится при переключении.',
-                style: TextStyle(color: Color(0xFF918D86)),
+                style: TextStyle(color: Color(0xFF8C7E99)),
               ),
               const SizedBox(height: 14),
               for (final source in track.sources)
@@ -594,7 +594,7 @@ class _FavoriteButton extends ConsumerWidget {
       ),
       icon: Icon(
         favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-        color: favorite ? const Color(0xFFFF8A5B) : const Color(0xFFD4D0C9),
+        color: favorite ? const Color(0xFFB499FF) : const Color(0xFFCEBEDF),
       ),
     );
   }
@@ -687,7 +687,7 @@ class _WaveformPainter extends CustomPainter {
     const gap = 3.0;
     final width = (size.width - gap * (bars - 1)) / bars;
     final played = Paint()..color = activeColor;
-    final remaining = Paint()..color = const Color(0xFF3A3733);
+    final remaining = Paint()..color = const Color(0xFF36303D);
 
     for (var index = 0; index < bars; index++) {
       final wave =
@@ -759,7 +759,7 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0x99151110), Color(0x730C0A09)],
+          colors: [Color(0x99120E17), Color(0x730A080D)],
         ),
         border: Border.all(color: const Color(0x1FFFFFFF)),
         borderRadius: BorderRadius.circular(22),
@@ -807,7 +807,7 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
               : -1;
           _ensureActiveVisible(active);
           const style = TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'Manrope',
             fontSize: 21,
             height: 1.25,
             fontWeight: FontWeight.w700,
@@ -858,8 +858,8 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
                         text: document.lines[index].text,
                         style: style,
                         active: index == active || !document.synced,
-                        activeColor: const Color(0xFFF5F1E9),
-                        dimColor: const Color(0xFF6F6A64),
+                        activeColor: const Color(0xFFEFE9F5),
+                        dimColor: const Color(0xFF695D76),
                         inactiveScale: document.synced ? .84 : 1,
                       ),
                     ),
@@ -940,7 +940,7 @@ class _LyricsMessage extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 32, color: const Color(0xFF8D8881)),
+          Icon(icon, size: 32, color: const Color(0xFF877995)),
           const SizedBox(height: 12),
           Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
           if (subtitle != null) ...[
@@ -948,7 +948,7 @@ class _LyricsMessage extends StatelessWidget {
             Text(
               subtitle!,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF8D8881)),
+              style: const TextStyle(color: Color(0xFF877995)),
             ),
           ],
           if (loading) ...[

@@ -263,7 +263,7 @@ class _ChooseStage extends StatelessWidget {
             ),
             child: Text(
               error!,
-              style: const TextStyle(color: Color(0xFFFFA69D)),
+              style: const TextStyle(color: Color(0xFFB499FF)),
             ),
           ),
         ],
@@ -423,7 +423,11 @@ class _ProgressStage extends StatelessWidget {
         Text(
           phases[phase],
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+          style: const TextStyle(
+            fontFamily: ResonanceFonts.display,
+            fontSize: 26,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         const SizedBox(height: 12),
         Text(
@@ -545,7 +549,11 @@ class _ResultMetric extends StatelessWidget {
       children: [
         Text(
           value,
-          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900),
+          style: const TextStyle(
+            fontFamily: ResonanceFonts.display,
+            fontSize: 32,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         const SizedBox(height: 5),
         Text(
@@ -566,7 +574,7 @@ class _TransferBackdrop extends StatelessWidget {
       gradient: RadialGradient(
         center: Alignment(1.1, -.9),
         radius: 1.25,
-        colors: [Color(0x334B1D13), ResonanceColors.background],
+        colors: [Color(0x3322134B), ResonanceColors.background],
       ),
     ),
   );

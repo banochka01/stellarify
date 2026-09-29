@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/features/rooms/room_queue_panel.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
@@ -11,33 +10,15 @@ import 'package:resonance/shared/widgets/resonance_motion.dart';
 
 class AdaptiveAppShell extends StatelessWidget {
   const AdaptiveAppShell({
-    required this.location,
+    required this.selectedIndex,
+    required this.onSelected,
     required this.child,
     super.key,
   });
 
-  final String location;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
   final Widget child;
-
-  int get _selectedIndex => switch (location) {
-    '/search' => 1,
-    '/library' => 2,
-    '/graph' => 2,
-    '/rooms' => 3,
-    '/settings' => 4,
-    '/account' => 4,
-    _ => 0,
-  };
-
-  void _navigate(BuildContext context, int index) {
-    context.go(switch (index) {
-      1 => '/search',
-      2 => '/library',
-      3 => '/rooms',
-      4 => '/settings',
-      _ => '/',
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,22 +26,19 @@ class AdaptiveAppShell extends StatelessWidget {
     final desktop = width >= 900;
     if (!desktop) {
       return Scaffold(
-        body: SafeArea(
-          bottom: false,
-          child: _TabSwitcher(index: _selectedIndex, child: child),
-        ),
+        body: SafeArea(bottom: false, child: child),
         bottomNavigationBar: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const PlayerBar(compact: true),
             NavigationBar(
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: (index) => _navigate(context, index),
+              selectedIndex: selectedIndex,
+              onDestinationSelected: onSelected,
               destinations: const [
                 NavigationDestination(
                   icon: Icon(Icons.home_outlined),
                   selectedIcon: Icon(Icons.home_rounded),
-                  label: 'Главная',
+                  label: 'Волна',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.search_rounded),
@@ -95,72 +73,15 @@ class AdaptiveAppShell extends StatelessWidget {
             child: Row(
               children: [
                 _DesktopSidebar(
-                  selectedIndex: _selectedIndex,
-                  onSelected: (index) => _navigate(context, index),
+                  selectedIndex: selectedIndex,
+                  onSelected: onSelected,
                 ),
-                Expanded(
-                  child: _TabSwitcher(index: _selectedIndex, child: child),
-                ),
+                Expanded(child: child),
               ],
             ),
           ),
           const PlayerBar(compact: false),
         ],
-      ),
-    );
-  }
-}
-
-class _TabSwitcher extends StatefulWidget {
-  const _TabSwitcher({required this.index, required this.child});
-
-  final int index;
-  final Widget child;
-
-  @override
-  State<_TabSwitcher> createState() => _TabSwitcherState();
-}
-
-class _TabSwitcherState extends State<_TabSwitcher>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: ResonanceMotion.entrance,
-  )..value = 1;
-  int _direction = 1;
-
-  @override
-  void didUpdateWidget(_TabSwitcher oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.index != widget.index) {
-      _direction = widget.index >= oldWidget.index ? 1 : -1;
-      _controller.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (MediaQuery.disableAnimationsOf(context)) return widget.child;
-    final animation = CurvedAnimation(
-      parent: _controller,
-      curve: ResonanceMotion.curve,
-    );
-    // Анимируем только вход новой вкладки: удержание уходящей в дереве
-    // дублирует GlobalKey'и страниц go_router и ломает навигацию.
-    return FadeTransition(
-      opacity: animation,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: Offset(.018 * _direction, 0),
-          end: Offset.zero,
-        ).animate(animation),
-        child: widget.child,
       ),
     );
   }
@@ -181,7 +102,7 @@ class _DesktopSidebar extends StatelessWidget {
       width: 224,
       padding: const EdgeInsets.fromLTRB(18, 26, 18, 20),
       decoration: const BoxDecoration(
-        color: Color(0xFF080909),
+        color: Color(0xFF08060B),
         border: Border(right: BorderSide(color: ResonanceColors.border)),
       ),
       child: Column(
@@ -194,7 +115,7 @@ class _DesktopSidebar extends StatelessWidget {
           ] else
             const SizedBox(height: 4),
           _SidebarItem(
-            label: 'Главная',
+            label: 'Волна',
             icon: Icons.home_rounded,
             selected: selectedIndex == 0,
             onTap: () => onSelected(0),
@@ -282,7 +203,7 @@ class _SourceItem extends StatelessWidget {
           child: Text(
             label,
             style: const TextStyle(
-              color: Color(0xFFB7B2AC),
+              color: Color(0xFFB2A8BB),
               fontSize: 11,
               fontWeight: FontWeight.w500,
             ),
@@ -340,7 +261,7 @@ class _SidebarItem extends StatelessWidget {
           hoverScale: 1.01,
           hoverOffset: Offset.zero,
           child: Material(
-            color: selected ? const Color(0xFF191715) : Colors.transparent,
+            color: selected ? const Color(0xFF17111D) : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
@@ -390,7 +311,7 @@ class _SidebarItem extends StatelessWidget {
                         ),
                         curve: ResonanceMotion.curve,
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Manrope',
                           color: selected
                               ? ResonanceColors.text
                               : ResonanceColors.muted,

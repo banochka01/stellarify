@@ -2,16 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:resonance/core/preferences/appearance_preferences.dart';
 
 abstract final class ResonanceColors {
-  static const background = Color(0xFF060606);
-  static const surface = Color(0xFF0D0D0D);
-  static const surfaceHigh = Color(0xFF151514);
-  static const surfaceRaised = Color(0xFF1B1A18);
-  static const border = Color(0xFF2A2927);
-  static const primary = Color(0xFFFF5A36);
-  static const secondary = Color(0xFFF1ECE2);
+  // «Эфир»: баклажанная ночь, сиреневый — действие, лайм — то, что live.
+  static const background = Color(0xFF0E0B14);
+  static const surface = Color(0xFF17121F);
+  static const surfaceHigh = Color(0xFF1C1626);
+  static const surfaceRaised = Color(0xFF211A2C);
+  static const border = Color(0xFF302640);
+  static const primary = Color(0xFFB69CFF);
+  static const secondary = Color(0xFFEFE9F5);
+  static const live = Color(0xFFD8F15A);
   static const success = Color(0xFF5DDAA3);
-  static const text = Color(0xFFF4F4F2);
-  static const muted = Color(0xFF858585);
+  static const text = Color(0xFFEFE9F5);
+  static const muted = Color(0xFF9A8FAB);
   static const youtube = Color(0xFFFF5A63);
   static const yandex = Color(0xFFFFD84A);
   static const soundcloud = Color(0xFFFF783E);
@@ -19,32 +21,40 @@ abstract final class ResonanceColors {
   static const vk = Color(0xFF4C8EF9);
 }
 
+abstract final class ResonanceFonts {
+  static const body = 'Manrope';
+  static const display = 'Unbounded';
+  static const mono = 'JetBrainsMono';
+}
+
 abstract final class ResonanceTheme {
   static ThemeData forPreset(ResonanceThemePreset preset) {
+    // Имена пресетов сохранены ради совместимости с сохранёнными настройками:
+    // graphite теперь «Эфир» (по умолчанию), midnight — «Графит», ember — «Янтарь».
     final palette = switch (preset) {
       ResonanceThemePreset.graphite => const _Palette(
-        background: Color(0xFF060606),
-        surface: Color(0xFF0D0D0D),
-        raised: Color(0xFF1B1A18),
-        border: Color(0xFF2A2927),
-        primary: Color(0xFFFF5A36),
-        secondary: Color(0xFFF1ECE2),
+        background: Color(0xFF0E0B14),
+        surface: Color(0xFF17121F),
+        raised: Color(0xFF211A2C),
+        border: Color(0xFF302640),
+        primary: Color(0xFFB69CFF),
+        secondary: Color(0xFFEFE9F5),
       ),
       ResonanceThemePreset.midnight => const _Palette(
-        background: Color(0xFF070712),
-        surface: Color(0xFF101020),
-        raised: Color(0xFF1B1B35),
-        border: Color(0xFF32325A),
-        primary: Color(0xFF8B7CFF),
-        secondary: Color(0xFFDCD8FF),
+        background: Color(0xFF0A0A0C),
+        surface: Color(0xFF131316),
+        raised: Color(0xFF1D1D22),
+        border: Color(0xFF2E2E36),
+        primary: Color(0xFFC9C3FF),
+        secondary: Color(0xFFEDEDF2),
       ),
       ResonanceThemePreset.ember => const _Palette(
-        background: Color(0xFF100706),
-        surface: Color(0xFF190D0B),
-        raised: Color(0xFF2A1612),
+        background: Color(0xFF120A08),
+        surface: Color(0xFF1B100D),
+        raised: Color(0xFF2A1813),
         border: Color(0xFF4B2922),
-        primary: Color(0xFFFF704D),
-        secondary: Color(0xFFFFE1D8),
+        primary: Color(0xFFFF8A5B),
+        secondary: Color(0xFFFFE8DE),
       ),
     };
     final colorScheme =
@@ -66,7 +76,7 @@ abstract final class ResonanceTheme {
       brightness: Brightness.dark,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: Colors.transparent,
-      fontFamily: 'Inter',
+      fontFamily: ResonanceFonts.body,
       dividerColor: palette.border,
       cardColor: palette.surface,
       splashFactory: InkSparkle.splashFactory,
@@ -82,36 +92,72 @@ abstract final class ResonanceTheme {
         },
       ),
       textTheme: const TextTheme(
-        displaySmall: TextStyle(
-          fontSize: 48,
-          height: 0.95,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -2.3,
+        displayLarge: TextStyle(
+          fontFamily: ResonanceFonts.display,
+          fontSize: 56,
+          height: 1,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -1.6,
           color: ResonanceColors.text,
         ),
-        headlineSmall: TextStyle(
-          fontSize: 22,
+        displayMedium: TextStyle(
+          fontFamily: ResonanceFonts.display,
+          fontSize: 44,
+          height: 1,
           fontWeight: FontWeight.w700,
-          letterSpacing: -0.4,
+          letterSpacing: -1.2,
+          color: ResonanceColors.text,
         ),
+        displaySmall: TextStyle(
+          fontFamily: ResonanceFonts.display,
+          fontSize: 36,
+          height: 1.02,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -1,
+          color: ResonanceColors.text,
+        ),
+        headlineMedium: TextStyle(
+          fontFamily: ResonanceFonts.display,
+          fontSize: 26,
+          height: 1.08,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -.6,
+        ),
+        headlineSmall: TextStyle(
+          fontFamily: ResonanceFonts.display,
+          fontSize: 20,
+          height: 1.1,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -.4,
+        ),
+        titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
         titleMedium: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-        bodyMedium: TextStyle(color: ResonanceColors.muted, height: 1.45),
-        labelLarge: TextStyle(fontWeight: FontWeight.w700),
+        titleSmall: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        bodyLarge: TextStyle(height: 1.5),
+        bodyMedium: TextStyle(color: ResonanceColors.muted, height: 1.5),
+        labelLarge: TextStyle(fontWeight: FontWeight.w800),
+        labelSmall: TextStyle(
+          fontFamily: ResonanceFonts.mono,
+          fontSize: 10,
+          fontWeight: FontWeight.w500,
+          letterSpacing: 1,
+        ),
       ),
       cardTheme: CardThemeData(
         color: palette.surface.withValues(alpha: .92),
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(22),
           side: BorderSide(color: palette.border),
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        height: 72,
+        height: 70,
         elevation: 0,
-        backgroundColor: palette.surface,
+        backgroundColor: palette.background,
         surfaceTintColor: Colors.transparent,
-        indicatorColor: palette.primary.withValues(alpha: .2),
+        indicatorColor: palette.primary,
+        indicatorShape: const StadiumBorder(),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return TextStyle(
@@ -125,7 +171,7 @@ abstract final class ResonanceTheme {
           (states) => IconThemeData(
             size: 21,
             color: states.contains(WidgetState.selected)
-                ? palette.primary
+                ? palette.background
                 : ResonanceColors.muted,
           ),
         ),
@@ -160,9 +206,9 @@ abstract final class ResonanceTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: palette.primary,
-          foregroundColor: Color(0xFF090706),
+          foregroundColor: ResonanceColors.background,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(99),
           ),
           minimumSize: const Size(48, 48),
         ),
@@ -172,7 +218,7 @@ abstract final class ResonanceTheme {
           foregroundColor: ResonanceColors.text,
           side: BorderSide(color: palette.border),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(99),
           ),
           minimumSize: const Size(48, 48),
         ),
@@ -182,16 +228,16 @@ abstract final class ResonanceTheme {
         selectedColor: palette.primary,
         disabledColor: ResonanceColors.surfaceHigh,
         labelStyle: const TextStyle(
-          fontFamily: 'Inter',
+          fontFamily: ResonanceFonts.body,
           fontWeight: FontWeight.w700,
         ),
         secondaryLabelStyle: const TextStyle(
-          fontFamily: 'Inter',
+          fontFamily: ResonanceFonts.body,
           color: ResonanceColors.text,
           fontWeight: FontWeight.w800,
         ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(99),
           side: BorderSide(color: palette.border),
         ),
         showCheckmark: false,
@@ -200,19 +246,19 @@ abstract final class ResonanceTheme {
         filled: true,
         fillColor: palette.raised,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: palette.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: palette.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: palette.primary),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Color(0xFFFF6B6B)),
         ),
         contentPadding: const EdgeInsets.symmetric(

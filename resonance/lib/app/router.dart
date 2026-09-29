@@ -15,44 +15,77 @@ import 'package:resonance/shared/widgets/resonance_motion.dart';
 final resonanceRouter = GoRouter(
   initialLocation: '/',
   routes: [
-    ShellRoute(
-      builder: (context, state, child) =>
-          AdaptiveAppShell(location: state.uri.path, child: child),
-      routes: [
-        GoRoute(
-          path: '/account',
-          name: 'account',
-          builder: (context, state) => const AccountScreen(),
+    // Каждая вкладка живёт в своей ветке: состояние и прокрутка сохраняются,
+    // а переход — настоящий кроссфейд между двумя уже построенными экранами.
+    StatefulShellRoute(
+      builder: (context, state, navigationShell) => AdaptiveAppShell(
+        selectedIndex: navigationShell.currentIndex,
+        onSelected: (index) => navigationShell.goBranch(
+          index,
+          initialLocation: index == navigationShell.currentIndex,
         ),
-        GoRoute(
-          path: '/rooms',
-          name: 'rooms',
-          builder: (context, state) => const RoomsScreen(),
+        child: navigationShell,
+      ),
+      navigatorContainerBuilder: (context, navigationShell, children) =>
+          ResonanceBranchStack(
+            index: navigationShell.currentIndex,
+            children: children,
+          ),
+      branches: [
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/',
+              name: 'home',
+              builder: (context, state) => const HomeScreen(),
+            ),
+          ],
         ),
-        GoRoute(
-          path: '/',
-          name: 'home',
-          builder: (context, state) => const HomeScreen(),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/search',
+              name: 'search',
+              builder: (context, state) => const SearchScreen(),
+            ),
+          ],
         ),
-        GoRoute(
-          path: '/search',
-          name: 'search',
-          builder: (context, state) => const SearchScreen(),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/library',
+              name: 'library',
+              builder: (context, state) => const LibraryScreen(),
+            ),
+            GoRoute(
+              path: '/graph',
+              name: 'music-graph',
+              builder: (context, state) => const MusicGraphScreen(),
+            ),
+          ],
         ),
-        GoRoute(
-          path: '/library',
-          name: 'library',
-          builder: (context, state) => const LibraryScreen(),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/rooms',
+              name: 'rooms',
+              builder: (context, state) => const RoomsScreen(),
+            ),
+          ],
         ),
-        GoRoute(
-          path: '/graph',
-          name: 'music-graph',
-          builder: (context, state) => const MusicGraphScreen(),
-        ),
-        GoRoute(
-          path: '/settings',
-          name: 'settings',
-          builder: (context, state) => const SettingsScreen(),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/settings',
+              name: 'settings',
+              builder: (context, state) => const SettingsScreen(),
+            ),
+            GoRoute(
+              path: '/account',
+              name: 'account',
+              builder: (context, state) => const AccountScreen(),
+            ),
+          ],
         ),
       ],
     ),

@@ -17,7 +17,7 @@ class ResonanceLogo extends StatelessWidget {
       height: size,
       padding: EdgeInsets.all(size * .14),
       decoration: BoxDecoration(
-        color: const Color(0xFF111111),
+        color: const Color(0xFF110D15),
         borderRadius: BorderRadius.circular(size * .24),
         border: Border.all(color: const Color(0x1FFFFFFF)),
       ),

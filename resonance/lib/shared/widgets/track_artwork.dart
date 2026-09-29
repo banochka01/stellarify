@@ -71,17 +71,17 @@ class ArtworkFallback extends StatelessWidget {
   final String? fallbackAsset;
   final TextStyle? textStyle;
 
-  static const _ink = Color(0xFF14100E);
+  static const _ink = Color(0xFF110D15);
 
   static const _gradients = <List<Color>>[
-    [Color(0xFFF05A49), Color(0xFF57190F)],
+    [Color(0xFFF05A49), Color(0xFF220F57)],
     [Color(0xFF7C66F2), Color(0xFF1C1340)],
     [Color(0xFF27B567), Color(0xFF0A2E1A)],
-    [Color(0xFFEF5570), Color(0xFF3D0F1C)],
-    [Color(0xFFF2A03D), Color(0xFF4A220C)],
+    [Color(0xFFEF5570), Color(0xFF1B0F3D)],
+    [Color(0xFFF2A03D), Color(0xFF1D0C4A)],
     [Color(0xFF4C8EF9), Color(0xFF12234D)],
-    [Color(0xFF5A5F6B), Color(0xFF15161C)],
-    [Color(0xFFE0B64A), Color(0xFF3A2A08)],
+    [Color(0xFF62576E), Color(0xFF18121F)],
+    [Color(0xFFE0B64A), Color(0xFF15083A)],
   ];
 
   static List<Color> gradientFor(UnifiedTrack track) {

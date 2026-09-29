@@ -18,7 +18,7 @@ class DesktopWindowBar extends StatelessWidget {
       height: 46,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF0D0D0C), Color(0xFF080909)],
+          colors: [Color(0xFF0C0910), Color(0xFF08060B)],
         ),
         border: Border(bottom: BorderSide(color: ResonanceColors.border)),
       ),
@@ -47,7 +47,7 @@ class DesktopWindowBar extends StatelessWidget {
                           fontSize: 10.5,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 2,
-                          color: Color(0xFFE8E3DC),
+                          color: Color(0xFFE2D8EC),
                         ),
                       ),
                       SizedBox(width: 14),
@@ -101,7 +101,7 @@ class _LiveIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) => const DecoratedBox(
     decoration: BoxDecoration(
-      color: Color(0xFF151514),
+      color: Color(0xFF140F1A),
       borderRadius: BorderRadius.all(Radius.circular(99)),
       border: Border.fromBorderSide(BorderSide(color: ResonanceColors.border)),
     ),
@@ -122,7 +122,7 @@ class _LiveIndicator extends StatelessWidget {
           Text(
             'ONLINE',
             style: TextStyle(
-              color: Color(0xFFAAA59F),
+              color: Color(0xFFA49AAF),
               fontSize: 8,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.1,
@@ -169,7 +169,7 @@ class _WindowAction extends StatelessWidget {
               size: 17,
               color: destructive
                   ? const Color(0xFFFF8E94)
-                  : const Color(0xFFC8C3BC),
+                  : const Color(0xFFC2ADD7),
             ),
           ),
         ),

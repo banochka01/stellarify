@@ -50,7 +50,7 @@ class LibraryScreen extends ConsumerWidget {
     );
     // Одно главное действие, остальные — тихие вторичные кнопки.
     final quiet = TextButton.styleFrom(
-      foregroundColor: const Color(0xFFD9D2C8),
+      foregroundColor: const Color(0xFFD0C0E1),
       backgroundColor: const Color(0x0FFFFFFF),
       shape: const StadiumBorder(),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -435,11 +435,11 @@ class _LibraryHero extends ConsumerWidget {
       padding: EdgeInsets.all(compact ? 22 : 30),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0x55FF5A36)),
+        border: Border.all(color: const Color(0x55B499FF)),
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF22100C), Color(0xFF11100F), Color(0xFF0B0B0B)],
+          colors: [Color(0xFF17111D), Color(0xFF100C14), Color(0xFF0B080E)],
         ),
         boxShadow: const [
           BoxShadow(
@@ -507,7 +507,7 @@ class _HeroMetric extends StatelessWidget {
     width: 104,
     padding: const EdgeInsets.all(15),
     decoration: BoxDecoration(
-      color: const Color(0xAA0A0A0A),
+      color: const Color(0xAA0A070D),
       borderRadius: BorderRadius.circular(16),
       border: Border.all(color: ResonanceColors.border),
     ),

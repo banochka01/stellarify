@@ -562,7 +562,11 @@ class _Metric extends StatelessWidget {
       children: [
         Text(
           value,
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+          style: const TextStyle(
+            fontFamily: ResonanceFonts.display,
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         Text(
           label,

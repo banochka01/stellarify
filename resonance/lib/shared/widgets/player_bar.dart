@@ -27,7 +27,7 @@ class PlayerBar extends ConsumerWidget {
     final favorite = library?.favoriteIds.contains(track.id) ?? false;
 
     return Material(
-      color: const Color(0xFF0A0A09),
+      color: const Color(0xFF09070C),
       child: Container(
         height: compact ? 74 : 88,
         decoration: const BoxDecoration(
@@ -42,7 +42,7 @@ class PlayerBar extends ConsumerWidget {
                   value: durationMs <= 0
                       ? 0
                       : position.inMilliseconds / durationMs,
-                  height: 14,
+                  height: 18,
                   onSeek: (value) => unawaited(
                     ref
                         .read(playbackServiceProvider.future)
