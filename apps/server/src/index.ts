@@ -1,3 +1,4 @@
+import { dirname, join } from "node:path";
 import "dotenv/config";
 import { createServer } from "node:http";
 import { createHash } from "node:crypto";
@@ -94,12 +95,22 @@ app.disable("x-powered-by");
 app.use(cors({ origin: webOrigin }));
 app.use("/api/v1/auth/spotify", createSpotifyOAuthRouter(spotifyOAuth));
 app.use(express.json({ limit: "512kb" }));
+// Crowd sync offsets are optional: a broken store must not take the API down.
+let clipOffsets: ClipOffsetStore | undefined;
+try {
+  clipOffsets = new ClipOffsetStore(
+    process.env.CLIP_OFFSETS_PATH || join(dirname(process.env.AUTH_DB_PATH || "./data/resonance.sqlite"), "clip-offsets.sqlite"),
+    process.env.CLIP_OFFSET_PEPPER || process.env.AUTH_PASSWORD_PEPPER || ""
+  );
+} catch (error) {
+  console.error("Clip offsets disabled", error);
+}
 app.use("/api/v1/clips", createClipRouter(
   ClipService.fromEnvironment(),
   async (query, request) => query.yandexId
     ? yandex.clips(query.yandexId, query, providerAccess(request))
     : [],
-  new ClipOffsetStore(process.env.CLIP_OFFSETS_PATH || "./data/clip-offsets.sqlite", process.env.CLIP_OFFSET_PEPPER || "")
+  clipOffsets
 ));
 app.use("/api/v1/subscription", createLegacyAccessRouter(accessControl));
 app.use("/api/v1/account", createAccountRouter(accountStore));

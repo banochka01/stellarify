@@ -15,6 +15,7 @@ services:
       NODE_ENV: production
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://music.webcordes.ru}
       AUTH_DB_PATH: /data/resonance.sqlite
+      CLIP_OFFSETS_PATH: /data/clip-offsets.sqlite
     ports:
       - "127.0.0.1:8788:8787"
     volumes:
