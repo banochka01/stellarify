@@ -18,6 +18,7 @@ class StageClip {
     required this.kind,
     required this.playable,
     this.offset = Duration.zero,
+    this.youtubeId,
   });
   final String id;
   final Uri? url;
@@ -27,6 +28,27 @@ class StageClip {
   final StageClipKind kind;
   final bool playable;
   final Duration offset;
+
+  /// Set when the clip plays through the in-app YouTube embed.
+  final String? youtubeId;
+
+  bool get embedded => youtubeId != null;
+
+  /// Stable identity of the playable media, independent of the offset.
+  String get key =>
+      youtubeId != null ? 'youtube:$youtubeId' : '${url ?? sourceUrl}';
+
+  StageClip withOffset(Duration value) => StageClip(
+    id: id,
+    url: url,
+    title: title,
+    source: source,
+    sourceUrl: sourceUrl,
+    kind: kind,
+    playable: playable,
+    offset: value,
+    youtubeId: youtubeId,
+  );
 
   bool get ambient => kind == StageClipKind.ambient;
   bool get preview => kind == StageClipKind.preview;
@@ -48,9 +70,18 @@ class StageClip {
       'ambient' => StageClipKind.ambient,
       _ => throw const FormatException('Invalid clip kind'),
     };
+    final embed = json['playback'] == 'embed' ? json['embed'] : null;
+    final youtubeId = embed is Map && embed['provider'] == 'youtube'
+        ? embed['id'] as String?
+        : null;
+    if (json['playback'] == 'embed' &&
+        (youtubeId == null ||
+            !RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(youtubeId))) {
+      throw const FormatException('Invalid clip embed');
+    }
     final playable = json['playback'] != 'external';
     final mediaUrl = json['url'] == null ? null : secureUri('url');
-    if (playable && mediaUrl == null) {
+    if (playable && youtubeId == null && mediaUrl == null) {
       throw const FormatException('Invalid clip kind');
     }
     return StageClip(
@@ -62,6 +93,7 @@ class StageClip {
       kind: kind,
       playable: playable,
       offset: Duration(milliseconds: (json['offsetMs'] as num? ?? 0).round()),
+      youtubeId: youtubeId,
     );
   }
 }
@@ -88,6 +120,7 @@ class ClipService {
               'title': track.title,
               'artist': track.artist,
               if (yandexSource != null) 'yandexId': yandexSource.externalId,
+              'embed': 'youtube',
             },
           ),
       cancelToken: cancelToken,
@@ -98,6 +131,28 @@ class ClipService {
     return (response.data?['clips'] as List<dynamic>? ?? [])
         .map((item) => StageClip.fromJson(item as Map<String, dynamic>))
         .toList(growable: false);
+  }
+
+  /// Page that hosts the official YouTube player on our own origin.
+  Uri youtubeEmbedPage(String videoId) => baseUri()
+      .resolve('/api/v1/clips/embed/youtube')
+      .replace(queryParameters: {'v': videoId});
+
+  /// Shares a manual sync correction; the server publishes the median.
+  Future<void> voteOffset(
+    UnifiedTrack track,
+    StageClip clip,
+    Duration offset,
+  ) async {
+    await dio.postUri<void>(
+      baseUri().resolve('/api/v1/clips/offset'),
+      data: {
+        'title': track.title,
+        'artist': track.artist,
+        'clipId': clip.id,
+        'offsetMs': offset.inMilliseconds.clamp(-600000, 600000),
+      },
+    );
   }
 }
 

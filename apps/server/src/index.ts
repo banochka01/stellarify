@@ -20,6 +20,7 @@ import { parseImportPayload } from "./importer.js";
 import { PlaylistImportService } from "./playlist-import.js";
 import { LyricsError, LyricsService } from "./lyrics.js";
 import { ClipService, createClipRouter } from "./clips.js";
+import { ClipOffsetStore } from "./clip-embed.js";
 import { ProviderGateway, ProviderGatewayError, type ProviderAccess } from "./provider-gateway.js";
 import { providerCapabilities } from "./providers.js";
 import { registerRoomHandlers, roomWaveUserIds } from "./rooms.js";
@@ -97,7 +98,8 @@ app.use("/api/v1/clips", createClipRouter(
   ClipService.fromEnvironment(),
   async (query, request) => query.yandexId
     ? yandex.clips(query.yandexId, query, providerAccess(request))
-    : []
+    : [],
+  new ClipOffsetStore(process.env.CLIP_OFFSETS_PATH || "./data/clip-offsets.sqlite", process.env.CLIP_OFFSET_PEPPER || "")
 ));
 app.use("/api/v1/subscription", createLegacyAccessRouter(accessControl));
 app.use("/api/v1/account", createAccountRouter(accountStore));
@@ -114,9 +116,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "3.9.0",
+    version: process.env.CLIENT_VERSION || "3.10.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Resonance 3.9.0 Эфир: полностью новый визуал — ночная палитра, новые шрифты, прогресс-волна и плавные переходы между вкладками.",
+      "Resonance 3.10.0 Клипы: официальные клипы YouTube прямо на Stage без звука и синхронно с треком, общая подстройка синхронизации и кинорежим.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       windowsPortable: "https://music.webcordes.ru/downloads/windows-portable",

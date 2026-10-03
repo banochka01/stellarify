@@ -155,6 +155,76 @@ void main() {
     },
   );
 
+  testWidgets('clip deck switches sources and nudges sync', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final clips = [
+      StageClip(
+        id: 'yt',
+        title: 'Signal',
+        source: 'MusicBrainz · YouTube',
+        sourceUrl: Uri.parse('https://www.youtube.com/watch?v=dQw4w9WgXcQ'),
+        kind: StageClipKind.musicVideo,
+        playable: true,
+        youtubeId: 'dQw4w9WgXcQ',
+      ),
+      StageClip(
+        id: 'apple',
+        url: Uri.parse('https://example.com/preview.m4v'),
+        title: 'Signal',
+        source: 'Apple Music · 30 сек',
+        sourceUrl: Uri.parse('https://music.apple.com'),
+        kind: StageClipKind.preview,
+        playable: true,
+      ),
+    ];
+    StageClip? shown;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(_memoryDatabase()),
+          playbackStateProvider.overrideWith(
+            (ref) => Stream.value(
+              ResonancePlaybackState(
+                queue: [demoTrack],
+                currentIndex: 0,
+                duration: const Duration(minutes: 2),
+              ),
+            ),
+          ),
+          playbackVideoAvailableProvider.overrideWith(
+            (ref) => Stream.value(false),
+          ),
+          playbackVideoControllerProvider.overrideWithValue(null),
+          stageClipsProvider.overrideWith((ref, track) async => clips),
+          stageVideoBuilderProvider.overrideWithValue((clip, state, onError) {
+            shown = clip;
+            return const SizedBox.expand();
+          }),
+          lyricsProvider.overrideWith((ref, track) async => null),
+        ],
+        child: const MaterialApp(
+          home: VisualStageScreen(initialMode: VisualStageMode.video),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(shown?.id, 'yt');
+    expect(find.text('Синхронно'), findsOneWidget);
+    await tester.tap(find.byTooltip('Клип позже на 0,5 с'));
+    await tester.pump();
+    expect(shown?.offset, const Duration(milliseconds: 500));
+    expect(find.text('+0.5 с'), findsOneWidget);
+    await tester.tap(find.text('Превью · Apple Music'));
+    await tester.pump();
+    expect(shown?.id, 'apple');
+    expect(find.text('Синхронно'), findsNothing);
+    await tester.pump(const Duration(seconds: 5));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'failed source discovery retries without replacing the audio player',
     (tester) async {

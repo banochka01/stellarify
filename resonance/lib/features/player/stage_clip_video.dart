@@ -6,6 +6,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/features/player/clip_service.dart';
+import 'package:resonance/features/player/stage_clip_embed.dart';
 
 typedef StageVideoBuilder =
     Widget Function(
@@ -14,15 +15,23 @@ typedef StageVideoBuilder =
       VoidCallback onError,
     );
 
-final stageVideoBuilderProvider = Provider<StageVideoBuilder>(
-  (ref) =>
-      (clip, state, onError) => StageClipVideo(
-        key: ValueKey('${state.currentTrack?.id}:${clip.url}'),
-        clip: clip,
-        state: state,
-        onError: onError,
-      ),
-);
+final stageVideoBuilderProvider = Provider<StageVideoBuilder>((ref) {
+  final clips = ref.watch(clipServiceProvider);
+  return (clip, state, onError) => clip.embedded
+      ? StageClipEmbed(
+          key: ValueKey('${state.currentTrack?.id}:${clip.key}'),
+          page: clips.youtubeEmbedPage(clip.youtubeId!),
+          clip: clip,
+          state: state,
+          onError: onError,
+        )
+      : StageClipVideo(
+          key: ValueKey('${state.currentTrack?.id}:${clip.key}'),
+          clip: clip,
+          state: state,
+          onError: onError,
+        );
+});
 
 /// An independent, always-muted video player. Audio stays in PlaybackService.
 class StageClipVideo extends StatefulWidget {

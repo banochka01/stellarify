@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { Router, type Request } from "express";
 import { z } from "zod";
+import { ClipOffsetStore, isYoutubeId, youtubeEmbedPage, youtubeId } from "./clip-embed.js";
 
 const httpsUrl = z.string().url().max(2048).refine((value) => {
   const url = new URL(value);
@@ -11,7 +12,8 @@ export const clipSchema = z.object({
   title: z.string().min(1).max(200),
   artist: z.string().max(200).default(""),
   url: httpsUrl.optional(),
-  playback: z.enum(["direct", "external"]).default("direct"),
+  playback: z.enum(["direct", "embed", "external"]).default("direct"),
+  embed: z.object({ provider: z.literal("youtube"), id: z.string().regex(/^[A-Za-z0-9_-]{11}$/) }).optional(),
   kind: z.enum(["musicVideo", "preview", "ambient"]),
   source: z.string().min(1).max(100),
   sourceUrl: httpsUrl,
@@ -19,6 +21,9 @@ export const clipSchema = z.object({
 }).superRefine((clip, context) => {
   if (clip.playback === "direct" && !clip.url) {
     context.addIssue({ code: "custom", path: ["url"], message: "Direct clips require a media URL" });
+  }
+  if (clip.playback === "embed" && !clip.embed) {
+    context.addIssue({ code: "custom", path: ["embed"], message: "Embedded clips require an embed reference" });
   }
 });
 export type Clip = z.infer<typeof clipSchema>;
@@ -35,8 +40,16 @@ const catalogSchema = z.object({ clips: z.array(clipSchema).max(2000) });
 const querySchema = z.object({
   title: z.string().trim().min(1).max(200),
   artist: z.string().trim().min(1).max(200),
-  yandexId: z.string().trim().regex(/^\d+(?::\d+)?$/).optional()
+  yandexId: z.string().trim().regex(/^\d+(?::\d+)?$/).optional(),
+  embed: z.string().trim().max(60).optional()
 });
+const offsetSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  artist: z.string().trim().min(1).max(200),
+  clipId: z.string().min(1).max(200),
+  offsetMs: z.number().int().min(-600000).max(600000)
+});
+export const clipTrackKey = (title: string, artist: string) => JSON.stringify([normalize(title), normalize(artist)]);
 const normalize = (value: string) => transliterate(value.normalize("NFKC").toLocaleLowerCase())
   .replace(/\([^)]*(?:official|video|audio|feat\.?|ft\.?).*?\)/giu, " ")
   .replace(/\[[^\]]*(?:official|video|audio|feat\.?|ft\.?).*?\]/giu, " ")
@@ -278,8 +291,33 @@ export class ClipService {
 
 type ExtraClipFinder = (query: ClipQuery, request: Request) => Promise<Clip[]>;
 
-export function createClipRouter(service: ClipService, extraFinder?: ExtraClipFinder) {
+export function createClipRouter(service: ClipService, extraFinder?: ExtraClipFinder, offsets?: ClipOffsetStore) {
   const router = Router();
+  router.get("/embed/youtube", (request, response) => {
+    const id = request.query.v;
+    if (!isYoutubeId(id)) {
+      response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Invalid video id" } });
+      return;
+    }
+    response.setHeader("Cache-Control", "public, max-age=86400");
+    response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    response.setHeader("Content-Security-Policy", [
+      "default-src 'none'", "script-src 'unsafe-inline' https://www.youtube.com https://s.ytimg.com",
+      "frame-src https://www.youtube.com https://www.youtube-nocookie.com", "style-src 'unsafe-inline'",
+      "img-src https: data:", "connect-src https:"
+    ].join("; "));
+    response.type("html").send(youtubeEmbedPage(id));
+  });
+  router.post("/offset", (request, response) => {
+    const body = offsetSchema.safeParse(request.body);
+    if (!offsets || !body.success) {
+      response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Invalid offset" } });
+      return;
+    }
+    const offsetMs = offsets.vote(clipTrackKey(body.data.title, body.data.artist), body.data.clipId,
+      request.ip ?? "unknown", body.data.offsetMs);
+    response.json({ clipId: body.data.clipId, offsetMs });
+  });
   router.get("/", async (request, response) => {
     const query = querySchema.safeParse(request.query);
     if (!query.success) {
@@ -292,7 +330,12 @@ export function createClipRouter(service: ClipService, extraFinder?: ExtraClipFi
         extraFinder?.(query.data, request).catch(() => []) ?? Promise.resolve([])
       ]);
       response.setHeader("Cache-Control", query.data.yandexId ? "private, max-age=60" : "public, max-age=300");
-      response.json({ clips: service.merge(query.data.title, query.data.artist, base, extra) });
+      const embeds = new Set((query.data.embed ?? "").split(",").map((value) => value.trim()));
+      const voted = offsets?.offsets(clipTrackKey(query.data.title, query.data.artist));
+      const clips = service.merge(query.data.title, query.data.artist, base, extra)
+        .map((clip) => withEmbed(clip, embeds.has("youtube")))
+        .map((clip) => voted?.has(clip.id) ? { ...clip, offsetMs: voted.get(clip.id)! } : clip);
+      response.json({ clips: clips.sort((left, right) => clipRank(left) - clipRank(right)) });
     } catch {
       response.setHeader("Cache-Control", "no-store");
       response.status(502).json({ error: { code: "CLIPS_UNAVAILABLE", message: "Источники видео временно недоступны" } });
@@ -301,11 +344,21 @@ export function createClipRouter(service: ClipService, extraFinder?: ExtraClipFi
   return router;
 }
 
+/** Upgrades YouTube links to the in-app embed for clients that support it. */
+function withEmbed(clip: Clip, youtube: boolean): Clip {
+  if (clip.playback === "embed") {
+    return youtube ? clip : { ...clip, playback: "external", embed: undefined };
+  }
+  const id = youtube && clip.playback === "external" && clip.kind === "musicVideo" ? youtubeId(clip.sourceUrl) : undefined;
+  return id ? { ...clip, playback: "embed", embed: { provider: "youtube", id } } : clip;
+}
+
 function clipRank(clip: Clip) {
   if (clip.playback === "direct" && clip.kind === "musicVideo") return 0;
-  if (clip.playback === "direct" && clip.kind === "preview") return 1;
-  if (clip.kind === "musicVideo") return 2;
-  return 3;
+  if (clip.playback === "embed" && clip.kind === "musicVideo") return 1;
+  if (clip.playback === "direct" && clip.kind === "preview") return 2;
+  if (clip.kind === "musicVideo") return 3;
+  return 4;
 }
 
 function musicMatch(candidateTitle: string, candidateArtist: string, title: string, artist: string) {

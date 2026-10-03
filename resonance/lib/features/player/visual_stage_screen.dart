@@ -52,6 +52,10 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
   bool _focusMode = false;
   bool _queueOpen = true;
   Future<void>? _fullscreenEntry;
+  final Map<String, Duration> _offsets = {};
+  Timer? _offsetVote;
+  Timer? _idleTimer;
+  bool _idle = false;
 
   bool _fullscreenScheduled = false;
 
@@ -107,8 +111,36 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
     }
   }
 
+  /// Кинорежим: во время клипа управление уходит, движение его возвращает.
+  void _wake() {
+    _idleTimer?.cancel();
+    if (_idle) setState(() => _idle = false);
+    _idleTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted && !_idle) setState(() => _idle = true);
+    });
+  }
+
+  void _nudgeOffset(UnifiedTrack track, StageClip clip, Duration delta) {
+    final next = delta == Duration.zero
+        ? Duration.zero
+        : (_offsets[clip.key] ?? clip.offset) + delta;
+    setState(() => _offsets[clip.key] = next);
+    _wake();
+    _offsetVote?.cancel();
+    _offsetVote = Timer(const Duration(seconds: 2), () {
+      unawaited(
+        ref
+            .read(clipServiceProvider)
+            .voteOffset(track, clip, next)
+            .catchError((_) {}),
+      );
+    });
+  }
+
   @override
   void dispose() {
+    _idleTimer?.cancel();
+    _offsetVote?.cancel();
     if (!Platform.environment.containsKey('FLUTTER_TEST')) {
       unawaited(_leaveFullscreen());
     }
@@ -123,6 +155,7 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
       _trackId = track.id;
       _selectedUrl = null;
       _failedUrls.clear();
+      _offsets.clear();
     }
     final nativeVideo =
         (ref.watch(playbackVideoAvailableProvider).valueOrNull ?? false) &&
@@ -132,15 +165,14 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
         .where(
           (clip) =>
               clip.playable &&
-              clip.url != null &&
-              !_failedUrls.contains(clip.url.toString()),
+              (clip.url != null || clip.embedded) &&
+              !_failedUrls.contains(clip.key),
         )
         .toList();
-    final selected =
-        available
-            .where((clip) => clip.url.toString() == _selectedUrl)
-            .firstOrNull ??
+    final picked =
+        available.where((clip) => clip.key == _selectedUrl).firstOrNull ??
         available.firstOrNull;
+    final selected = picked?.withOffset(_offsets[picked.key] ?? picked.offset);
     final hasVideo = _backgroundEnabled && (nativeVideo || selected != null);
     final effectiveMode = _mode == VisualStageMode.video && !hasVideo
         ? VisualStageMode.lyrics
@@ -148,6 +180,19 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
     final inRoom = ref.watch(
       roomPresenceProvider.select((room) => room.inRoom),
     );
+    final cinema =
+        effectiveMode == VisualStageMode.video &&
+        hasVideo &&
+        !nativeVideo &&
+        selected != null &&
+        !selected.ambient;
+    final cinemaIdle = cinema && _idle && state.playing;
+    final hideChrome = _focusMode || cinemaIdle;
+    if (cinema && _idleTimer == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _wake();
+      });
+    }
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () {
@@ -167,120 +212,157 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
       },
       child: Focus(
         autofocus: true,
-        child: Scaffold(
-          backgroundColor: const Color(0xFF050406),
-          body: Stack(
-            fit: StackFit.expand,
-            children: [
-              RepaintBoundary(
-                child: _StageBackground(
-                  track: track,
-                  video:
-                      hasVideo &&
-                          nativeVideo &&
-                          effectiveMode == VisualStageMode.video
-                      ? _StageVideo.bright
-                      : _StageVideo.none,
-                ),
-              ),
-              if (hasVideo &&
-                  !nativeVideo &&
-                  selected != null &&
-                  effectiveMode == VisualStageMode.video)
-                ref.watch(stageVideoBuilderProvider)(
-                  selected,
-                  state,
-                  () =>
-                      setState(() => _failedUrls.add(selected.url.toString())),
-                ),
-              const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0x66060408),
-                      Color(0x14060408),
-                      Color(0xCC060408),
-                    ],
-                    stops: [0, .45, 1],
+        child: MouseRegion(
+          onHover: (_) {
+            if (cinema) _wake();
+          },
+          child: Listener(
+            onPointerDown: (_) {
+              if (cinema) _wake();
+            },
+            child: Scaffold(
+              backgroundColor: const Color(0xFF050406),
+              body: Stack(
+                fit: StackFit.expand,
+                children: [
+                  RepaintBoundary(
+                    child: _StageBackground(
+                      track: track,
+                      video:
+                          hasVideo &&
+                              nativeVideo &&
+                              effectiveMode == VisualStageMode.video
+                          ? _StageVideo.bright
+                          : _StageVideo.none,
+                    ),
                   ),
-                ),
-              ),
-              SafeArea(
-                child: Column(
-                  children: [
-                    _Collapsible(
-                      visible: !_focusMode,
-                      child: _StageHeader(
-                        mode: effectiveMode,
-                        hasVideo: hasVideo,
-                        queueOpen: _queueOpen,
-                        onModeChanged: (value) => setState(() => _mode = value),
-                        onSources: () => _showSources(track),
-                        onFocus: () => setState(() => _focusMode = true),
-                        onQueue: () {
-                          if (MediaQuery.sizeOf(context).width >= 1100) {
-                            setState(() => _queueOpen = !_queueOpen);
-                          } else {
-                            unawaited(showRoomQueueSheet(context));
-                          }
-                        },
+                  if (hasVideo &&
+                      !nativeVideo &&
+                      selected != null &&
+                      effectiveMode == VisualStageMode.video)
+                    ref.watch(stageVideoBuilderProvider)(
+                      selected,
+                      state,
+                      () => setState(() => _failedUrls.add(selected.key)),
+                    ),
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color(0x66060408),
+                          Color(0x14060408),
+                          Color(0xCC060408),
+                        ],
+                        stops: [0, .45, 1],
                       ),
                     ),
-                    _sourceStatus(clips, selected, nativeVideo, track),
-                    Expanded(
-                      child: LayoutBuilder(
-                        builder: (context, constraints) =>
-                            ResonanceAnimatedSwap(
-                              child: KeyedSubtree(
-                                key: ValueKey(
-                                  '$effectiveMode-$_focusMode-'
-                                  '${constraints.maxWidth >= 700}',
-                                ),
-                                child: _focusMode
-                                    ? const SizedBox.expand()
-                                    : effectiveMode == VisualStageMode.video
-                                    ? _ClipIdentity(track: track)
-                                    : constraints.maxWidth >= 700
-                                    ? _DesktopStage(
-                                        state: state,
-                                        track: track,
-                                        videoMode:
-                                            effectiveMode ==
-                                            VisualStageMode.video,
-                                        showQueue:
-                                            inRoom &&
-                                            _queueOpen &&
-                                            constraints.maxWidth >= 1100,
-                                      )
-                                    : _MobileStage(state: state, track: track),
-                              ),
-                            ),
-                      ),
-                    ),
-                    _Collapsible(
-                      visible: !_focusMode,
-                      child: _StageTransport(
-                        state: state,
-                        showProgress: effectiveMode == VisualStageMode.video,
-                      ),
-                    ),
-                    _Collapsible(
-                      visible: _focusMode,
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: RoundControl(
-                          tooltip: 'Показать управление',
-                          icon: Icons.unfold_more_rounded,
-                          onPressed: () => setState(() => _focusMode = false),
+                  ),
+                  SafeArea(
+                    child: Column(
+                      children: [
+                        _Collapsible(
+                          visible: !hideChrome,
+                          child: _StageHeader(
+                            mode: effectiveMode,
+                            hasVideo: hasVideo,
+                            queueOpen: _queueOpen,
+                            onModeChanged: (value) =>
+                                setState(() => _mode = value),
+                            onSources: () => _showSources(track),
+                            onFocus: () => setState(() => _focusMode = true),
+                            onQueue: () {
+                              if (MediaQuery.sizeOf(context).width >= 1100) {
+                                setState(() => _queueOpen = !_queueOpen);
+                              } else {
+                                unawaited(showRoomQueueSheet(context));
+                              }
+                            },
+                          ),
                         ),
-                      ),
+                        _Collapsible(
+                          visible: !cinemaIdle,
+                          child: _sourceStatus(
+                            clips,
+                            selected,
+                            nativeVideo,
+                            track,
+                          ),
+                        ),
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder: (context, constraints) =>
+                                ResonanceAnimatedSwap(
+                                  child: KeyedSubtree(
+                                    key: ValueKey(
+                                      '$effectiveMode-$_focusMode-'
+                                      '${constraints.maxWidth >= 700}',
+                                    ),
+                                    child: _focusMode
+                                        ? const SizedBox.expand()
+                                        : effectiveMode == VisualStageMode.video
+                                        ? _ClipDeck(
+                                            track: track,
+                                            clips: available,
+                                            selected: selected,
+                                            compact: hideChrome,
+                                            onSelect: (clip) => setState(() {
+                                              _selectedUrl = clip.key;
+                                              _wake();
+                                            }),
+                                            onNudge: (delta) => _nudgeOffset(
+                                              track,
+                                              picked!,
+                                              delta,
+                                            ),
+                                          )
+                                        : constraints.maxWidth >= 700
+                                        ? _DesktopStage(
+                                            state: state,
+                                            track: track,
+                                            videoMode:
+                                                effectiveMode ==
+                                                VisualStageMode.video,
+                                            showQueue:
+                                                inRoom &&
+                                                _queueOpen &&
+                                                constraints.maxWidth >= 1100,
+                                          )
+                                        : _MobileStage(
+                                            state: state,
+                                            track: track,
+                                          ),
+                                  ),
+                                ),
+                          ),
+                        ),
+                        _Collapsible(
+                          visible: !hideChrome,
+                          child: _StageTransport(
+                            state: state,
+                            showProgress:
+                                effectiveMode == VisualStageMode.video,
+                          ),
+                        ),
+                        _Collapsible(
+                          visible: _focusMode,
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: RoundControl(
+                              tooltip: 'Показать управление',
+                              icon: Icons.unfold_more_rounded,
+                              onPressed: () =>
+                                  setState(() => _focusMode = false),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -443,9 +525,7 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
                                 ),
                                 trailing:
                                     clip.playable &&
-                                        _failedUrls.contains(
-                                          clip.url.toString(),
-                                        )
+                                        _failedUrls.contains(clip.key)
                                     ? const Icon(Icons.error_outline)
                                     : !clip.playable
                                     ? const Icon(Icons.open_in_new_rounded)
@@ -462,7 +542,7 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
                                   }
                                   setState(() {
                                     _backgroundEnabled = true;
-                                    _selectedUrl = clip.url.toString();
+                                    _selectedUrl = clip.key;
                                     _failedUrls.remove(_selectedUrl);
                                   });
                                   Navigator.pop(sheetContext);
@@ -513,47 +593,252 @@ class _Collapsible extends StatelessWidget {
   }
 }
 
-class _ClipIdentity extends StatelessWidget {
-  const _ClipIdentity({required this.track});
+/// Подпись клипа, быстрый выбор источника и подстройка синхронизации.
+class _ClipDeck extends StatelessWidget {
+  const _ClipDeck({
+    required this.track,
+    required this.clips,
+    required this.selected,
+    required this.compact,
+    required this.onSelect,
+    required this.onNudge,
+  });
   final UnifiedTrack track;
+  final List<StageClip> clips;
+  final StageClip? selected;
+  final bool compact;
+  final ValueChanged<StageClip> onSelect;
+  final ValueChanged<Duration> onNudge;
+
+  static String _label(StageClip clip) {
+    final source = clip.source.split(' · ').first;
+    return clip.ambient
+        ? 'Фон'
+        : clip.preview
+        ? 'Превью · $source'
+        : 'Клип · ${clip.embedded ? 'YouTube' : source}';
+  }
+
   @override
-  Widget build(BuildContext context) => Align(
-    alignment: Alignment.bottomLeft,
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Row(
-        children: [
-          TrackArtwork(track: track, size: 64, borderRadius: 16),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  track.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
+  Widget build(BuildContext context) {
+    final current = selected;
+    final syncable = current != null && !current.ambient && !current.preview;
+    final duration = ResonanceMotion.durationOf(
+      context,
+      ResonanceMotion.standard,
+    );
+    return Align(
+      alignment: Alignment.bottomLeft,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AnimatedOpacity(
+              opacity: compact ? .72 : 1,
+              duration: duration,
+              child: Row(
+                children: [
+                  TrackArtwork(
+                    track: track,
+                    size: compact ? 44 : 64,
+                    borderRadius: compact ? 12 : 16,
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  track.artist,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Color(0xFFD1C1E1)),
-                ),
-              ],
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AnimatedDefaultTextStyle(
+                          duration: duration,
+                          style: TextStyle(
+                            fontSize: compact ? 18 : 24,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            shadows: const [
+                              Shadow(color: Color(0x99000000), blurRadius: 16),
+                            ],
+                          ),
+                          child: Text(
+                            track.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          track.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFFD1C1E1),
+                            shadows: [
+                              Shadow(color: Color(0x99000000), blurRadius: 12),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
+            _Collapsible(
+              visible: !compact && (clips.length > 1 || syncable),
+              child: Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    if (clips.length > 1)
+                      for (final clip in clips.take(5))
+                        _GlassChip(
+                          icon: clip.ambient
+                              ? Icons.blur_on_rounded
+                              : clip.preview
+                              ? Icons.slow_motion_video_rounded
+                              : Icons.music_video_rounded,
+                          label: _label(clip),
+                          selected: clip.key == current?.key,
+                          onTap: () => onSelect(clip),
+                        ),
+                    if (syncable) _SyncControl(clip: current, onNudge: onNudge),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassChip extends StatelessWidget {
+  const _GlassChip({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    selected: selected,
+    child: Material(
+      color: selected ? const Color(0x33FFFFFF) : const Color(0x1AFFFFFF),
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: selected ? const Color(0x80FFFFFF) : const Color(0x26FFFFFF),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: Colors.white),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     ),
   );
+}
+
+/// Клип редко совпадает с альбомной версией: ±0,5 с и сброс.
+/// Исправление уходит на сервер, и следующий слушатель получает его сразу.
+class _SyncControl extends StatelessWidget {
+  const _SyncControl({required this.clip, required this.onNudge});
+  final StageClip clip;
+  final ValueChanged<Duration> onNudge;
+
+  @override
+  Widget build(BuildContext context) {
+    final seconds = clip.offset.inMilliseconds / 1000;
+    final value = seconds == 0
+        ? 'Синхронно'
+        : '${seconds > 0 ? '+' : '−'}${seconds.abs().toStringAsFixed(1)} с';
+    return DecoratedBox(
+      decoration: const ShapeDecoration(
+        color: Color(0x1AFFFFFF),
+        shape: StadiumBorder(side: BorderSide(color: Color(0x26FFFFFF))),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'Клип раньше на 0,5 с',
+            visualDensity: VisualDensity.compact,
+            iconSize: 18,
+            color: Colors.white,
+            onPressed: () => onNudge(const Duration(milliseconds: -500)),
+            icon: const Icon(Icons.fast_rewind_rounded),
+          ),
+          Tooltip(
+            message: 'Сбросить синхронизацию',
+            child: InkWell(
+              customBorder: const StadiumBorder(),
+              onTap: clip.offset == Duration.zero
+                  ? null
+                  : () => onNudge(Duration.zero),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.sync_rounded,
+                      size: 14,
+                      color: Color(0xFFD1C1E1),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      value,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Клип позже на 0,5 с',
+            visualDensity: VisualDensity.compact,
+            iconSize: 18,
+            color: Colors.white,
+            onPressed: () => onNudge(const Duration(milliseconds: 500)),
+            icon: const Icon(Icons.fast_forward_rounded),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 enum _StageVideo { none, dimmed, bright }

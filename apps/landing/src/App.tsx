@@ -165,7 +165,7 @@ function App() {
                 <Apple size={18} /> Unsigned IPA
               </a>
             </div>
-            <p className="release-note">Resonance 3.9.0 Эфир · Новый визуал и плавные переходы вкладок · Очередь зала с голосованием прямо на Stage · Офлайн-прослушивание · SourceShift без пауз</p>
+            <p className="release-note">Resonance 3.10.0 Клипы · Официальные клипы прямо на Stage синхронно с треком · Кинорежим · Эфир-визуал · Очередь зала с голосованием прямо на Stage · Офлайн-прослушивание · SourceShift без пауз</p>
           </div>
           <div className="hero-visual">
             <HeroStage />

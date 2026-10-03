@@ -46,4 +46,24 @@ void main() {
       throwsFormatException,
     );
   });
+  test('parses YouTube embeds and rejects malformed ids', () {
+    Map<String, dynamic> embed(String id) => {
+      'id': 'musicbrainz-1',
+      'title': 'Signal',
+      'artist': 'Artist',
+      'playback': 'embed',
+      'embed': {'provider': 'youtube', 'id': id},
+      'kind': 'musicVideo',
+      'source': 'MusicBrainz · YouTube',
+      'sourceUrl': 'https://www.youtube.com/watch?v=$id',
+      'offsetMs': 1500,
+    };
+    final clip = StageClip.fromJson(embed('dQw4w9WgXcQ'));
+    expect(clip.playable, isTrue);
+    expect(clip.embedded, isTrue);
+    expect(clip.key, 'youtube:dQw4w9WgXcQ');
+    expect(clip.offset, const Duration(milliseconds: 1500));
+    expect(clip.withOffset(Duration.zero).key, clip.key);
+    expect(() => StageClip.fromJson(embed('../x')), throwsFormatException);
+  });
 }
