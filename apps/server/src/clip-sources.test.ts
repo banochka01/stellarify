@@ -46,3 +46,11 @@ test("song.link sends the key and maps YouTube links; Invidious skips dead mirro
   }, ["https://dead.example", "https://live.example"], "Signal", "Artist");
   assert.deepEqual(searched.map((hit) => hit.id), ["dQw4w9WgXcQ"]);
 });
+
+test("clip service starts with every optional clip variable empty", async () => {
+  const { ClipService } = await import("./clips.js");
+  const empty = Object.fromEntries(["CLIP_INVIDIOUS_URLS", "CLIP_SONGLINK_KEY", "YOUTUBE_COOKIES_PATH", "CLIP_YOUTUBE_PROXY_URL",
+    "SOUNDCLOUD_PROXY_URL", "YOUTUBE_API_KEY", "CLIP_PROVIDER_URLS", "CLIP_APPLE_COUNTRIES"].map((name) => [name, ""]));
+  assert.doesNotThrow(() => ClipService.fromEnvironment(fetch, { ...empty, CLIP_YOUTUBE_WEB_SEARCH: "true" }));
+  assert.doesNotThrow(() => ClipService.fromEnvironment(fetch, { YOUTUBE_COOKIES_PATH: "/missing/cookies.txt" }));
+});
