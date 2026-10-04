@@ -96,7 +96,7 @@ export class ClipService {
         youtubeKey: env.YOUTUBE_API_KEY || "",
         songLinkKey: env.CLIP_SONGLINK_KEY || "",
         youtubeDispatcher: youtubeProxy(env),
-        invidiousUrls: (env.CLIP_INVIDIOUS_URLS || "").split(",").map((url) => url.trim())
+        invidiousUrls: (env.CLIP_INVIDIOUS_URLS || "").split(",").map((url) => url.trim()).filter(Boolean)
           .filter((url) => httpsUrl.safeParse(url).success).slice(0, 6),
         youtubeWeb: youtubeWebFromEnvironment(env)?.withDispatcher(youtubeProxy(env)),
         vimeoToken: env.VIMEO_ACCESS_TOKEN || ""
