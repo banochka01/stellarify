@@ -22,6 +22,7 @@ import { PlaylistImportService } from "./playlist-import.js";
 import { LyricsError, LyricsService } from "./lyrics.js";
 import { ClipService, createClipRouter } from "./clips.js";
 import { ClipOffsetStore } from "./clip-embed.js";
+import { installProviderProxy } from "./outbound-proxy.js";
 import { ProviderGateway, ProviderGatewayError, type ProviderAccess } from "./provider-gateway.js";
 import { providerCapabilities } from "./providers.js";
 import { registerRoomHandlers, roomWaveUserIds } from "./rooms.js";
@@ -41,6 +42,14 @@ import { WavePersonalizer } from "./wave-personalizer.js";
 const port = Number(process.env.PORT || 8787);
 const webOrigin = process.env.WEB_ORIGIN || "http://localhost:5173";
 const publicBaseUrl = parsePublicBaseUrl(process.env.PUBLIC_BASE_URL);
+// YouTube, SoundCloud and Spotify are always reached through the server proxy.
+try {
+  const proxied = installProviderProxy();
+  console.log(proxied ? `Provider proxy active for: ${proxied.join(", ")}` : "Provider proxy not configured: providers go direct");
+} catch (error) {
+  console.error("Provider proxy disabled", error instanceof Error ? error.message : error);
+}
+
 const app = express();
 app.set("trust proxy", 1);
 const httpServer = createServer(app);
@@ -127,9 +136,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "3.10.0",
+    version: process.env.CLIENT_VERSION || "3.10.1",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Resonance 3.10.0 Клипы: официальные клипы YouTube прямо на Stage без звука и синхронно с треком, общая подстройка синхронизации и кинорежим.",
+      "Resonance 3.10.1: плавные переходы между вкладками без наложения экранов, быстрая медиатека на тысячи треков и клипы YouTube на Stage.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       windowsPortable: "https://music.webcordes.ru/downloads/windows-portable",

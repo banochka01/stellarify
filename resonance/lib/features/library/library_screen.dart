@@ -23,6 +23,7 @@ class LibraryScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(libraryControllerProvider);
+    final favorites = library.valueOrNull?.favorites ?? const <UnifiedTrack>[];
     final compact = MediaQuery.sizeOf(context).width < 650;
     final heading = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,7 +100,7 @@ class LibraryScreen extends ConsumerWidget {
               compact ? 18 : 38,
               compact ? 24 : 34,
               compact ? 18 : 38,
-              130,
+              favorites.isEmpty ? 0 : 14,
             ),
             sliver: SliverList.list(
               children: [
@@ -135,6 +136,29 @@ class LibraryScreen extends ConsumerWidget {
               ],
             ),
           ),
+          // Избранное бывает на тысячи треков: строим только видимые строки,
+          // иначе раскладка вкладки тормозит каждую анимацию приложения.
+          if (favorites.isNotEmpty)
+            SliverPadding(
+              padding: EdgeInsets.symmetric(horizontal: compact ? 18 : 38),
+              sliver: SliverList.builder(
+                itemCount: favorites.length,
+                itemBuilder: (context, index) =>
+                    _FavoriteTrack(track: favorites[index]),
+              ),
+            ),
+          if (library.valueOrNull case final state?)
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                compact ? 18 : 38,
+                38,
+                compact ? 18 : 38,
+                130,
+              ),
+              sliver: SliverToBoxAdapter(
+                child: _LibraryPlaylists(state: state),
+              ),
+            ),
         ],
       ),
     );
@@ -202,17 +226,6 @@ class _LibraryContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final offline = ref.watch(offlineDownloadsProvider).entries;
-    final albums = <String, UnifiedTrack>{};
-    final artists = <String, int>{};
-    for (final track in state.tracks) {
-      final album = track.album?.trim();
-      if (album != null && album.isNotEmpty) {
-        albums.putIfAbsent(album, () => track);
-      }
-      artists[track.artist] = (artists[track.artist] ?? 0) + 1;
-    }
-    final topArtists = artists.entries.toList()
-      ..sort((left, right) => right.value.compareTo(left.value));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -237,11 +250,7 @@ class _LibraryContent extends ConsumerWidget {
             ),
           const SizedBox(height: 30),
         ],
-        _LibraryHero(
-          state: state,
-          albumCount: albums.length,
-          artistCount: artists.length,
-        ),
+        _LibraryHero(state: state),
         if (state.tracks.isNotEmpty) ...[
           const SizedBox(height: 42),
           _SectionHeader(
@@ -251,41 +260,6 @@ class _LibraryContent extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           _TrackShelf(tracks: state.tracks.take(12).toList(growable: false)),
-        ],
-        if (albums.isNotEmpty) ...[
-          const SizedBox(height: 42),
-          _SectionHeader(
-            title: 'Альбомы',
-            count: albums.length,
-            icon: Icons.album_rounded,
-          ),
-          const SizedBox(height: 16),
-          _AlbumShelf(albums: albums.entries.take(10).toList(growable: false)),
-        ],
-        if (topArtists.isNotEmpty) ...[
-          const SizedBox(height: 42),
-          _SectionHeader(
-            title: 'Исполнители',
-            count: artists.length,
-            icon: Icons.graphic_eq_rounded,
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 9,
-            runSpacing: 9,
-            children: [
-              for (final artist in topArtists.take(14))
-                Chip(
-                  avatar: CircleAvatar(
-                    backgroundColor: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: .2),
-                    child: Text(artist.key.characters.first.toUpperCase()),
-                  ),
-                  label: Text('${artist.key} · ${artist.value}'),
-                ),
-            ],
-          ),
         ],
         const SizedBox(height: 42),
         _SectionHeader(
@@ -308,42 +282,6 @@ class _LibraryContent extends ConsumerWidget {
             icon: Icons.favorite_border_rounded,
             title: 'Сердца пока пусты',
             subtitle: 'Нажмите на сердце у трека — он сохранится здесь.',
-          )
-        else
-          ...state.favorites.map((track) => _FavoriteTrack(track: track)),
-        const SizedBox(height: 38),
-        _SectionHeader(
-          title: 'Плейлисты',
-          count: state.playlists.length,
-          icon: Icons.playlist_play_rounded,
-        ),
-        const SizedBox(height: 14),
-        if (state.playlists.isEmpty)
-          const _EmptyCard(
-            icon: Icons.queue_music_rounded,
-            title: 'Соберите первый плейлист',
-            subtitle: 'Создайте подборку и добавляйте треки из поиска.',
-          )
-        else
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth >= 900
-                  ? (constraints.maxWidth - 24) / 3
-                  : constraints.maxWidth >= 560
-                  ? (constraints.maxWidth - 12) / 2
-                  : constraints.maxWidth;
-              return Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  for (final playlist in state.playlists)
-                    SizedBox(
-                      width: width,
-                      child: _PlaylistCard(playlist: playlist),
-                    ),
-                ],
-              );
-            },
           ),
       ],
     );
@@ -385,16 +323,56 @@ class _LibraryContent extends ConsumerWidget {
   }
 }
 
-class _LibraryHero extends ConsumerWidget {
-  const _LibraryHero({
-    required this.state,
-    required this.albumCount,
-    required this.artistCount,
-  });
+class _LibraryPlaylists extends StatelessWidget {
+  const _LibraryPlaylists({required this.state});
 
   final LibraryState state;
-  final int albumCount;
-  final int artistCount;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _SectionHeader(
+        title: 'Плейлисты',
+        count: state.playlists.length,
+        icon: Icons.playlist_play_rounded,
+      ),
+      const SizedBox(height: 14),
+      if (state.playlists.isEmpty)
+        const _EmptyCard(
+          icon: Icons.queue_music_rounded,
+          title: 'Соберите первый плейлист',
+          subtitle: 'Создайте подборку и добавляйте треки из поиска.',
+        )
+      else
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth >= 900
+                ? (constraints.maxWidth - 24) / 3
+                : constraints.maxWidth >= 560
+                ? (constraints.maxWidth - 12) / 2
+                : constraints.maxWidth;
+            return Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                for (final playlist in state.playlists)
+                  SizedBox(
+                    width: width,
+                    child: _PlaylistCard(playlist: playlist),
+                  ),
+              ],
+            );
+          },
+        ),
+    ],
+  );
+}
+
+class _LibraryHero extends ConsumerWidget {
+  const _LibraryHero({required this.state});
+
+  final LibraryState state;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -425,7 +403,7 @@ class _LibraryHero extends ConsumerWidget {
         Text(
           state.tracks.isEmpty
               ? 'Перенеси коллекцию из сервиса или добавь первый плейлист.'
-              : '${state.playlists.length} плейлистов · $albumCount альбомов · $artistCount исполнителей',
+              : 'Яндекс, Spotify, VK и SoundCloud — в одной коллекции.',
           style: const TextStyle(color: ResonanceColors.muted, height: 1.45),
         ),
       ],
@@ -576,63 +554,6 @@ class _TrackShelf extends ConsumerWidget {
                 ),
               ),
             ),
-          ),
-        );
-      },
-    ),
-  );
-}
-
-class _AlbumShelf extends StatelessWidget {
-  const _AlbumShelf({required this.albums});
-  final List<MapEntry<String, UnifiedTrack>> albums;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 112,
-    child: ListView.separated(
-      scrollDirection: Axis.horizontal,
-      itemCount: albums.length,
-      separatorBuilder: (_, _) => const SizedBox(width: 11),
-      itemBuilder: (context, index) {
-        final album = albums[index];
-        return Container(
-          width: 250,
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: ResonanceColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: ResonanceColors.border),
-          ),
-          child: Row(
-            children: [
-              TrackArtwork(track: album.value, size: 86, borderRadius: 10),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      album.key,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      album.value.artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: ResonanceColors.muted,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ),
         );
       },

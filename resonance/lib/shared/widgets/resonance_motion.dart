@@ -269,8 +269,11 @@ class _ResonancePressableState extends State<ResonancePressable> {
 }
 
 /// Контейнер вкладок: все посещённые ветки остаются построенными, а смена
-/// вкладки — одновременный кроссфейд уходящей и входящей с лёгким сдвигом.
-/// Неактивные ветки выключены из тикеров, хит-теста и отрисовки.
+/// вкладки — «fade-through»: уходящая гаснет за первую треть, входящая
+/// проявляется после, поэтому два экрана никогда не накладываются друг на
+/// друга. Анимируется только прозрачность слоя — без перестройки и
+/// перекладки страниц, так что переход не роняет кадры даже на тяжёлых
+/// вкладках. Неактивные ветки выключены из тикеров, хит-теста и отрисовки.
 class ResonanceBranchStack extends StatefulWidget {
   const ResonanceBranchStack({
     required this.index,
@@ -289,24 +292,36 @@ class _ResonanceBranchStackState extends State<ResonanceBranchStack>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 260),
+    duration: const Duration(milliseconds: 220),
     value: 1,
+  );
+  late final Animation<double> _enter = CurvedAnimation(
+    parent: _controller,
+    curve: const Interval(.3, 1, curve: Curves.easeOutCubic),
+  );
+  late final Animation<double> _exit = ReverseAnimation(
+    CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0, .35, curve: Curves.easeInCubic),
+    ),
   );
   late int _current = widget.index;
   int? _previous;
-  int _direction = 1;
 
   @override
   void didUpdateWidget(ResonanceBranchStack oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.index != _current) {
-      _direction = widget.index > _current ? 1 : -1;
-      _previous = _current;
-      _current = widget.index;
-      _controller.forward(from: 0).whenCompleteOrCancel(() {
-        if (mounted) setState(() => _previous = null);
-      });
+    if (widget.index == _current) return;
+    _previous = _current;
+    _current = widget.index;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _controller.value = 1;
+      _previous = null;
+      return;
     }
+    _controller.forward(from: 0).whenCompleteOrCancel(() {
+      if (mounted) setState(() => _previous = null);
+    });
   }
 
   @override
@@ -316,54 +331,33 @@ class _ResonanceBranchStackState extends State<ResonanceBranchStack>
   }
 
   @override
-  Widget build(BuildContext context) {
-    final reduced = MediaQuery.disableAnimationsOf(context);
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        final t = reduced ? 1.0 : _controller.value;
-        final enter = ResonanceMotion.curve.transform(t);
-        final exit = Curves.easeOutCubic.transform((t / .7).clamp(0.0, 1.0));
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            for (var i = 0; i < widget.children.length; i++)
-              _branch(
-                i,
-                visible: i == _current || (i == _previous && t < 1),
-                opacity: i == _current ? enter : 1 - exit,
-                dx: i == _current
-                    ? 14.0 * _direction * (1 - enter)
-                    : -10.0 * _direction * exit,
-              ),
-          ],
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      for (var i = 0; i < widget.children.length; i++) _branch(i),
+    ],
+  );
 
-  Widget _branch(
-    int i, {
-    required bool visible,
-    required double opacity,
-    required double dx,
-  }) {
+  Widget _branch(int i) {
     final active = i == _current;
+    final leaving = i == _previous;
+    final visible = active || leaving;
     return Offstage(
       offstage: !visible,
       child: TickerMode(
         enabled: visible,
         child: IgnorePointer(
           ignoring: !active,
-          child: Opacity(
-            opacity: opacity.clamp(0.0, 1.0),
-            child: Transform.translate(
-              offset: Offset(dx, 0),
-              child: RepaintBoundary(
-                child: KeyedSubtree(
-                  key: ValueKey('branch-$i'),
-                  child: widget.children[i],
-                ),
+          child: FadeTransition(
+            opacity: active
+                ? _enter
+                : leaving
+                ? _exit
+                : kAlwaysCompleteAnimation,
+            child: RepaintBoundary(
+              child: KeyedSubtree(
+                key: ValueKey('branch-$i'),
+                child: widget.children[i],
               ),
             ),
           ),
