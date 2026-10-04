@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
+import { ProxyAgent, type Dispatcher } from "undici";
 import { Router, type Request } from "express";
 import { z } from "zod";
+import { normalizeProxyUrl } from "./soundcloud.js";
 import { ClipOffsetStore, isYoutubeId, youtubeEmbedPage, youtubeId } from "./clip-embed.js";
+import { invidiousVideos, songLinkVideos, YoutubeWebSearch, type JsonFetcher, type VideoHit } from "./clip-sources.js";
 
 const httpsUrl = z.string().url().max(2048).refine((value) => {
   const url = new URL(value);
@@ -34,6 +37,11 @@ export type ClipSourceOptions = {
   musicBrainz?: boolean;
   audioDbKey?: string;
   youtubeKey?: string;
+  songLinkKey?: string;
+  invidiousUrls?: string[];
+  /** Outbound proxy for YouTube and Invidious, which the host cannot reach directly. */
+  youtubeDispatcher?: Dispatcher;
+  youtubeWeb?: YoutubeWebSearch;
   vimeoToken?: string;
 };
 const catalogSchema = z.object({ clips: z.array(clipSchema).max(2000) });
@@ -86,6 +94,11 @@ export class ClipService {
         musicBrainz: env.CLIP_MUSICBRAINZ_ENABLED !== "false",
         audioDbKey: env.AUDIODB_API_KEY || "",
         youtubeKey: env.YOUTUBE_API_KEY || "",
+        songLinkKey: env.CLIP_SONGLINK_KEY || "",
+        youtubeDispatcher: youtubeProxy(env),
+        invidiousUrls: (env.CLIP_INVIDIOUS_URLS || "").split(",").map((url) => url.trim())
+          .filter((url) => httpsUrl.safeParse(url).success).slice(0, 6),
+        youtubeWeb: youtubeWebFromEnvironment(env)?.withDispatcher(youtubeProxy(env)),
         vimeoToken: env.VIMEO_ACCESS_TOKEN || ""
       });
   }
@@ -116,8 +129,12 @@ export class ClipService {
       .map((clip) => [`${clip.url ?? clip.sourceUrl}|${clip.id}`, clip])).values()].slice(0, 16);
   }
 
-  private async json(url: URL, headers?: Record<string, string>) {
+  private readonly fetchJson: JsonFetcher = (url, init) => this.json(url, init?.headers, init);
+
+  private async json(url: URL, headers?: Record<string, string>, init?: { method?: "GET" | "POST"; body?: string; dispatcher?: Dispatcher }) {
     const response = await this.request(url, {
+      method: init?.method ?? "GET", body: init?.body,
+      ...(init?.dispatcher ? { dispatcher: init.dispatcher } as RequestInit : {}),
       headers: { accept: "application/json", "user-agent": "Resonance/3.3 (https://music.webcordes.ru)", ...headers },
       redirect: "error", signal: AbortSignal.timeout(6000)
     });
@@ -153,6 +170,18 @@ export class ClipService {
     if (this.sources.audioDbKey) attempts.push(this.audioDb(title, artist, this.sources.audioDbKey));
     if (this.sources.youtubeKey) attempts.push(this.youtube(title, artist, this.sources.youtubeKey));
     if (this.sources.vimeoToken) attempts.push(this.vimeo(title, artist, this.sources.vimeoToken));
+    if (this.sources.songLinkKey) {
+      attempts.push(songLinkVideos(this.fetchJson, this.sources.songLinkKey, title, artist, undefined, this.sources.appleCountries?.[0])
+        .then((hits) => this.videoClips(hits, title, artist, false)));
+    }
+    if (this.sources.invidiousUrls?.length) {
+      attempts.push(invidiousVideos(this.fetchJson, this.sources.invidiousUrls, title, artist, this.sources.youtubeDispatcher)
+        .then((hits) => this.videoClips(hits, title, artist, true)));
+    }
+    if (this.sources.youtubeWeb) {
+      attempts.push(this.sources.youtubeWeb.search(this.fetchJson, title, artist)
+        .then((hits) => this.videoClips(hits, title, artist, true)));
+    }
     const settled = await Promise.allSettled(attempts);
     const clips = [...local, ...settled.flatMap((result) => result.status === "fulfilled" ? result.value : [])];
     let failed = settled.some((result) => result.status === "rejected");
@@ -183,6 +212,19 @@ export class ClipService {
       id: `apple-${item.trackId}`, title, artist, url: item.previewUrl!, playback: "direct" as const,
       kind: "preview" as const, source: "Apple Music · 30 сек", sourceUrl: item.trackViewUrl, offsetMs: 0
     }));
+  }
+
+  /** YouTube hits become external clips; the router upgrades them to embeds. */
+  private videoClips(hits: VideoHit[], title: string, artist: string, searched: boolean): Clip[] {
+    return hits
+      .filter((hit) => !searched || musicMatch(hit.title, hit.channel, title, artist) >= 8.5)
+      .sort((left, right) => searched
+        ? musicMatch(right.title, right.channel, title, artist) - musicMatch(left.title, left.channel, title, artist) : 0)
+      .slice(0, 3).map((hit) => ({
+        id: `youtube-${hit.id}`, title, artist, playback: "external" as const, kind: "musicVideo" as const,
+        source: `${hit.source}${hit.channel ? ` · ${hit.channel}` : ""}`.slice(0, 100),
+        sourceUrl: `https://www.youtube.com/watch?v=${hit.id}`, offsetMs: 0
+      }));
   }
 
   private async dailymotion(title: string, artist: string): Promise<Clip[]> {
@@ -351,6 +393,24 @@ function withEmbed(clip: Clip, youtube: boolean): Clip {
   }
   const id = youtube && clip.playback === "external" && clip.kind === "musicVideo" ? youtubeId(clip.sourceUrl) : undefined;
   return id ? { ...clip, playback: "embed", embed: { provider: "youtube", id } } : clip;
+}
+
+let sharedYoutubeProxy: Dispatcher | undefined;
+/** CLIP_YOUTUBE_PROXY_URL, or the existing SoundCloud proxy as a fallback. */
+function youtubeProxy(env: NodeJS.ProcessEnv) {
+  const url = normalizeProxyUrl(env.CLIP_YOUTUBE_PROXY_URL || env.SOUNDCLOUD_PROXY_URL);
+  if (!url) return undefined;
+  sharedYoutubeProxy ??= new ProxyAgent(url);
+  return sharedYoutubeProxy;
+}
+
+function youtubeWebFromEnvironment(env: NodeJS.ProcessEnv) {
+  if (env.YOUTUBE_COOKIES_PATH) {
+    try { return YoutubeWebSearch.fromFile(env.YOUTUBE_COOKIES_PATH); } catch (error) {
+      console.error("YouTube cookies ignored", error instanceof Error ? error.message : error);
+    }
+  }
+  return env.CLIP_YOUTUBE_WEB_SEARCH === "true" ? new YoutubeWebSearch() : undefined;
 }
 
 function clipRank(clip: Clip) {
