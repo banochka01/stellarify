@@ -21,6 +21,8 @@ import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+final Uri _supportTelegramUrl = Uri.parse('https://t.me/Itsbannochka');
+
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -871,6 +873,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             unawaited(launchUrl(_availableUpdate!.downloadUrl)),
                         child: const Text('Обновить'),
                       ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.volunteer_activism_rounded),
+                title: const Text('Техподдержка и донат'),
+                subtitle: const Text('Написать автору в Telegram'),
+                trailing: const Icon(Icons.open_in_new_rounded),
+                onTap: () => unawaited(
+                  launchUrl(
+                    _supportTelegramUrl,
+                    mode: LaunchMode.externalApplication,
+                  ),
+                ),
               ),
               const Divider(height: 1),
               const ListTile(

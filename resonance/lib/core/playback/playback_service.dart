@@ -638,25 +638,32 @@ final class PlaybackService {
         failures.add('${source.provider.name}: resolver не подключён');
         continue;
       }
-      try {
-        final resolved = await _resolveSource(source);
-        if (resolved.preview && sources.length > 1) {
-          previewFallback ??= (source: source, resolved: resolved);
-          continue;
+      // A cached URL may have silently expired upstream; give the source one
+      // fresh resolve before moving on to the next provider.
+      var attempts = _sourceCache.get(source) == null ? 1 : 2;
+      while (attempts-- > 0) {
+        try {
+          final resolved = await _resolveSource(source);
+          if (resolved.preview && sources.length > 1) {
+            previewFallback ??= (source: source, resolved: resolved);
+            break;
+          }
+          await _activateSource(
+            track,
+            source,
+            resolved,
+            play: play,
+            start: start,
+            failedProviders: failures,
+            recoveryReason: recoveryReason,
+          );
+          return;
+        } on Object catch (error) {
+          _sourceCache.invalidate(source);
+          if (attempts == 0) {
+            failures.add('${source.provider.name}: $error');
+          }
         }
-        await _activateSource(
-          track,
-          source,
-          resolved,
-          play: play,
-          start: start,
-          failedProviders: failures,
-          recoveryReason: recoveryReason,
-        );
-        return;
-      } on Object catch (error) {
-        _sourceCache.invalidate(source);
-        failures.add('${source.provider.name}: $error');
       }
     }
 

@@ -136,9 +136,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "3.10.1",
+    version: process.env.CLIENT_VERSION || "3.11.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Resonance 3.10.1: плавные переходы между вкладками без наложения экранов, быстрая медиатека на тысячи треков и клипы YouTube на Stage.",
+      "Resonance 3.11.0: кнопка «Техподдержка и донат» в настройках и более устойчивое воспроизведение — протухшие ссылки перезапрашиваются автоматически.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       windowsPortable: "https://music.webcordes.ru/downloads/windows-portable",
