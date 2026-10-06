@@ -10,6 +10,7 @@ import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/track_source.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
+import 'package:resonance/features/artist/artist_screen.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/lyrics/lyrics_follow.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
@@ -251,14 +252,20 @@ class _Details extends ConsumerWidget {
         Row(
           children: [
             Expanded(
-              child: Text(
-                track.artist,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: const Color(0xFFA095AB),
-                  fontSize: desktop ? 20 : 17,
-                  fontWeight: FontWeight.w400,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: () => openArtist(context, track.artist),
+                  child: Text(
+                    track.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: const Color(0xFFA095AB),
+                      fontSize: desktop ? 20 : 17,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
                 ),
               ),
             ),

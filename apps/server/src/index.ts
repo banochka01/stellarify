@@ -136,9 +136,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "3.11.0",
+    version: process.env.CLIENT_VERSION || "3.12.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Resonance 3.11.0: кнопка «Техподдержка и донат» в настройках и более устойчивое воспроизведение — протухшие ссылки перезапрашиваются автоматически.",
+      "Resonance 3.12.0: новая главная «Моя волна» с живым фоном по обложке и анимациями, страницы исполнителей — нажмите на имя артиста.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       windowsPortable: "https://music.webcordes.ru/downloads/windows-portable",

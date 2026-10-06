@@ -7,6 +7,7 @@ import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/playback/demo_track.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
+import 'package:resonance/features/artist/artist_screen.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/playback_position.dart';
@@ -185,11 +186,20 @@ class _TrackInfo extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 3),
-        Text(
-          track.artist,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: ResonanceColors.muted, fontSize: 12),
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: () => openArtist(context, track.artist),
+            child: Text(
+              track.artist,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: ResonanceColors.muted,
+                fontSize: 12,
+              ),
+            ),
+          ),
         ),
       ],
     );

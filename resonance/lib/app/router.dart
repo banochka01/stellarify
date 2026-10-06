@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:resonance/features/artist/artist_screen.dart';
 import 'package:resonance/features/auth/account_screen.dart';
 import 'package:resonance/features/home/home_screen.dart';
 import 'package:resonance/features/library/library_screen.dart';
@@ -38,6 +39,14 @@ final resonanceRouter = GoRouter(
               path: '/',
               name: 'home',
               builder: (context, state) => const HomeScreen(),
+            ),
+            GoRoute(
+              path: '/artist/:name',
+              name: 'artist',
+              builder: (context, state) => ArtistScreen(
+                key: ValueKey(state.pathParameters['name']),
+                artist: state.pathParameters['name'] ?? '',
+              ),
             ),
           ],
         ),
