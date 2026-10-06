@@ -63,7 +63,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final compact = width < 760;
+        final compact = width < 1000;
         final gutter = compact ? 16.0 : 32.0;
         final heroHeight = (constraints.maxHeight * .46).clamp(
           compact ? 420.0 : 340.0,
@@ -95,6 +95,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     compact: compact,
                     history: state.queue.reversed.toList(growable: false),
                     favorites: favorites,
+                    animate: state.playing,
                   ),
                 ),
               ),
@@ -259,7 +260,18 @@ class _WaveHero extends ConsumerWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (!hasCustomBackground) AuroraBackdrop(track: track),
+        if (!hasCustomBackground)
+          // Фон растворяется книзу, чтобы hero перетекал в ленту без шва.
+          ShaderMask(
+            blendMode: BlendMode.dstIn,
+            shaderCallback: (bounds) => const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Colors.white, Colors.white, Colors.transparent],
+              stops: [0, .62, 1],
+            ).createShader(bounds),
+            child: AuroraBackdrop(track: track, animate: state.playing),
+          ),
         Padding(
           padding: EdgeInsets.fromLTRB(gutter, compact ? 24 : 36, gutter, 20),
           child: compact
@@ -269,7 +281,11 @@ class _WaveHero extends ConsumerWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _FloatingCover(track: track, size: 116),
+                        _FloatingCover(
+                          track: track,
+                          size: 116,
+                          animate: state.playing,
+                        ),
                         const Spacer(),
                         _HeroPlay(state: state, size: 68),
                       ],
@@ -284,7 +300,11 @@ class _WaveHero extends ConsumerWidget {
                 )
               : Row(
                   children: [
-                    _FloatingCover(track: track, size: 200),
+                    _FloatingCover(
+                      track: track,
+                      size: 200,
+                      animate: state.playing,
+                    ),
                     const SizedBox(width: 44),
                     Expanded(
                       child: Column(
@@ -306,7 +326,7 @@ class _WaveHero extends ConsumerWidget {
                       children: [
                         _HeroPlay(state: state, size: 84),
                         const SizedBox(height: 18),
-                        _HeroActions(state: state),
+                        const _HeroActions(),
                       ],
                     ),
                   ],
@@ -402,10 +422,15 @@ class _BreathingState extends State<_Breathing>
 
 /// Обложка текущего трека, медленно парящая над фоном.
 class _FloatingCover extends StatefulWidget {
-  const _FloatingCover({required this.track, required this.size});
+  const _FloatingCover({
+    required this.track,
+    required this.size,
+    required this.animate,
+  });
 
   final UnifiedTrack track;
   final double size;
+  final bool animate;
 
   @override
   State<_FloatingCover> createState() => _FloatingCoverState();
@@ -418,14 +443,26 @@ class _FloatingCoverState extends State<_FloatingCover>
     duration: const Duration(seconds: 7),
   );
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (MediaQuery.disableAnimationsOf(context)) {
+  // Декоративный цикл живёт, только пока играет музыка: на паузе
+  // кадр застывает, а при отключённых анимациях не запускается вовсе.
+  void _syncLoop() {
+    if (!widget.animate || MediaQuery.disableAnimationsOf(context)) {
       _controller.stop();
     } else if (!_controller.isAnimating) {
       unawaited(_controller.repeat());
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncLoop();
+  }
+
+  @override
+  void didUpdateWidget(_FloatingCover oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.animate != widget.animate) _syncLoop();
   }
 
   @override
@@ -572,8 +609,10 @@ class _QuickTiles extends StatelessWidget {
     required this.compact,
     required this.history,
     required this.favorites,
+    required this.animate,
   });
 
+  final bool animate;
   final bool compact;
   final List<UnifiedTrack> history;
   final List<UnifiedTrack> favorites;
@@ -586,6 +625,7 @@ class _QuickTiles extends StatelessWidget {
         title: 'История',
         subtitle: 'Недавно прослушанные треки',
         tracks: history,
+        animate: animate,
         onTap: () => unawaited(context.push('/player')),
       ),
       _QuickTile(
@@ -595,6 +635,7 @@ class _QuickTiles extends StatelessWidget {
             ? 'Отмечайте сердцем то, что нравится'
             : '${favorites.length} в коллекции',
         tracks: favorites,
+        animate: animate,
         onTap: () => context.go('/library'),
       ),
     ];
@@ -618,8 +659,10 @@ class _QuickTile extends StatefulWidget {
     required this.subtitle,
     required this.tracks,
     required this.onTap,
+    required this.animate,
   });
 
+  final bool animate;
   final IconData icon;
   final String title;
   final String subtitle;
@@ -639,14 +682,26 @@ class _QuickTileState extends State<_QuickTile>
     duration: const Duration(seconds: 40),
   );
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (MediaQuery.disableAnimationsOf(context)) {
+  // Декоративный цикл живёт, только пока играет музыка: на паузе
+  // кадр застывает, а при отключённых анимациях не запускается вовсе.
+  void _syncLoop() {
+    if (!widget.animate || MediaQuery.disableAnimationsOf(context)) {
       _drift.stop();
     } else if (!_drift.isAnimating) {
       unawaited(_drift.repeat());
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncLoop();
+  }
+
+  @override
+  void didUpdateWidget(_QuickTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.animate != widget.animate) _syncLoop();
   }
 
   @override
@@ -946,12 +1001,10 @@ class _ArtistBubble extends StatelessWidget {
   }
 }
 
-/// Действия hero на десктопе: основная кнопка, вход в Stage и оценка Wave.
+/// Действия hero на десктопе: вход в Stage и оценка Wave.
 /// Перемотка и переключение треков — в нижнем плеере.
 class _HeroActions extends ConsumerWidget {
-  const _HeroActions({required this.state});
-
-  final ResonancePlaybackState state;
+  const _HeroActions();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -959,20 +1012,6 @@ class _HeroActions extends ConsumerWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        CreamPlayButton(
-          size: 60,
-          playing: state.playing,
-          buffering: state.buffering,
-          onPressed: () => fireAndForget(
-            () => ref.read(playbackServiceProvider.future).then((service) {
-              if (state.currentTrack == null) {
-                return service.playTrack(demoTrack);
-              }
-              return state.playing ? service.pause() : service.play();
-            }),
-          ),
-        ),
-        const SizedBox(width: 16),
         OutlinedButton.icon(
           onPressed: () => context.push('/stage'),
           style: OutlinedButton.styleFrom(

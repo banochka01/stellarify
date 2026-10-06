@@ -104,7 +104,13 @@ class ArtistScreen extends ConsumerWidget {
                 fit: StackFit.expand,
                 children: [
                   if (cover != null)
-                    AuroraBackdrop(track: cover, intensity: 1.1)
+                    AuroraBackdrop(
+                      track: cover,
+                      intensity: 1.1,
+                      animate: ref.watch(
+                        playbackFrameProvider.select((s) => s.playing),
+                      ),
+                    )
                   else
                     const ColoredBox(color: Color(0xFF0B0810)),
                   if (cover?.artworkUrl case final url?)

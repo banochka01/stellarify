@@ -14,12 +14,14 @@ class AuroraBackdrop extends ConsumerStatefulWidget {
     required this.track,
     this.intensity = 1,
     this.ribbons = true,
+    this.animate = true,
     super.key,
   });
 
   final UnifiedTrack track;
   final double intensity;
   final bool ribbons;
+  final bool animate;
 
   @override
   ConsumerState<AuroraBackdrop> createState() => _AuroraBackdropState();
@@ -32,14 +34,26 @@ class _AuroraBackdropState extends ConsumerState<AuroraBackdrop>
     duration: const Duration(seconds: 36),
   );
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (MediaQuery.disableAnimationsOf(context)) {
+  // Декоративный цикл живёт, только пока играет музыка: на паузе
+  // кадр застывает, а при отключённых анимациях не запускается вовсе.
+  void _syncLoop() {
+    if (!widget.animate || MediaQuery.disableAnimationsOf(context)) {
       _clock.stop();
     } else if (!_clock.isAnimating) {
       _clock.repeat();
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncLoop();
+  }
+
+  @override
+  void didUpdateWidget(AuroraBackdrop oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.animate != widget.animate) _syncLoop();
   }
 
   @override

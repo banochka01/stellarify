@@ -113,7 +113,10 @@ void main() {
         ),
       ]),
     );
-    await tester.pumpAndSettle();
+    // Живой фон главной зациклен, пока играет трек: ждём фиксированное время.
+    for (var frame = 0; frame < 40; frame++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
     expect(tester.getSize(find.byType(MaterialApp)), const Size(1440, 1024));
     expect(find.byTooltip('Волна'), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
@@ -239,7 +242,9 @@ void main() {
         tester.element(find.byType(MaterialApp)),
       ),
     );
-    await tester.pumpAndSettle();
+    for (var frame = 0; frame < 40; frame++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
     expect(tester.takeException(), isNull);
     await expectLater(
       find.byType(MaterialApp),
