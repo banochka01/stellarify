@@ -1,6 +1,6 @@
 import 'dart:async';
+import 'dart:math' as math;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,11 +10,14 @@ import 'package:resonance/core/playback/demo_track.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
+import 'package:resonance/features/artist/artist_catalog.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/player/track_action.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/features/wave/wave_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/ambient_backdrop.dart';
+import 'package:resonance/shared/widgets/media_cards.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/seek_timeline.dart';
@@ -43,166 +46,983 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final state = playback.valueOrNull ?? const ResonancePlaybackState();
     final track = state.currentTrack ?? demoTrack;
     final library = ref.watch(libraryControllerProvider).valueOrNull;
-    final recent = <UnifiedTrack>[
+    final favorites = library?.favorites ?? const <UnifiedTrack>[];
+    final recent = <String, UnifiedTrack>{
+      for (final item in state.queue.reversed)
+        if (item.id != track.id) item.id: item,
+    }.values.take(16).toList(growable: false);
+    final artists = _topArtists([
+      track,
       ...state.queue,
-      ...?library?.favorites.where((item) => item.id != track.id),
-    ];
-    final uniqueRecent = <String, UnifiedTrack>{
-      for (final item in recent) item.id: item,
-    }.values.take(6).toList(growable: false);
+      ...favorites,
+      ...?library?.tracks,
+    ]);
+    final palette = watchArtworkPalette(ref, track.artworkUrl);
+    final theme = Theme.of(context);
+    final accentTheme = theme.copyWith(
+      colorScheme: theme.colorScheme.copyWith(
+        primary: palette.accent,
+        onPrimary: palette.onAccent,
+      ),
+    );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 880;
-        if (compact) {
-          return _CompactHome(
-            track: track,
-            state: state,
-            nextTrack: _nextTrack(state),
-            recent: uniqueRecent,
-          );
-        }
-        return Row(
-          children: [
-            Expanded(
-              child: _CinematicPlayer(
-                track: track,
-                state: state,
-                nextTrack: _nextTrack(state),
+    return Theme(
+      data: accentTheme,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 880;
+          final gutter = compact ? 18.0 : 34.0;
+          final card = compact ? 140.0 : 164.0;
+          final usesCustomBackground =
+              ref.watch(appearanceControllerProvider).backgroundPath != null;
+          return Stack(
+            children: [
+              if (!usesCustomBackground)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  height: compact ? 1040 : 720,
+                  child: AmbientBackdrop(
+                    palette: palette,
+                    imageUrl: track.artworkUrl,
+                  ),
+                ),
+              CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: _WaveHero(
+                      track: track,
+                      state: state,
+                      palette: palette,
+                      compact: compact,
+                      wide: constraints.maxWidth >= 1120,
+                      gutter: gutter,
+                      upcoming: _upcoming(state),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(gutter, 6, gutter, 0),
+                    sliver: SliverToBoxAdapter(
+                      child: _ShortcutRow(
+                        compact: compact,
+                        history: recent,
+                        favorites: favorites,
+                      ),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(gutter, 30, gutter, 0),
+                    sliver: const SliverToBoxAdapter(
+                      child: ShelfHeader(title: 'Для вас'),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: MediaShelf(
+                      itemCount: _waveScenes.length,
+                      height: card + 62,
+                      itemWidth: card,
+                      padding: EdgeInsets.symmetric(horizontal: gutter),
+                      itemBuilder: (context, index) =>
+                          _SceneCard(scene: _waveScenes[index], size: card),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(gutter, 24, gutter, 0),
+                    sliver: const SliverToBoxAdapter(
+                      child: ResonanceEntrance(child: _WaveCommandCenter()),
+                    ),
+                  ),
+                  if (recent.isNotEmpty)
+                    ..._trackShelf(
+                      'Недавно играло',
+                      recent,
+                      state,
+                      palette,
+                      gutter,
+                      card,
+                    ),
+                  if (favorites.isNotEmpty)
+                    ..._trackShelf(
+                      'Любимые треки',
+                      favorites,
+                      state,
+                      palette,
+                      gutter,
+                      card,
+                    ),
+                  if (artists.isNotEmpty) ...[
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(gutter, 30, gutter, 0),
+                      sliver: const SliverToBoxAdapter(
+                        child: ShelfHeader(title: 'Ваши артисты'),
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: MediaShelf(
+                        itemCount: artists.length,
+                        height: card + 52,
+                        itemWidth: card,
+                        padding: EdgeInsets.symmetric(horizontal: gutter),
+                        itemBuilder: (context, index) {
+                          final artist = artists[index];
+                          return MediaCard(
+                            title: artist.name,
+                            subtitle:
+                                '${artist.count} ${_tracksWord(artist.count)}',
+                            artworkUrl: artist.artwork,
+                            size: card,
+                            circular: true,
+                            accent: palette.accent,
+                            onTap: () => openArtist(context, artist.name),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                  const SliverToBoxAdapter(child: SizedBox(height: 120)),
+                ],
               ),
-            ),
-            SizedBox(
-              width: constraints.maxWidth >= 1180 ? 282 : 238,
-              child: _RecentRail(tracks: uniqueRecent),
-            ),
-          ],
-        );
-      },
+            ],
+          );
+        },
+      ),
     );
   }
 
-  UnifiedTrack? _nextTrack(ResonancePlaybackState state) {
-    final nextIndex = state.currentIndex + 1;
-    if (nextIndex >= 0 && nextIndex < state.queue.length) {
-      return state.queue[nextIndex];
-    }
-    return null;
+  List<Widget> _trackShelf(
+    String title,
+    List<UnifiedTrack> tracks,
+    ResonancePlaybackState state,
+    ArtworkPalette palette,
+    double gutter,
+    double size,
+  ) => [
+    SliverPadding(
+      padding: EdgeInsets.fromLTRB(gutter, 30, gutter, 0),
+      sliver: SliverToBoxAdapter(child: ShelfHeader(title: title)),
+    ),
+    SliverToBoxAdapter(
+      child: MediaShelf(
+        itemCount: math.min(tracks.length, 20),
+        height: size + 62,
+        itemWidth: size,
+        padding: EdgeInsets.symmetric(horizontal: gutter),
+        itemBuilder: (context, index) {
+          final item = tracks[index];
+          final active = state.currentTrack?.id == item.id;
+          return MediaCard(
+            title: item.title,
+            subtitle: item.artist,
+            subtitleWidget: ArtistLinks(artist: item.artist),
+            artworkUrl: item.artworkUrl,
+            size: size,
+            accent: palette.accent,
+            active: active,
+            playing: state.playing,
+            onTap: () => unawaited(
+              active
+                  ? ref
+                        .read(playbackServiceProvider.future)
+                        .then((s) => state.playing ? s.pause() : s.play())
+                  : playTrackOrOpenOfficial(ref, item),
+            ),
+          );
+        },
+      ),
+    ),
+  ];
+
+  List<UnifiedTrack> _upcoming(ResonancePlaybackState state) {
+    final start = state.currentIndex + 1;
+    if (start <= 0 || start >= state.queue.length) return const [];
+    return state.queue.skip(start).take(3).toList(growable: false);
   }
 }
 
-class _CinematicPlayer extends StatelessWidget {
-  const _CinematicPlayer({
+final class _ArtistTile {
+  _ArtistTile(this.name, this.artwork);
+  final String name;
+  Uri? artwork;
+  int count = 0;
+}
+
+List<_ArtistTile> _topArtists(Iterable<UnifiedTrack> tracks) {
+  final byKey = <String, _ArtistTile>{};
+  final seen = <String>{};
+  for (final track in tracks) {
+    if (track.id == demoTrack.id || !seen.add(track.id)) continue;
+    final name = primaryArtist(track.artist);
+    final key = normalizeArtistKey(name);
+    if (key.isEmpty) continue;
+    final tile = byKey.putIfAbsent(
+      key,
+      () => _ArtistTile(name, track.artworkUrl),
+    );
+    tile.count++;
+    tile.artwork ??= track.artworkUrl;
+  }
+  return (byKey.values.toList()..sort((a, b) => b.count.compareTo(a.count)))
+      .take(14)
+      .toList(growable: false);
+}
+
+String _tracksWord(int count) {
+  final mod10 = count % 10;
+  final mod100 = count % 100;
+  if (mod10 == 1 && mod100 != 11) return 'трек';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return 'трека';
+  }
+  return 'треков';
+}
+
+/// Starts (or rebuilds) the personal wave with an optional prompt.
+Future<void> startWave(WidgetRef ref, String prompt) async {
+  final favorites = ref.read(libraryControllerProvider).valueOrNull?.favorites;
+  final hasBackend = BackendEndpoint.displayValue.isNotEmpty;
+  final room = hasBackend ? ref.read(roomControllerProvider) : null;
+  final roomController = hasBackend
+      ? ref.read(roomControllerProvider.notifier)
+      : null;
+  await ref
+      .read(waveControllerProvider.notifier)
+      .start(
+        taste: favorites ?? const [],
+        prompt: prompt.trim(),
+        roomCode: room?.inRoom == true && roomController?.isHost == true
+            ? room?.code
+            : null,
+      );
+}
+
+class _WaveHero extends ConsumerWidget {
+  const _WaveHero({
     required this.track,
     required this.state,
-    required this.nextTrack,
+    required this.palette,
+    required this.compact,
+    required this.wide,
+    required this.gutter,
+    required this.upcoming,
   });
 
   final UnifiedTrack track;
   final ResonancePlaybackState state;
-  final UnifiedTrack? nextTrack;
+  final ArtworkPalette palette;
+  final bool compact;
+  final bool wide;
+  final double gutter;
+  final List<UnifiedTrack> upcoming;
 
   @override
-  Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final wave = ref.watch(waveControllerProvider);
+    final cover = _HeroCover(
+      track: track,
+      palette: palette,
+      playing: state.playing,
+      size: compact ? 220 : 236,
+    );
+    final copy = Column(
+      crossAxisAlignment: compact
+          ? CrossAxisAlignment.center
+          : CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        _TrackBackdrop(track: track),
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [Color(0xF5080909), Color(0xA8080909), Color(0x38080909)],
-              stops: [0, .55, 1],
-            ),
+        Text(
+          'Моя волна',
+          textAlign: compact ? TextAlign.center : TextAlign.start,
+          style: TextStyle(
+            color: ResonanceColors.text,
+            fontSize: compact ? 48 : 76,
+            height: .92,
+            fontWeight: FontWeight.w900,
+            letterSpacing: compact ? -2 : -3.6,
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(34, 28, 34, 36),
+        const SizedBox(height: 12),
+        _MoodChip(wave: wave, playing: state.playing, palette: palette),
+        const SizedBox(height: 22),
+        ResonanceAnimatedSwap(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            key: ValueKey('track-copy-${track.id}'),
+            crossAxisAlignment: compact
+                ? CrossAxisAlignment.center
+                : CrossAxisAlignment.start,
             children: [
-              const ResonanceEntrance(child: _WaveCommandCenter()),
-              const Spacer(flex: 2),
-              const Row(
-                children: [
-                  SizedBox.square(
-                    dimension: 7,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: ResonanceColors.primary,
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 10),
-                  Text(
-                    'СЕЙЧАС ИГРАЕТ',
-                    style: TextStyle(
-                      color: ResonanceColors.muted,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.7,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              ResonanceAnimatedSwap(
-                child: Column(
-                  key: ValueKey('track-copy-${track.id}'),
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 610),
-                      child: Text(
-                        track.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: ResonanceColors.text,
-                          fontSize: 60,
-                          height: .92,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -3.4,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      track.artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFFB7B0AA),
-                        fontSize: 22,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: -.5,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    _PlaybackSignal(state: state),
-                    if (_waveReason(track) case final reason?) ...[
-                      const SizedBox(height: 10),
-                      _ReasonPill(reason: reason),
-                    ],
-                  ],
+              Text(
+                track.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: compact ? TextAlign.center : TextAlign.start,
+                style: const TextStyle(
+                  color: ResonanceColors.text,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -.5,
                 ),
               ),
-              const SizedBox(height: 36),
-              _HeroProgress(state: state),
-              const SizedBox(height: 24),
-              _HeroControls(state: state),
-              const SizedBox(height: 24),
-              _NextTrackPill(track: nextTrack),
-              const Spacer(flex: 2),
+              const SizedBox(height: 4),
+              ArtistLinks(
+                artist: track.artist,
+                textAlign: compact ? TextAlign.center : TextAlign.start,
+                style: const TextStyle(
+                  color: Color(0xFFC9C1B8),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _PlaybackSignal(state: state),
+              if (_waveReason(track) case final reason?) ...[
+                const SizedBox(height: 10),
+                _ReasonPill(reason: reason),
+              ],
             ],
           ),
+        ),
+        const SizedBox(height: 18),
+        _HeroProgress(state: state),
+        const SizedBox(height: 10),
+        _HeroControls(state: state),
+      ],
+    );
+
+    final content = compact
+        ? Column(
+            children: [
+              cover,
+              const SizedBox(height: 26),
+              copy,
+              const SizedBox(height: 14),
+              _NextTrackPill(track: upcoming.firstOrNull),
+            ],
+          )
+        : Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              cover,
+              const SizedBox(width: 40),
+              Expanded(child: copy),
+              if (wide) ...[
+                const SizedBox(width: 24),
+                _UpNextCluster(
+                  tracks: upcoming,
+                  palette: palette,
+                  state: state,
+                ),
+              ],
+            ],
+          );
+
+    return Stack(
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            gutter,
+            compact ? 26 : 44,
+            gutter,
+            compact ? 24 : 40,
+          ),
+          child: ResonanceEntrance(child: content),
         ),
       ],
     );
   }
 }
+
+class _MoodChip extends StatelessWidget {
+  const _MoodChip({
+    required this.wave,
+    required this.playing,
+    required this.palette,
+  });
+
+  final WaveState wave;
+  final bool playing;
+  final ArtworkPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final scene = _waveScenes
+        .where((scene) => scene.prompt == wave.prompt)
+        .firstOrNull;
+    final label = wave.loading
+        ? 'Настраиваем…'
+        : wave.active
+        ? scene?.label ?? (wave.prompt.isEmpty ? 'Обычная' : 'Своя')
+        : 'Не запущена';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: .28),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: Colors.white.withValues(alpha: .12)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          EqualizerBars(
+            playing: playing && wave.active,
+            color: palette.accent,
+            size: 12,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: ResonanceColors.text,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The current cover, gently breathing while music plays.
+class _HeroCover extends ConsumerStatefulWidget {
+  const _HeroCover({
+    required this.track,
+    required this.palette,
+    required this.playing,
+    required this.size,
+  });
+
+  final UnifiedTrack track;
+  final ArtworkPalette palette;
+  final bool playing;
+  final double size;
+
+  @override
+  ConsumerState<_HeroCover> createState() => _HeroCoverState();
+}
+
+class _HeroCoverState extends ConsumerState<_HeroCover>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _breath = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 3200),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(_HeroCover oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _sync();
+  }
+
+  void _sync() {
+    final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final animate =
+        widget.playing && !reduced && ref.read(ambientMotionEnabledProvider);
+    if (animate && !_breath.isAnimating) {
+      unawaited(_breath.repeat(reverse: true));
+    } else if (!animate && _breath.isAnimating) {
+      unawaited(_breath.animateTo(0, duration: ResonanceMotion.gentle));
+    }
+  }
+
+  @override
+  void dispose() {
+    _breath.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = widget.size;
+    return AnimatedBuilder(
+      animation: _breath,
+      builder: (context, child) {
+        final t = Curves.easeInOut.transform(_breath.value);
+        return Transform.scale(
+          scale: 1 + .018 * t,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.palette.accent.withValues(alpha: .28 + .2 * t),
+                  blurRadius: 50 + 20 * t,
+                  spreadRadius: 2,
+                ),
+                const BoxShadow(
+                  color: Color(0x99000000),
+                  blurRadius: 30,
+                  offset: Offset(0, 20),
+                ),
+              ],
+            ),
+            child: child,
+          ),
+        );
+      },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: SizedBox.square(
+          dimension: size,
+          child: ResonanceTrackSwap(
+            child: TrackArtwork(
+              key: ValueKey('hero-cover-${widget.track.id}'),
+              track: widget.track,
+              size: size,
+              borderRadius: 0,
+              fallbackAsset: 'assets/images/resonance_fallback_cover.png',
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Right side of the hero: the next covers drifting on the wave and a big
+/// accent play button.
+class _UpNextCluster extends ConsumerStatefulWidget {
+  const _UpNextCluster({
+    required this.tracks,
+    required this.palette,
+    required this.state,
+  });
+
+  final List<UnifiedTrack> tracks;
+  final ArtworkPalette palette;
+  final ResonancePlaybackState state;
+
+  @override
+  ConsumerState<_UpNextCluster> createState() => _UpNextClusterState();
+}
+
+class _UpNextClusterState extends ConsumerState<_UpNextCluster>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _float = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 7),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (!reduced && ref.read(ambientMotionEnabledProvider)) {
+      if (!_float.isAnimating) unawaited(_float.repeat());
+    } else {
+      _float.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _float.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    final palette = widget.palette;
+    const positions = [Offset(70, 0), Offset(0, 92), Offset(96, 168)];
+    const sizes = [86.0, 70.0, 58.0];
+    return SizedBox(
+      width: 230,
+      height: 300,
+      child: AnimatedBuilder(
+        animation: _float,
+        builder: (context, _) {
+          final phase = _float.value * math.pi * 2;
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              for (var i = 0; i < widget.tracks.length && i < 3; i++)
+                Positioned(
+                  left: positions[i].dx,
+                  top: positions[i].dy + math.sin(phase + i * 2.1) * 7,
+                  child: Transform.rotate(
+                    angle: math.sin(phase + i) * .05 + (i.isEven ? .06 : -.08),
+                    child: Tooltip(
+                      message:
+                          'Далее: ${widget.tracks[i].title} — ${widget.tracks[i].artist}',
+                      child: Opacity(
+                        opacity: 1 - i * .18,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x88000000),
+                                blurRadius: 18,
+                                offset: Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: TrackArtwork(
+                            track: widget.tracks[i],
+                            size: sizes[i],
+                            borderRadius: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: _BigPlayButton(
+                  state: state,
+                  palette: palette,
+                  phase: phase,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _BigPlayButton extends ConsumerWidget {
+  const _BigPlayButton({
+    required this.state,
+    required this.palette,
+    required this.phase,
+  });
+
+  final ResonancePlaybackState state;
+  final ArtworkPalette palette;
+  final double phase;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final wave = ref.watch(waveControllerProvider);
+    final startsWave = !wave.active && BackendEndpoint.displayValue.isNotEmpty;
+    final showPause = state.playing && !startsWave;
+    final glow = state.playing ? .5 + .2 * math.sin(phase * 3) : .35;
+    return ResonancePressable(
+      hoverScale: 1.06,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: palette.accent.withValues(alpha: glow),
+              blurRadius: 40,
+              spreadRadius: 4,
+            ),
+          ],
+        ),
+        child: Material(
+          color: palette.accent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: wave.loading
+                ? null
+                : () => unawaited(_toggle(ref, startsWave)),
+            child: SizedBox.square(
+              dimension: 92,
+              child: wave.loading
+                  ? Padding(
+                      padding: const EdgeInsets.all(30),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        color: palette.onAccent,
+                      ),
+                    )
+                  : Icon(
+                      showPause
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
+                      size: 46,
+                      color: palette.onAccent,
+                      semanticLabel: startsWave
+                          ? 'Запустить волну'
+                          : showPause
+                          ? 'Пауза'
+                          : 'Продолжить',
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _toggle(WidgetRef ref, bool startsWave) async {
+    if (startsWave) {
+      await startWave(ref, '');
+      return;
+    }
+    final service = await ref.read(playbackServiceProvider.future);
+    if (state.currentTrack == null) return service.playTrack(demoTrack);
+    return state.playing ? service.pause() : service.play();
+  }
+}
+
+class _ShortcutRow extends ConsumerWidget {
+  const _ShortcutRow({
+    required this.compact,
+    required this.history,
+    required this.favorites,
+  });
+
+  final bool compact;
+  final List<UnifiedTrack> history;
+  final List<UnifiedTrack> favorites;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    Future<void> play(List<UnifiedTrack> tracks) async {
+      final playable = playableQueueTracks(tracks);
+      if (playable.isEmpty) {
+        context.go('/library');
+        return;
+      }
+      final service = await ref.read(playbackServiceProvider.future);
+      await service.setQueue(playable, autoplay: true);
+    }
+
+    final cards = [
+      _ShortcutCard(
+        icon: Icons.history_rounded,
+        title: 'История',
+        subtitle: history.isEmpty
+            ? 'Здесь появятся недавно прослушанные треки'
+            : 'Ваши недавно прослушанные треки',
+        tracks: history,
+        onTap: () => unawaited(play(history)),
+      ),
+      _ShortcutCard(
+        icon: Icons.favorite_rounded,
+        title: 'Любимые треки',
+        subtitle: favorites.isEmpty
+            ? 'Отмечайте треки сердцем — они соберутся здесь'
+            : '${favorites.length} ${_tracksWord(favorites.length)} в коллекции',
+        tracks: favorites,
+        onTap: () => favorites.isEmpty
+            ? context.go('/library')
+            : unawaited(play(favorites)),
+      ),
+    ];
+    if (compact) {
+      return Column(children: [cards[0], const SizedBox(height: 12), cards[1]]);
+    }
+    return Row(
+      children: [
+        Expanded(child: cards[0]),
+        const SizedBox(width: 16),
+        Expanded(child: cards[1]),
+      ],
+    );
+  }
+}
+
+class _ShortcutCard extends StatelessWidget {
+  const _ShortcutCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.tracks,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final List<UnifiedTrack> tracks;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final covers = tracks
+        .where((track) => track.artworkUrl != null)
+        .take(4)
+        .toList();
+    return ResonancePressable(
+      child: Material(
+        color: ResonanceColors.surfaceHigh,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            height: 84,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Row(
+                  children: [
+                    const Spacer(flex: 4),
+                    for (final cover in covers)
+                      Expanded(
+                        flex: 2,
+                        child: TrackArtwork(
+                          track: cover,
+                          size: 160,
+                          borderRadius: 0,
+                        ),
+                      ),
+                    if (covers.isEmpty) const Spacer(flex: 6),
+                  ],
+                ),
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        ResonanceColors.surfaceHigh,
+                        Color(0xF2151514),
+                        Color(0x66151514),
+                      ],
+                      stops: [0, .45, 1],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: .18),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          icon,
+                          size: 20,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                color: ResonanceColors.text,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              subtitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFFB2ACA6),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SceneCard extends ConsumerWidget {
+  const _SceneCard({required this.scene, required this.size});
+
+  final _WaveScene scene;
+  final double size;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final wave = ref.watch(waveControllerProvider);
+    final active = wave.active && wave.prompt == scene.prompt;
+    return MediaCard(
+      title: scene.label,
+      subtitle: scene.subtitle,
+      size: size,
+      accent: scene.color,
+      active: active,
+      playing: active,
+      loading: wave.loading && wave.prompt == scene.prompt,
+      artwork: GradientArtwork(
+        seed: scene.label,
+        icon: scene.icon,
+        label: scene.label,
+        colors: [
+          scene.color,
+          Color.lerp(scene.color, const Color(0xFF07070A), .78)!,
+        ],
+      ),
+      onTap: () {
+        if (!wave.loading) unawaited(startWave(ref, scene.prompt));
+      },
+    );
+  }
+}
+
+const _waveScenes = [
+  _WaveScene(
+    'Ваш день',
+    'Знакомое + немного нового',
+    Icons.center_focus_strong_rounded,
+    'Мой персональный микс на сегодня: любимое и немного новых открытий',
+    Color(0xFFFF6A43),
+  ),
+  _WaveScene(
+    'Дорога',
+    'Ритм без остановок',
+    Icons.route_rounded,
+    'Энергичная музыка в дорогу, постепенно добавляй новое',
+    Color(0xFF7B68EE),
+  ),
+  _WaveScene(
+    'После полуночи',
+    'Тише, глубже, темнее',
+    Icons.nightlight_round,
+    'Тёплая спокойная музыка для позднего вечера',
+    Color(0xFF3A78FF),
+  ),
+  _WaveScene(
+    'Открытия',
+    'За пределами привычного',
+    Icons.explore_rounded,
+    'Удиви меня новой музыкой рядом с моим вкусом',
+    Color(0xFF3ECF8E),
+  ),
+  _WaveScene(
+    'Фокус',
+    'Без слов и отвлечений',
+    Icons.psychology_rounded,
+    'Музыка для концентрации и работы, мало вокала',
+    Color(0xFFE6B84A),
+  ),
+  _WaveScene(
+    'Тренировка',
+    'Громко и быстро',
+    Icons.bolt_rounded,
+    'Мощная энергичная музыка для тренировки',
+    Color(0xFFFF4D8D),
+  ),
+];
 
 class _HeroProgress extends ConsumerWidget {
   const _HeroProgress({required this.state});
@@ -335,10 +1155,9 @@ class _HeroControls extends ConsumerWidget {
 }
 
 class _PlaybackSignal extends StatelessWidget {
-  const _PlaybackSignal({required this.state, this.compact = false});
+  const _PlaybackSignal({required this.state});
 
   final ResonancePlaybackState state;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -366,17 +1185,14 @@ class _PlaybackSignal extends StatelessWidget {
           : 'Воспроизведение приостановлено',
       child: Container(
         constraints: const BoxConstraints(maxWidth: 500),
-        padding: EdgeInsets.symmetric(
-          horizontal: compact ? 11 : 10,
-          vertical: compact ? 8 : 7,
-        ),
+        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          color: compact ? const Color(0xC20A0A0A) : const Color(0x990A0A0A),
-          borderRadius: BorderRadius.circular(compact ? 12 : 999),
+          color: const Color(0x990A0A0A),
+          borderRadius: BorderRadius.circular(999),
           border: Border.all(color: const Color(0x40FFFFFF)),
         ),
         child: Row(
-          mainAxisSize: compact ? MainAxisSize.max : MainAxisSize.min,
+          mainAxisSize: MainAxisSize.min,
           children: [
             AnimatedContainer(
               duration: ResonanceMotion.quick,
@@ -452,269 +1268,6 @@ class _NextTrackPill extends StatelessWidget {
   }
 }
 
-class _RecentRail extends StatelessWidget {
-  const _RecentRail({required this.tracks});
-
-  final List<UnifiedTrack> tracks;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(22, 34, 18, 24),
-      decoration: const BoxDecoration(
-        color: Color(0xFF080909),
-        border: Border(left: BorderSide(color: ResonanceColors.border)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'НЕДАВНО',
-            style: TextStyle(
-              color: ResonanceColors.muted,
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.5,
-            ),
-          ),
-          const SizedBox(height: 22),
-          if (tracks.isEmpty)
-            const Expanded(child: _EmptyRecent())
-          else ...[
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: tracks.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 16),
-              itemBuilder: (context, index) =>
-                  _RecentTrack(track: tracks[index]),
-            ),
-            const SizedBox(height: 18),
-            TextButton.icon(
-              onPressed: () => context.go('/library'),
-              iconAlignment: IconAlignment.end,
-              icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-              label: const Text('Открыть медиатеку'),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyRecent extends StatelessWidget {
-  const _EmptyRecent();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.only(top: 28),
-      child: Text(
-        'Здесь появятся последние треки и избранное.',
-        style: TextStyle(
-          color: ResonanceColors.muted,
-          fontSize: 12,
-          height: 1.5,
-        ),
-      ),
-    );
-  }
-}
-
-class _RecentTrack extends ConsumerWidget {
-  const _RecentTrack({required this.track});
-
-  final UnifiedTrack track;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final provider =
-        track.preferredProvider ??
-        (track.sources.isEmpty
-            ? MusicProvider.soundcloud
-            : track.sources.first.provider);
-    return ResonancePressable(
-      hoverScale: 1.01,
-      hoverOffset: Offset.zero,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: () => unawaited(playTrackOrOpenOfficial(ref, track)),
-        child: Row(
-          children: [
-            TrackArtwork(
-              track: track,
-              size: 52,
-              borderRadius: 4,
-              fallbackAsset: 'assets/images/resonance_fallback_cover.png',
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    track.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    track.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: ResonanceColors.muted,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  ProviderBadge(provider: provider, compact: true),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CompactHome extends StatelessWidget {
-  const _CompactHome({
-    required this.track,
-    required this.state,
-    required this.nextTrack,
-    required this.recent,
-  });
-
-  final UnifiedTrack track;
-  final ResonancePlaybackState state;
-  final UnifiedTrack? nextTrack;
-  final List<UnifiedTrack> recent;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 20, 18, 28),
-      children: [
-        const ResonanceEntrance(child: _WaveCommandCenter()),
-        const SizedBox(height: 22),
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: ResonanceColors.border),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x52000000),
-                blurRadius: 30,
-                offset: Offset(0, 18),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(19),
-            child: AspectRatio(
-              aspectRatio: 1.08,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  track.artworkUrl == null
-                      ? Image.asset(
-                          'assets/images/resonance_fallback_cover.png',
-                          fit: BoxFit.cover,
-                        )
-                      : CachedNetworkImage(
-                          imageUrl: highQualityArtworkUrl(track.artworkUrl!),
-                          fit: BoxFit.cover,
-                          errorWidget: (_, _, _) => Image.asset(
-                            'assets/images/resonance_fallback_cover.png',
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                  const DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Color(0xB3000000)],
-                        stops: [.55, 1],
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 16,
-                    right: 16,
-                    bottom: 14,
-                    child: _PlaybackSignal(state: state, compact: true),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 22),
-        ResonanceAnimatedSwap(
-          child: Column(
-            key: ValueKey('compact-track-${track.id}'),
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                track.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 38,
-                  height: .95,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                track.artist,
-                style: const TextStyle(
-                  color: ResonanceColors.muted,
-                  fontSize: 17,
-                ),
-              ),
-              if (_waveReason(track) case final reason?) ...[
-                const SizedBox(height: 10),
-                _ReasonPill(reason: reason),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 22),
-        _HeroProgress(state: state),
-        const SizedBox(height: 16),
-        _HeroControls(state: state),
-        const SizedBox(height: 16),
-        _NextTrackPill(track: nextTrack),
-        if (recent.isNotEmpty) ...[
-          const SizedBox(height: 32),
-          const Text(
-            'НЕДАВНО',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.5,
-            ),
-          ),
-          const SizedBox(height: 14),
-          for (final item in recent) ...[
-            _RecentTrack(track: item),
-            const SizedBox(height: 14),
-          ],
-        ],
-      ],
-    );
-  }
-}
-
 class _WaveCommandCenter extends ConsumerStatefulWidget {
   const _WaveCommandCenter();
 
@@ -725,70 +1278,13 @@ class _WaveCommandCenter extends ConsumerStatefulWidget {
 class _WaveCommandCenterState extends ConsumerState<_WaveCommandCenter> {
   final TextEditingController _controller = TextEditingController();
 
-  static const _scenes = [
-    _WaveScene(
-      'Ваш день',
-      'Знакомое + немного нового',
-      Icons.center_focus_strong_rounded,
-      'Мой персональный микс на сегодня: любимое и немного новых открытий',
-      Color(0xFFFF6A43),
-    ),
-    _WaveScene(
-      'Дорога',
-      'Ритм без остановок',
-      Icons.route_rounded,
-      'Энергичная музыка в дорогу, постепенно добавляй новое',
-      Color(0xFF7B68EE),
-    ),
-    _WaveScene(
-      'После полуночи',
-      'Тише, глубже, темнее',
-      Icons.nightlight_round,
-      'Тёплая спокойная музыка для позднего вечера',
-      Color(0xFF3A78FF),
-    ),
-    _WaveScene(
-      'Открытия',
-      'За пределами привычного',
-      Icons.explore_rounded,
-      'Удиви меня новой музыкой рядом с моим вкусом',
-      Color(0xFF3ECF8E),
-    ),
-  ];
-
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
 
-  Future<void> _start([String? scene]) async {
-    final prompt = (scene ?? _controller.text).trim();
-    if (scene != null) {
-      _controller.value = TextEditingValue(
-        text: scene,
-        selection: TextSelection.collapsed(offset: scene.length),
-      );
-    }
-    final favorites = ref
-        .read(libraryControllerProvider)
-        .valueOrNull
-        ?.favorites;
-    final hasBackend = BackendEndpoint.displayValue.isNotEmpty;
-    final room = hasBackend ? ref.read(roomControllerProvider) : null;
-    final roomController = hasBackend
-        ? ref.read(roomControllerProvider.notifier)
-        : null;
-    await ref
-        .read(waveControllerProvider.notifier)
-        .start(
-          taste: favorites ?? const [],
-          prompt: prompt,
-          roomCode: room?.inRoom == true && roomController?.isHost == true
-              ? room?.code
-              : null,
-        );
-  }
+  Future<void> _start() => startWave(ref, _controller.text);
 
   @override
   Widget build(BuildContext context) {
@@ -887,23 +1383,6 @@ class _WaveCommandCenterState extends ConsumerState<_WaveCommandCenter> {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 88,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _scenes.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 9),
-                  itemBuilder: (context, index) {
-                    final scene = _scenes[index];
-                    return _WaveMixCard(
-                      scene: scene,
-                      enabled: !wave.loading,
-                      onTap: () => unawaited(_start(scene.prompt)),
-                    );
-                  },
-                ),
-              ),
               if (profile != null && profile.weekTracks > 0) ...[
                 const SizedBox(height: 10),
                 _WaveWeekStrip(profile: profile),
@@ -972,80 +1451,6 @@ class _WaveScene {
   final IconData icon;
   final String prompt;
   final Color color;
-}
-
-class _WaveMixCard extends StatelessWidget {
-  const _WaveMixCard({
-    required this.scene,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  final _WaveScene scene;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => ResonancePressable(
-    enabled: enabled,
-    child: Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(14),
-        child: Ink(
-          width: 190,
-          padding: const EdgeInsets.all(13),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: scene.color.withValues(alpha: .42)),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                scene.color.withValues(alpha: .22),
-                const Color(0xFF111111),
-              ],
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(scene.icon, color: scene.color, size: 22),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      scene.label,
-                      maxLines: 1,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      scene.subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: ResonanceColors.muted,
-                        fontSize: 9,
-                        height: 1.25,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
 }
 
 class _WaveWeekStrip extends StatelessWidget {
@@ -1149,44 +1554,6 @@ class _ReasonPill extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _TrackBackdrop extends ConsumerWidget {
-  const _TrackBackdrop({required this.track});
-  final UnifiedTrack track;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (ref.watch(appearanceControllerProvider).backgroundPath != null) {
-      return const SizedBox.expand();
-    }
-    final artwork = track.artworkUrl;
-    final image = artwork == null
-        ? Image.asset(
-            'assets/images/resonance_fallback_cover.png',
-            key: ValueKey('fallback-${track.id}'),
-            fit: BoxFit.cover,
-            alignment: Alignment.centerRight,
-          )
-        : CachedNetworkImage(
-            key: ValueKey('artwork-${track.id}'),
-            imageUrl: highQualityArtworkUrl(artwork),
-            memCacheWidth: 1400,
-            maxWidthDiskCache: 1400,
-            fit: BoxFit.cover,
-            alignment: Alignment.centerRight,
-            fadeInDuration: ResonanceMotion.standard,
-            fadeOutDuration: ResonanceMotion.quick,
-            errorWidget: (_, _, _) => Image.asset(
-              'assets/images/resonance_fallback_cover.png',
-              fit: BoxFit.cover,
-              alignment: Alignment.centerRight,
-            ),
-          );
-    return ResonanceAnimatedSwap(
-      child: SizedBox.expand(key: ValueKey(track.id), child: image),
     );
   }
 }

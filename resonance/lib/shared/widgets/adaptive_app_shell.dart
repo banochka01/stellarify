@@ -19,6 +19,7 @@ class AdaptiveAppShell extends StatelessWidget {
 
   int get _selectedIndex => switch (location) {
     '/search' => 1,
+    _ when location.startsWith('/artist/') => 1,
     '/library' => 2,
     '/graph' => 2,
     '/rooms' => 3,

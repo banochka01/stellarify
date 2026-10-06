@@ -20,6 +20,7 @@ import { parseImportPayload } from "./importer.js";
 import { PlaylistImportService } from "./playlist-import.js";
 import { LyricsError, LyricsService } from "./lyrics.js";
 import { ClipService, createClipRouter } from "./clips.js";
+import { ArtistService, createArtistRouter } from "./artists.js";
 import { ProviderGateway, ProviderGatewayError, type ProviderAccess } from "./provider-gateway.js";
 import { providerCapabilities } from "./providers.js";
 import { registerRoomHandlers, roomWaveUserIds } from "./rooms.js";
@@ -99,6 +100,9 @@ app.use("/api/v1/clips", createClipRouter(
     ? yandex.clips(query.yandexId, query, providerAccess(request))
     : []
 ));
+app.use("/api/v1/artists", createArtistRouter(new ArtistService(fetch, {
+  itunesCountry: process.env.ARTIST_ITUNES_COUNTRY || "ru"
+})));
 app.use("/api/v1/subscription", createLegacyAccessRouter(accessControl));
 app.use("/api/v1/account", createAccountRouter(accountStore));
 

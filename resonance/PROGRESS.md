@@ -1,5 +1,15 @@
 # Progress
 
+## Version 3.7.0 — Artists & Living Home
+
+- [x] Artist pages: portrait, listeners, popular tracks, albums, singles, related artists
+- [x] Server artist catalog `/api/v1/artists` (Deezer, iTunes fallback, cached, no keys)
+- [x] Catalog references resolved to playable tracks through connected providers
+- [x] Clickable artist credits in the player, search, library and Home
+- [x] «Моя волна» Home with artwork-adaptive animated backdrop and mixes shelf
+- [x] History, favorites and «Ваши артисты» shelves on Home
+- [x] Reduced-motion aware ambient motion, equalizer and cover breathing
+
 ## Version 3.6.0 — SourceShift
 
 - [x] Manual source switching from Now Playing without losing position

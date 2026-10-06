@@ -11,6 +11,7 @@ import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/track_source.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/lyrics/lyrics_service.dart';
+import 'package:resonance/shared/widgets/media_cards.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
@@ -236,8 +237,8 @@ class _Details extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 16),
-        Text(
-          track.artist,
+        ArtistLinks(
+          artist: track.artist,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(

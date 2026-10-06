@@ -13,6 +13,7 @@ import 'package:resonance/domain/entities/provider_capabilities.dart';
 import 'package:resonance/domain/entities/track_source.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/domain/providers/music_catalog_provider.dart';
+import 'package:resonance/features/artist/artist_catalog.dart';
 import 'package:resonance/features/lyrics/lyrics_service.dart';
 import 'package:resonance/features/player/clip_service.dart';
 import 'package:resonance/providers/common/provider_registry.dart';
@@ -391,6 +392,122 @@ void main() {
       resonanceRouter.go('/');
     });
   }
+
+  for (final viewport in const [Size(1440, 1024), Size(390, 844)]) {
+    final name = viewport.width > 800 ? 'desktop' : 'mobile';
+    testWidgets('$name artist visual', (tester) async {
+      _setViewport(tester, viewport);
+      resonanceRouter.go('/artist/Lil%20Peep');
+      final track = _makeTrack(
+        provider: MusicProvider.yandex,
+        index: 0,
+        title: 'Star Shopping',
+        artist: 'Lil Peep',
+      );
+      await tester.pumpWidget(
+        _testApp(
+          database: database,
+          registry: ProviderRegistry(
+            catalogs: const [
+              _FakeCatalogProvider(MusicProvider.yandex),
+              _FakeCatalogProvider(MusicProvider.soundcloud),
+            ],
+          ),
+          playbackState: ResonancePlaybackState(
+            queue: [track],
+            currentIndex: 0,
+            playing: true,
+            position: const Duration(seconds: 40),
+            duration: const Duration(minutes: 2, seconds: 21),
+            activeTrackSource: track.sources.first,
+          ),
+          extraOverrides: [
+            artistBackendAvailableProvider.overrideWithValue(true),
+            artistCatalogProvider.overrideWithValue(const _FakeArtistCatalog()),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Популярные'), findsOneWidget);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/resonance-artist-$name.png'),
+      );
+      resonanceRouter.go('/');
+    });
+  }
+}
+
+class _FakeArtistCatalog implements ArtistCatalog {
+  const _FakeArtistCatalog();
+
+  @override
+  Future<ArtistProfile?> profile(String name) async => ArtistProfile(
+    name: name,
+    fans: 4823000,
+    topTracks: const [
+      ArtistTrackInfo(
+        id: 'd:1',
+        title: 'Star Shopping',
+        artist: 'Lil Peep',
+        album: 'Lil Peep Part One',
+      ),
+      ArtistTrackInfo(
+        id: 'd:2',
+        title: 'Save That Shit',
+        artist: 'Lil Peep',
+        album: 'Come Over When You\'re Sober',
+      ),
+      ArtistTrackInfo(
+        id: 'd:3',
+        title: 'Crybaby',
+        artist: 'Lil Peep',
+        album: 'Crybaby',
+      ),
+      ArtistTrackInfo(id: 'd:4', title: 'Awful Things', artist: 'Lil Peep'),
+      ArtistTrackInfo(id: 'd:5', title: 'Beamer Boy', artist: 'Lil Peep'),
+      ArtistTrackInfo(id: 'd:6', title: 'White Tee', artist: 'Lil Peep'),
+      ArtistTrackInfo(id: 'd:7', title: 'Gym Class', artist: 'Lil Peep'),
+      ArtistTrackInfo(id: 'd:8', title: 'Benz Truck', artist: 'Lil Peep'),
+    ],
+    albums: [
+      ArtistAlbumInfo(
+        id: 'd:10',
+        title: 'Come Over When You\'re Sober',
+        releaseDate: DateTime(2017, 8, 15),
+      ),
+      ArtistAlbumInfo(
+        id: 'd:11',
+        title: 'Everybody\'s Everything',
+        releaseDate: DateTime(2019, 11, 15),
+      ),
+      ArtistAlbumInfo(
+        id: 'd:12',
+        title: 'Hellboy',
+        releaseDate: DateTime(2016, 9, 22),
+      ),
+      ArtistAlbumInfo(
+        id: 'd:13',
+        title: 'Crybaby',
+        releaseDate: DateTime(2016, 6, 10),
+      ),
+      ArtistAlbumInfo(
+        id: 'd:14',
+        title: 'Falling Down',
+        releaseDate: DateTime(2018, 9, 19),
+        type: 'single',
+      ),
+    ],
+    related: const [
+      ArtistSummary(name: 'Lil Tracy', fans: 412000),
+      ArtistSummary(name: 'XXXTENTACION', fans: 15600000),
+      ArtistSummary(name: 'Juice WRLD', fans: 9300000),
+    ],
+  );
+
+  @override
+  Future<ArtistAlbumDetails?> album(String id) async => null;
 }
 
 LyricsDocument _sampleLyrics() => LyricsDocument(
@@ -410,9 +527,11 @@ Widget _testApp({
   ProviderRegistry? registry,
   ResonancePlaybackState? playbackState,
   LyricsDocument? lyrics,
+  List<Override> extraOverrides = const [],
 }) {
   return ProviderScope(
     overrides: [
+      ...extraOverrides,
       stageClipsProvider.overrideWith((ref, track) async => []),
       appDatabaseProvider.overrideWithValue(database),
       if (registry != null)

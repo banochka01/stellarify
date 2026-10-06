@@ -60,6 +60,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Midnight Signal'), findsWidgets);
+    expect(find.text('Моя волна'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Какую музыку включить?'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Какую музыку включить?'), findsOneWidget);
     resonanceRouter.go('/');
   });
