@@ -10,6 +10,7 @@ import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/music_graph/music_graph.dart';
 import 'package:resonance/features/player/track_action.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/media_cards.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
@@ -307,8 +308,8 @@ class _TrackResult extends ConsumerWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
-          subtitle: Text(
-            track.artist,
+          subtitle: ArtistLinks(
+            artist: track.artist,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: ResonanceColors.muted),

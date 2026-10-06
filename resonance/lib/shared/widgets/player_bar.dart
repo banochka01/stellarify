@@ -9,6 +9,7 @@ import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/media_cards.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/seek_timeline.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
@@ -180,8 +181,8 @@ class _TrackInfo extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 3),
-        Text(
-          track.artist,
+        ArtistLinks(
+          artist: track.artist,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(color: ResonanceColors.muted, fontSize: 12),

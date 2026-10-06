@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,12 +8,14 @@ import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/database/app_database.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
+import 'package:resonance/features/artist/artist_catalog.dart';
 import 'package:resonance/features/library/library_actions.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/library/library_transfer_dialog.dart';
 import 'package:resonance/features/library/playlist_import_progress_dialog.dart';
 import 'package:resonance/features/player/track_action.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/media_cards.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 
@@ -186,12 +189,17 @@ class _LibraryContent extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final albums = <String, UnifiedTrack>{};
     final artists = <String, int>{};
+    final artistArtwork = <String, Uri>{};
     for (final track in state.tracks) {
       final album = track.album?.trim();
       if (album != null && album.isNotEmpty) {
         albums.putIfAbsent(album, () => track);
       }
-      artists[track.artist] = (artists[track.artist] ?? 0) + 1;
+      final artist = primaryArtist(track.artist);
+      artists[artist] = (artists[artist] ?? 0) + 1;
+      if (track.artworkUrl != null) {
+        artistArtwork.putIfAbsent(artist, () => track.artworkUrl!);
+      }
     }
     final topArtists = artists.entries.toList()
       ..sort((left, right) => right.value.compareTo(left.value));
@@ -231,21 +239,21 @@ class _LibraryContent extends ConsumerWidget {
             icon: Icons.graphic_eq_rounded,
           ),
           const SizedBox(height: 14),
-          Wrap(
-            spacing: 9,
-            runSpacing: 9,
-            children: [
-              for (final artist in topArtists.take(14))
-                Chip(
-                  avatar: CircleAvatar(
-                    backgroundColor: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: .2),
-                    child: Text(artist.key.characters.first.toUpperCase()),
-                  ),
-                  label: Text('${artist.key} · ${artist.value}'),
-                ),
-            ],
+          MediaShelf(
+            itemCount: math.min(topArtists.length, 18),
+            height: 196,
+            itemWidth: 138,
+            itemBuilder: (context, index) {
+              final artist = topArtists[index];
+              return MediaCard(
+                title: artist.key,
+                subtitle: '${artist.value} в медиатеке',
+                artworkUrl: artistArtwork[artist.key],
+                size: 138,
+                circular: true,
+                onTap: () => openArtist(context, artist.key),
+              );
+            },
           ),
         ],
         const SizedBox(height: 42),
@@ -524,8 +532,8 @@ class _TrackShelf extends ConsumerWidget {
                       style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 3),
-                    Text(
-                      track.artist,
+                    ArtistLinks(
+                      artist: track.artist,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -622,8 +630,8 @@ class _FavoriteTrack extends ConsumerWidget {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
-        subtitle: Text(
-          track.artist,
+        subtitle: ArtistLinks(
+          artist: track.artist,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(color: ResonanceColors.muted),
