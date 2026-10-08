@@ -347,7 +347,7 @@ const _overlayHtml = r'''<!doctype html>
     @keyframes marquee{0%,15%{transform:translateX(0)}85%,100%{transform:translateX(var(--shift))}}
     .artist{margin-top:4px;color:var(--muted);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .rail{display:flex;align-items:center;gap:10px;margin-top:14px;font:600 11px/1 "JetBrains Mono",Consolas,monospace;color:var(--muted);font-variant-numeric:tabular-nums}
-    .bar{flex:1;height:4px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden}
+    .meter{flex:1;height:4px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden}
     .fill{width:100%;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--accent),var(--live));transform-origin:left;transform:scaleX(0)}
     #lyric{grid-column:1/-1;min-height:0;max-height:0;opacity:0;font-size:17px;font-weight:700;line-height:1.3;transition:opacity .3s ease,max-height .3s ease}
     body.lyrics #lyric{max-height:3.2em;opacity:1}
@@ -366,7 +366,7 @@ const _overlayHtml = r'''<!doctype html>
     /* Без подложки — только текст с тенью */
     body.clean #card{background:transparent;border-color:transparent;box-shadow:none;backdrop-filter:none}
     body.clean #glow{display:none}body.clean .copy{text-shadow:0 2px 12px rgba(0,0,0,.8)}
-    body.light{--glass:rgba(250,247,252,.86);--text:#17121f;--muted:#5d5268;--line:rgba(0,0,0,.08)}
+    body.light{--live:#4f6b00;--accent:#6b4fd8;--glass:rgba(250,247,252,.86);--text:#17121f;--muted:#5d5268;--line:rgba(0,0,0,.08)}
     @media(max-width:420px){body{padding:12px}}
     @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
   </style>
@@ -379,7 +379,7 @@ const _overlayHtml = r'''<!doctype html>
       <div class="kicker"><span class="eq"><i></i><i></i><i></i></span><span id="kick">Сейчас играет</span></div>
       <div id="vp" class="viewport"><div id="title" class="title">Resonance</div></div>
       <div id="artist" class="artist"></div>
-      <div class="rail"><span id="pos" class="time">0:00</span><div class="bar"><div id="fill" class="fill"></div></div><span id="dur" class="time">0:00</span></div>
+      <div class="rail"><span id="pos" class="time">0:00</span><div class="meter"><div id="fill" class="fill"></div></div><span id="dur" class="time">0:00</span></div>
     </section>
     <div id="lyric"></div>
   </main>

@@ -1,5 +1,9 @@
 # Progress
 
+## Version 3.13.2 — OBS layout fix
+
+- [x] OBS "Полоса" layout no longer collapses the page (CSS class clash), readable light theme
+
 ## Version 3.13.1 — Review fixes
 
 - [x] Sleep timer no longer lets a Flow crossfade restart music; end-of-track mode holds the next track
