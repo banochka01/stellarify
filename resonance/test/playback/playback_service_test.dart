@@ -270,6 +270,31 @@ void main() {
     await service.dispose();
   });
 
+  test('stop after current pauses instead of advancing', () async {
+    final resolver = _FakeResolver(MusicProvider.soundcloud);
+    final service = _createService(engine, persistence, [resolver]);
+    final first = _track('stop-one', [MusicProvider.soundcloud]);
+    final second = _track('stop-two', [MusicProvider.soundcloud]);
+    await service.setQueue([first, second], autoplay: true);
+
+    service.setStopAfterCurrent(true);
+    engine.emitCompleted();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(service.state.currentTrack, first);
+    expect(service.state.playing, isFalse);
+
+    // Флаг одноразовый: следующий конец трека снова ведёт дальше.
+    await service.play();
+    engine.emitCompleted();
+    // Переход Flow плавно сводит громкость, поэтому ждём подольше.
+    for (var i = 0; i < 500 && service.state.currentTrack != second; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    expect(service.state.currentTrack, second);
+    await service.dispose();
+  });
+
   test('prefetches the next source before the transition window', () async {
     final resolver = _FakeResolver(MusicProvider.soundcloud);
     final service = _createService(engine, persistence, [resolver]);

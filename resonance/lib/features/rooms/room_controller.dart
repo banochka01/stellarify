@@ -486,7 +486,7 @@ class RoomController extends StateNotifier<ListeningRoomState> {
         !playback.playing ||
         _autoWaveFor == track.id ||
         duration <= Duration.zero ||
-        duration - playback.position > const Duration(seconds: 20)) {
+        duration - playback.position > const Duration(seconds: 45)) {
       return;
     }
     final hasNext =

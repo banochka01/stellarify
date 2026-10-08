@@ -42,9 +42,10 @@ LyricLoop? lyricLoopFor(
     }
   }
   end ??= start + const Duration(seconds: 8);
-  if (trackDuration > Duration.zero && end > trackDuration) {
-    end = trackDuration;
-  }
+  // Последняя строка: оставляем секунду до конца, иначе трек успеет
+  // закончиться и переключиться раньше, чем петля вернётся назад.
+  final limit = trackDuration - const Duration(seconds: 1);
+  if (trackDuration > Duration.zero && end > limit) end = limit;
   if (end - start < const Duration(milliseconds: 800)) return null;
   return LyricLoop(trackId: trackId, index: index, start: start, end: end);
 }

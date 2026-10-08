@@ -44,6 +44,8 @@ final class ObsNowPlayingServer {
   };
   String? _trackId;
   bool? _playing;
+  int _durationMs = 0;
+  Uri? _sentArtwork;
   int _positionMs = 0;
   int _sentAtMs = 0;
   List<ObsLyricLine> _lyrics = const [];
@@ -51,6 +53,7 @@ final class ObsNowPlayingServer {
 
   Uri? _artworkSource;
   ({Uri url, Uint8List bytes, String contentType})? _artworkCache;
+  Uri? _loadingUrl;
   Future<void>? _artworkLoading;
 
   bool get running => _server != null;
@@ -111,13 +114,18 @@ final class ObsNowPlayingServer {
     final expected = _playing == true
         ? _positionMs + (now - _sentAtMs)
         : _positionMs;
+    final duration = state.duration.inMilliseconds;
     final changed =
         track?.id != _trackId ||
         state.playing != _playing ||
+        duration != _durationMs ||
+        artwork != _sentArtwork ||
         (position - expected).abs() > 1500;
     if (changed) {
       _trackId = track?.id;
       _playing = state.playing;
+      _durationMs = duration;
+      _sentArtwork = artwork;
       _positionMs = position;
       _sentAtMs = now;
       _broadcastState();
@@ -176,8 +184,19 @@ final class ObsNowPlayingServer {
     }
   }
 
+  /// Одна загрузка на адрес обложки; после неудачи следующая попытка
+  /// начинается заново.
   Future<void> _prefetchArtwork(Uri artwork) {
-    final loading = _loadArtwork(artwork);
+    final running = _artworkLoading;
+    if (running != null && _loadingUrl == artwork) return running;
+    late final Future<void> loading;
+    loading = _loadArtwork(artwork).whenComplete(() {
+      if (identical(_artworkLoading, loading)) {
+        _artworkLoading = null;
+        _loadingUrl = null;
+      }
+    });
+    _loadingUrl = artwork;
     _artworkLoading = loading;
     return loading;
   }
@@ -277,7 +296,8 @@ final class ObsNowPlayingServer {
       case '/art':
         final source = _artworkSource;
         if (source != null && _artworkCache?.url != source) {
-          await (_artworkLoading ?? _prefetchArtwork(source));
+          // Неудачная загрузка не запоминается: каждый запрос пробует снова.
+          await _prefetchArtwork(source);
         }
         final cached = _artworkCache;
         if (cached == null || cached.url != _artworkSource) {
@@ -378,7 +398,7 @@ const _overlayHtml = r'''<!doctype html>
     function initials(a){const w=(a||'').trim().split(/[\s,;&]+/).filter(Boolean);return w.length?(w[0][0]+(w[1]?w[1][0]:'')).toUpperCase():'♪'}
     function fitTitle(){title.classList.remove('scroll');vp.classList.add('fit');const over=title.scrollWidth-vp.clientWidth;if(over>4){vp.classList.remove('fit');title.style.setProperty('--shift',-(over+48)+'px');title.style.setProperty('--dur',Math.max(8,over/22)+'s');title.classList.add('scroll')}}
     function tint(img){if(fixedAccent)return;try{const c=document.createElement('canvas');c.width=c.height=12;const g=c.getContext('2d');g.drawImage(img,0,0,12,12);const d=g.getImageData(0,0,12,12).data;let r=0,gg=0,b=0,n=0;for(let i=0;i<d.length;i+=4){const mx=Math.max(d[i],d[i+1],d[i+2]),mn=Math.min(d[i],d[i+1],d[i+2]);const w=(mx-mn)/255+.05;r+=d[i]*w;gg+=d[i+1]*w;b+=d[i+2]*w;n+=w}if(n>0){const k=v=>Math.min(255,Math.round(v/n*1.25+20));document.documentElement.style.setProperty('--accent',`rgb(${k(r)},${k(gg)},${k(b)})`)}}catch(_){}}
-    function setArt(url){if(url===art)return;art=url;if(!url){front.classList.remove('on');back.classList.remove('on');ph.hidden=false;return}const next=back;next.onload=()=>{next.classList.add('on');front.classList.remove('on');[front,back]=[next,front];ph.hidden=true;tint(next)};next.onerror=()=>{front.classList.remove('on');ph.hidden=false};next.src=url}
+    function setArt(url){if(url===art)return;art=url;if(!url){front.classList.remove('on');back.classList.remove('on');ph.hidden=false;return}const next=back;next.onload=()=>{next.classList.add('on');front.classList.remove('on');[front,back]=[next,front];ph.hidden=true;tint(next)};next.onerror=()=>{front.classList.remove('on');ph.hidden=false;art=''};next.src=url+(url.includes('?')?'&':'?')+'r='+Date.now()}
     function apply(n){const changed=n.trackId!==trackId;s=n;base=n.positionMs||0;baseAt=performance.now()-(Date.now()-(n.updatedAt||Date.now()));
       card.classList.toggle('active',!!n.active);card.classList.toggle('paused',!n.playing);card.classList.toggle('hidden-paused',hidePaused&&!n.playing);
       kick.textContent=n.playing?'Сейчас играет':'Пауза';ph.textContent=initials(n.artist);

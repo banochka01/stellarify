@@ -76,7 +76,7 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
         (duration) => _emit(_state.copyWith(duration: duration)),
       ),
       _engine.volume.listen((volume) {
-        if (!_transitioning) _emit(_state.copyWith(volume: volume));
+        if (!_transitioning && !_fading) _emit(_state.copyWith(volume: volume));
       }),
       _engine.completed.listen(_onCompleted),
       _engine.errors.listen((message) {
@@ -142,6 +142,11 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
   ResonancePlaybackState _state = const ResonancePlaybackState();
   bool _recovering = false;
   bool _transitioning = false;
+  bool _fading = false;
+  bool _pauseAfterTransition = false;
+  bool _stopAfterCurrent = false;
+  int _fadeGeneration = 0;
+  double? _volumeDuringFade;
   bool _disposed = false;
 
   @override
@@ -305,16 +310,26 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
 
   /// Плавно уводит громкость в ноль и ставит паузу; громкость пользователя
   /// возвращается сразу после паузы, чтобы следующее «Play» звучало как раньше.
+  ///
+  /// Если в этот момент идёт переход Flow, пауза наступит сразу после него —
+  /// следующий трек не успеет заиграть. Пропуск трека во время затухания
+  /// отменяет его: человек явно не спит.
   @override
   Future<void> fadeOutAndPause({
     Duration duration = const Duration(seconds: 12),
   }) async {
-    if (!_state.playing || _transitioning) {
+    if (_transitioning) {
+      _pauseAfterTransition = true;
+      return;
+    }
+    if (!_state.playing) {
       await pause();
       return;
     }
+    final generation = ++_fadeGeneration;
     final targetVolume = _state.volume;
-    _transitioning = true;
+    _fading = true;
+    var cancelled = false;
     try {
       const steps = 24;
       final stepDuration = Duration(
@@ -322,18 +337,34 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
       );
       for (var step = 1; step <= steps; step++) {
         if (_disposed || !_state.playing) break;
+        if (generation != _fadeGeneration) {
+          cancelled = true;
+          break;
+        }
         final eased = 1 - pow(1 - step / steps, 2);
         await _engine.setVolume(targetVolume * (1 - eased));
         if (stepDuration > Duration.zero) {
           await Future<void>.delayed(stepDuration);
         }
       }
-      await _engine.pause();
+      if (!cancelled && generation == _fadeGeneration) await _engine.pause();
     } finally {
-      await _engine.setVolume(targetVolume);
-      _transitioning = false;
-      _emit(_state.copyWith(volume: targetVolume));
+      if (generation == _fadeGeneration) {
+        _fading = false;
+        // Громкость, которую человек мог поменять во время затухания, важнее.
+        final restore = _volumeDuringFade ?? targetVolume;
+        _volumeDuringFade = null;
+        await _engine.setVolume(restore);
+        _emit(_state.copyWith(volume: restore));
+      }
     }
+  }
+
+  /// Режим «до конца трека»: Flow не начинает следующий трек заранее, а по
+  /// окончании текущего плеер встаёт на паузу.
+  @override
+  void setStopAfterCurrent(bool value) {
+    _stopAfterCurrent = value;
   }
 
   @override
@@ -348,6 +379,13 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
 
   Future<void> setVolume(double volume) async {
     final safeVolume = volume.clamp(0, 100).toDouble();
+    if (_fading) {
+      // Затухание само вернёт эту громкость, когда закончится.
+      _volumeDuringFade = safeVolume;
+      _emit(_state.copyWith(volume: safeVolume));
+      await _persist();
+      return;
+    }
     _emit(_state.copyWith(volume: safeVolume));
     await _engine.setVolume(safeVolume);
     await _persist();
@@ -461,6 +499,14 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
 
   Future<void> _moveTo(int index) async {
     if (_transitioning || index < 0 || index >= _state.queue.length) return;
+    if (_fading) {
+      // Ручной пропуск во время таймера сна отменяет затухание.
+      _fadeGeneration++;
+      _fading = false;
+      final restore = _volumeDuringFade ?? _state.volume;
+      _volumeDuringFade = null;
+      await _engine.setVolume(restore);
+    }
     final targetVolume = _state.volume;
     final duration = _effectiveTransitionDuration(index);
     if (!_flowSettings.enabled ||
@@ -476,11 +522,17 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
       await _rampVolume(targetVolume, 0, half);
       _emit(_state.copyWith(currentIndex: index));
       await _engine.setVolume(0);
-      await _openCurrent(play: true);
-      await _rampVolume(0, targetVolume, half);
+      if (_pauseAfterTransition) {
+        // Таймер сна сработал посреди перехода: новый трек не запускаем.
+        await _openCurrent(play: false);
+      } else {
+        await _openCurrent(play: true);
+        await _rampVolume(0, targetVolume, half);
+      }
       await _engine.setVolume(targetVolume);
     } finally {
       _transitioning = false;
+      _pauseAfterTransition = false;
       _emit(_state.copyWith(volume: targetVolume));
     }
   }
@@ -609,6 +661,8 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
 
   void _maybeStartAutomaticFlow(Duration position) {
     if (_transitioning ||
+        _fading ||
+        _stopAfterCurrent ||
         !_flowSettings.enabled ||
         !_state.playing ||
         _state.buffering ||
@@ -729,6 +783,12 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
 
   void _onCompleted(bool completed) {
     if (!completed || _transitioning) {
+      return;
+    }
+    if (_fading || _stopAfterCurrent) {
+      // Таймер сна: трек закончился — останавливаемся, а не идём дальше.
+      _stopAfterCurrent = false;
+      unawaited(pause());
       return;
     }
     final track = _state.currentTrack;

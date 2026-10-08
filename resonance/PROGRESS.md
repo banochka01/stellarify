@@ -1,5 +1,14 @@
 # Progress
 
+## Version 3.13.1 — Review fixes
+
+- [x] Sleep timer no longer lets a Flow crossfade restart music; end-of-track mode holds the next track
+- [x] Restarting the sleep timer during a fade keeps the new timer; skipping during a fade cancels it
+- [x] Recap card renders on a fixed canvas (no overflow on phones or in saved images), DST-safe days
+- [x] OBS pushes duration/artwork changes and retries failed covers
+- [x] Room wave starts earlier and resumes playback if the queue already ended
+- [x] Lyric loop on the last line, recorder and artist-wave edge cases
+
 ## Version 3.13.0 — Sleep, recap and creator tools
 
 - [x] Sleep timer (15/30/45/60 min or end of track) with a soft fade in Now Playing and Stage

@@ -211,9 +211,21 @@ class _RecapBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final card = RepaintBoundary(
-      key: cardKey,
-      child: RecapCard(recap: recap),
+    // Карточка всегда рисуется в одном логическом размере и масштабируется
+    // под экран: на узком телефоне ничего не переполняется, а сохранённая
+    // картинка выглядит одинаково везде.
+    final card = AspectRatio(
+      aspectRatio: 4 / 5,
+      child: FittedBox(
+        child: RepaintBoundary(
+          key: cardKey,
+          child: SizedBox(
+            width: RecapCard.width,
+            height: RecapCard.height,
+            child: RecapCard(recap: recap),
+          ),
+        ),
+      ),
     );
     final actions = Wrap(
       spacing: 10,
@@ -274,6 +286,9 @@ class _RecapBody extends StatelessWidget {
 class RecapCard extends ConsumerWidget {
   const RecapCard({required this.recap, super.key});
 
+  static const width = 420.0;
+  static const height = 525.0;
+
   final ListeningRecap recap;
 
   @override
@@ -283,8 +298,9 @@ class RecapCard extends ConsumerWidget {
     final accent = palette?.accent ?? ResonanceColors.primary;
     final glow = palette?.glow ?? ResonanceColors.primary;
     final artist = recap.topArtists.firstOrNull;
-    return AspectRatio(
-      aspectRatio: 4 / 5,
+    return SizedBox(
+      width: width,
+      height: height,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
         child: DecoratedBox(
@@ -314,13 +330,17 @@ class RecapCard extends ConsumerWidget {
                       errorBuilder: (_, _, _) => const SizedBox(),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      'RESONANCE · ИТОГИ ${recap.period.phrase.toUpperCase()}',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        letterSpacing: 1.6,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xCCEFE9F5),
+                    Flexible(
+                      child: Text(
+                        'RESONANCE · ИТОГИ ${recap.period.phrase.toUpperCase()}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          letterSpacing: 1.6,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xCCEFE9F5),
+                        ),
                       ),
                     ),
                   ],
@@ -405,55 +425,57 @@ class RecapCard extends ConsumerWidget {
                   ),
                 const SizedBox(height: 14),
                 Expanded(
-                  child: Column(
-                    children: [
-                      for (final (index, item)
-                          in recap.topTracks.take(4).indexed)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            children: [
-                              SizedBox(
-                                width: 18,
-                                child: Text(
-                                  '${index + 1}',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    color: index == 0
-                                        ? accent
-                                        : const Color(0x99EFE9F5),
+                  child: ClipRect(
+                    child: Column(
+                      children: [
+                        for (final (index, item)
+                            in recap.topTracks.take(3).indexed)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: 18,
+                                  child: Text(
+                                    '${index + 1}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      color: index == 0
+                                          ? accent
+                                          : const Color(0x99EFE9F5),
+                                    ),
                                   ),
                                 ),
-                              ),
-                              TrackArtwork(
-                                track: item.track,
-                                size: 34,
-                                borderRadius: 8,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  '${item.track.title} — ${item.track.artist}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                TrackArtwork(
+                                  track: item.track,
+                                  size: 34,
+                                  borderRadius: 8,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    '${item.track.title} — ${item.track.artist}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xE6EFE9F5),
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  '×${item.plays}',
                                   style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xE6EFE9F5),
+                                    fontSize: 12,
+                                    color: Color(0x99EFE9F5),
                                   ),
                                 ),
-                              ),
-                              Text(
-                                '×${item.plays}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0x99EFE9F5),
-                                ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 Row(

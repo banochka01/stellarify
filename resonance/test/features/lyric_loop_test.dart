@@ -22,7 +22,7 @@ void main() {
 
   test('the last line loops for a few seconds within the track', () {
     final loop = lyricLoopFor('t', _lines, 2, const Duration(seconds: 24))!;
-    expect(loop.end, const Duration(seconds: 24));
+    expect(loop.end, const Duration(seconds: 23));
     expect(lyricLoopFor('t', _lines, 5, Duration.zero), isNull);
   });
 

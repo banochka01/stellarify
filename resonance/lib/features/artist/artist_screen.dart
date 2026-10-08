@@ -335,7 +335,8 @@ Future<void> startArtistWave(
     );
     return;
   }
-  final controller = ref.read(waveControllerProvider.notifier);
+  final container = ProviderScope.containerOf(context, listen: false);
+  final controller = container.read(waveControllerProvider.notifier);
   await controller.start(
     taste: [
       ...tracks.take(5),
@@ -351,7 +352,7 @@ Future<void> startArtistWave(
     prompt: 'Похоже на $artist',
     discovery: .45,
   );
-  final error = ref.read(waveControllerProvider).error;
+  final error = container.read(waveControllerProvider).error;
   messenger.showSnackBar(
     SnackBar(content: Text(error ?? 'Волна «$artist» запущена')),
   );

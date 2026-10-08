@@ -91,7 +91,13 @@ ListeningRecap buildListeningRecap(
   DateTime? now,
 }) {
   final today = _day(now ?? DateTime.now());
-  final start = today.subtract(Duration(days: period.days - 1));
+  // Календарная арифметика: через переход на летнее время сутки бывают
+  // по 23 и 25 часов, поэтому вычитание Duration сдвигало бы границы.
+  final start = DateTime(
+    today.year,
+    today.month,
+    today.day - (period.days - 1),
+  );
   final inPeriod = records
       .where((record) => !_day(record.playedAt).isBefore(start))
       .toList(growable: false);
@@ -113,7 +119,7 @@ ListeningRecap buildListeningRecap(
     listened += record.listened;
     final day = _day(record.playedAt);
     days.add(day);
-    final dayIndex = day.difference(start).inDays;
+    final dayIndex = _dayNumber(day) - _dayNumber(start);
     if (dayIndex >= 0 && dayIndex < daily.length) {
       daily[dayIndex] += record.listened.inSeconds;
     }
@@ -193,6 +199,11 @@ ListeningRecap buildListeningRecap(
 }
 
 DateTime _day(DateTime value) => DateTime(value.year, value.month, value.day);
+
+/// Порядковый номер календарного дня, не зависящий от часового пояса.
+int _dayNumber(DateTime day) =>
+    DateTime.utc(day.year, day.month, day.day).millisecondsSinceEpoch ~/
+    Duration.millisecondsPerDay;
 
 int _longestStreak(Set<DateTime> days) {
   if (days.isEmpty) return 0;

@@ -54,11 +54,14 @@ final class ListeningRecorder {
     _listened += step;
     if (_entry == null && _listened >= _thresholdFor(playback)) {
       _savedListened = _listened;
-      _entry = _store.recordListen(track, _listened);
+      final entry = _store.recordListen(track, _listened);
+      _entry = entry;
       unawaited(
-        _entry!.then(
+        entry.then(
           (_) => onRecorded?.call(),
-          onError: (Object _) => _entry = null,
+          onError: (Object _) {
+            if (identical(_entry, entry)) _entry = null;
+          },
         ),
       );
     } else if (_entry != null &&

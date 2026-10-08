@@ -38,6 +38,36 @@ void main() {
     expect(timer.state.active, isFalse);
   });
 
+  test('a timer started during a fade survives the old fade', () async {
+    final playback = _FakePlayback(_playing(demoTrack))
+      ..fadeGate = Completer<void>();
+    final timer = SleepTimerController(
+      () async => playback,
+      fadeDuration: Duration.zero,
+    );
+    addTearDown(timer.dispose);
+
+    await timer.startFor(Duration.zero);
+    await _waitUntil(() => timer.state.fading);
+    await timer.startFor(const Duration(minutes: 30));
+    playback.fadeGate!.complete();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(timer.state.endsAt, isNotNull);
+    expect(timer.state.active, isTrue);
+  });
+
+  test('end of track asks the player not to start the next track', () async {
+    final playback = _FakePlayback(_playing(demoTrack));
+    final timer = SleepTimerController(() async => playback);
+    addTearDown(timer.dispose);
+
+    await timer.startEndOfTrack();
+    expect(playback.stopAfterCurrent, isTrue);
+    timer.cancel();
+    expect(playback.stopAfterCurrent, isFalse);
+  });
+
   test('end of track pauses before the next track starts', () async {
     final playback = _FakePlayback(
       _playing(demoTrack, position: const Duration(seconds: 10)),
@@ -92,6 +122,10 @@ final class _FakePlayback implements SleepTimerPlayback {
   ResonancePlaybackState _state;
   final _controller = StreamController<ResonancePlaybackState>.broadcast();
   final fades = <Duration>[];
+  bool stopAfterCurrent = false;
+
+  @override
+  void setStopAfterCurrent(bool value) => stopAfterCurrent = value;
 
   void emit(ResonancePlaybackState value) {
     _state = value;
@@ -104,10 +138,13 @@ final class _FakePlayback implements SleepTimerPlayback {
   @override
   Stream<ResonancePlaybackState> get states => _controller.stream;
 
+  Completer<void>? fadeGate;
+
   @override
   Future<void> fadeOutAndPause({
     Duration duration = const Duration(seconds: 12),
   }) async {
     fades.add(duration);
+    await fadeGate?.future;
   }
 }

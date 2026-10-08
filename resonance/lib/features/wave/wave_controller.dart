@@ -143,7 +143,14 @@ class WaveController extends StateNotifier<WaveState> {
       final service = await _serviceFuture;
       if (append && service.state.currentTrack != null) {
         // Не прерываем то, что сейчас звучит: волна встаёт в хвост очереди.
+        final current = service.state;
         await service.appendToQueue(batch.tracks);
+        final ended =
+            !current.playing &&
+            current.duration > Duration.zero &&
+            current.duration - current.position < const Duration(seconds: 2);
+        // Если ответ пришёл, когда очередь уже доиграла, включаем волну сами.
+        if (ended) await service.next();
       } else {
         await service.setQueue(batch.tracks, autoplay: true);
       }
