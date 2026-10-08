@@ -1,5 +1,36 @@
 # Progress
 
+## Version 3.12.0 — Artist pages and living Home
+
+- [x] Home rebuilt around the "Моя волна" hero: cover-tinted aurora, floating cover, breathing play button
+- [x] History/Favorites tiles with drifting collages, "Для вас" carousel, "Ваши артисты" row
+- [x] `/artist/:name` page aggregates library and connected catalogs with play/shuffle and popular tracks
+- [x] Artist names in player bar, Now Playing and Home open the artist page
+- [x] Decorative loops run only while music plays; wide hero from 1000px without overflow
+
+## Version 3.11.0 — Support and resilient playback
+
+- [x] "Техподдержка и донат" tile in Settings
+- [x] Playback re-resolves a failed cached stream URL once before falling back to the next provider
+- [x] `deploy/smoke.sh` checks health, client version and landing after deploy
+
+## Version 3.10.1 — Smooth tabs and provider proxy
+
+- [x] Fade-through tab switch animating only layer opacity
+- [x] Lazy sliver list for library favorites; albums/artists sections removed
+- [x] YouTube, SoundCloud and Spotify requests always go through the server proxy
+
+## Version 3.10.0 — Music videos on Stage
+
+- [x] YouTube clips play inside Visual Stage via the IFrame player, muted and synced to audio
+- [x] Clip deck, ±0.5 s sync control with crowd-median offsets, cinema mode
+- [x] Clip discovery via web search, Invidious and song.link through the configured proxy
+
+## Version 3.9.0 — Ether redesign
+
+- [x] Night palette, Unbounded / Manrope / JetBrains Mono typography, pill shapes, waveform seek bar
+- [x] StatefulShellRoute branches keep tab state with a true crossfade
+
 ## Version 3.8.1 — Smooth Stage
 
 - [x] Screens no longer rebuild on every playback position tick; progress, waveform and times interpolate per frame
@@ -269,11 +300,3 @@ Status: implemented and validated.
 - CRUD UI for playlists, favorites, and history
 - Android background service registration and notification
 - Windows system media transport controls
-
-## Next exact task — Stage 2
-
-Implement a replaceable YouTube extractor client, `YouTubeProvider`, and
-`YouTubeAudioSourceResolver`; add mocked contract tests for search, metadata,
-Opus/AAC quality selection, expiring URLs, and typed unavailable/private/
-age-restricted/region-blocked errors; then register the module in
-`ProviderRegistry` and prove real playback without changing `PlaybackService`.
