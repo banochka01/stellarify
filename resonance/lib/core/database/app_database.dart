@@ -317,6 +317,83 @@ final class AppDatabase extends _$AppDatabase {
     return tracks;
   }
 
+  /// Запоминает прослушивание для «Итогов»: сколько реально звучал трек.
+  Future<int> recordListen(
+    UnifiedTrack track,
+    Duration listened, {
+    DateTime? playedAt,
+  }) {
+    return transaction(() async {
+      await _upsertTrackRow(track);
+      return into(listeningHistoryEntries).insert(
+        ListeningHistoryEntriesCompanion.insert(
+          trackId: track.id,
+          playedAt: Value((playedAt ?? DateTime.now()).toUtc()),
+          positionMs: Value(listened.inMilliseconds),
+        ),
+      );
+    });
+  }
+
+  /// Дописывает итоговое время звучания уже записанного прослушивания.
+  Future<void> updateListen(int id, Duration listened) async {
+    await (update(
+      listeningHistoryEntries,
+    )..where((table) => table.id.equals(id))).write(
+      ListeningHistoryEntriesCompanion(
+        positionMs: Value(listened.inMilliseconds),
+      ),
+    );
+  }
+
+  /// Прослушивания начиная с [since], от новых к старым.
+  Future<List<ListeningRecord>> loadListeningHistory({
+    required DateTime since,
+    int limit = 20_000,
+  }) async {
+    final query =
+        select(listeningHistoryEntries).join([
+            innerJoin(
+              storedTracks,
+              storedTracks.id.equalsExp(listeningHistoryEntries.trackId),
+            ),
+          ])
+          ..where(
+            listeningHistoryEntries.playedAt.isBiggerOrEqualValue(
+              since.toUtc(),
+            ),
+          )
+          ..orderBy([OrderingTerm.desc(listeningHistoryEntries.playedAt)])
+          ..limit(limit);
+    final rows = await query.get();
+    return [
+      for (final row in rows)
+        ListeningRecord(
+          track: _trackFromRow(row.readTable(storedTracks)),
+          playedAt: row.readTable(listeningHistoryEntries).playedAt.toLocal(),
+          listened: Duration(
+            milliseconds: row.readTable(listeningHistoryEntries).positionMs,
+          ),
+        ),
+    ];
+  }
+
+  UnifiedTrack _trackFromRow(StoredTrack track) => UnifiedTrack(
+    id: track.id,
+    title: track.title,
+    normalizedTitle: track.normalizedTitle,
+    artist: track.artist,
+    normalizedArtist: track.normalizedArtist,
+    album: track.album,
+    duration: track.durationMs == null
+        ? null
+        : Duration(milliseconds: track.durationMs!),
+    artworkUrl: track.artworkUrl == null
+        ? null
+        : Uri.tryParse(track.artworkUrl!),
+    preferredProvider: track.preferredProvider,
+  );
+
   Future<List<UnifiedTrack>> loadStoredTracks({int limit = 2_000}) async {
     final rows =
         await (select(storedTracks)
@@ -652,6 +729,19 @@ final class AppDatabase extends _$AppDatabase {
       volume: (payload['volume'] as num?)?.toDouble() ?? 70,
     );
   }
+}
+
+/// Одно прослушивание из истории: трек, когда и сколько звучал.
+final class ListeningRecord {
+  const ListeningRecord({
+    required this.track,
+    required this.playedAt,
+    required this.listened,
+  });
+
+  final UnifiedTrack track;
+  final DateTime playedAt;
+  final Duration listened;
 }
 
 final class LocalPlaylistSummary {

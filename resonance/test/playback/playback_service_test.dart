@@ -254,6 +254,22 @@ void main() {
     },
   );
 
+  test('sleep fade pauses and restores the listener volume', () async {
+    final resolver = _FakeResolver(MusicProvider.soundcloud);
+    final service = _createService(engine, persistence, [resolver]);
+    await service.setQueue([
+      _track('sleep-one', [MusicProvider.soundcloud]),
+    ], autoplay: true);
+    await service.setVolume(70);
+
+    await service.fadeOutAndPause(duration: const Duration(milliseconds: 48));
+
+    expect(service.state.playing, isFalse);
+    expect(service.state.volume, 70);
+    expect(engine.currentVolume, 70);
+    await service.dispose();
+  });
+
   test('prefetches the next source before the transition window', () async {
     final resolver = _FakeResolver(MusicProvider.soundcloud);
     final service = _createService(engine, persistence, [resolver]);

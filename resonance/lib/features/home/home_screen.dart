@@ -13,6 +13,7 @@ import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/artist/artist_screen.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/player/track_action.dart';
+import 'package:resonance/features/recap/listening_recap.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/features/wave/wave_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
@@ -603,8 +604,9 @@ class _Carousel extends StatelessWidget {
   );
 }
 
-/// Плитки «История» и «Любимые»: коллаж обложек медленно уплывает влево.
-class _QuickTiles extends StatelessWidget {
+/// Плитки «История», «Любимые» и «Итоги»: коллаж обложек медленно
+/// уплывает влево.
+class _QuickTiles extends ConsumerWidget {
   const _QuickTiles({
     required this.compact,
     required this.history,
@@ -618,7 +620,10 @@ class _QuickTiles extends StatelessWidget {
   final List<UnifiedTrack> favorites;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final recap = ref
+        .watch(listeningRecapProvider(RecapPeriod.week))
+        .valueOrNull;
     final tiles = [
       _QuickTile(
         icon: Icons.history_rounded,
@@ -638,15 +643,33 @@ class _QuickTiles extends StatelessWidget {
         animate: animate,
         onTap: () => context.go('/library'),
       ),
+      // «Итоги» появляются, когда в истории есть хотя бы одно прослушивание.
+      if (recap != null && !recap.empty)
+        _QuickTile(
+          icon: Icons.insights_rounded,
+          title: 'Итоги недели',
+          subtitle: '${recap.minutes} мин · ${recap.persona}',
+          tracks: [for (final item in recap.topTracks) item.track],
+          animate: animate,
+          onTap: () => context.go('/recap'),
+        ),
     ];
     if (compact) {
-      return Column(children: [tiles[0], const SizedBox(height: 12), tiles[1]]);
+      return Column(
+        children: [
+          for (final (index, tile) in tiles.indexed) ...[
+            if (index > 0) const SizedBox(height: 12),
+            tile,
+          ],
+        ],
+      );
     }
     return Row(
       children: [
-        Expanded(child: tiles[0]),
-        const SizedBox(width: 16),
-        Expanded(child: tiles[1]),
+        for (final (index, tile) in tiles.indexed) ...[
+          if (index > 0) const SizedBox(width: 16),
+          Expanded(child: tile),
+        ],
       ],
     );
   }

@@ -20,4 +20,22 @@ void main() {
       'https://example.com/cover.jpg',
     );
   });
+
+  test('fills the Yandex size template even after Uri encoding', () {
+    expect(
+      highQualityArtworkUrl(
+        Uri.parse('https://avatars.yandex.net/get-music-content/1/abc/%%'),
+        targetSize: 160,
+      ),
+      'https://avatars.yandex.net/get-music-content/1/abc/400x400',
+    );
+  });
+
+  test('artwork sizes share a few cache buckets', () {
+    expect(artworkCacheBucket(52), 160);
+    expect(artworkCacheBucket(200), 320);
+    expect(artworkCacheBucket(400), 640);
+    expect(artworkCacheBucket(900), 1000);
+    expect(artworkCacheBucket(2400), 1400);
+  });
 }

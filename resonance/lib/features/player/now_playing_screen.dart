@@ -12,6 +12,7 @@ import 'package:resonance/domain/entities/track_source.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/artist/artist_screen.dart';
 import 'package:resonance/features/library/library_controller.dart';
+import 'package:resonance/features/lyrics/lyric_loop.dart';
 import 'package:resonance/features/lyrics/lyrics_follow.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/features/rooms/room_queue_panel.dart';
@@ -20,6 +21,7 @@ import 'package:resonance/shared/widgets/offline_download_button.dart';
 import 'package:resonance/shared/widgets/playback_position.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
+import 'package:resonance/shared/widgets/sleep_timer_button.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -192,6 +194,7 @@ class _Header extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 24),
+          const SleepTimerButton(),
           IconButton(
             tooltip: 'Клип и видеофон на весь экран',
             onPressed: () => context.push('/stage?mode=video'),
@@ -813,6 +816,8 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
                 )
               : -1;
           _ensureActiveVisible(active);
+          final loop = ref.watch(lyricLoopProvider);
+          final loopIndex = loop?.trackId == widget.track.id ? loop!.index : -1;
           const style = TextStyle(
             fontFamily: 'Manrope',
             fontSize: 21,
@@ -832,7 +837,16 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
                       style: TextStyle(fontWeight: FontWeight.w800),
                     ),
                     const Spacer(),
-                    if (document.synced) const _LyricsChip(label: 'Синхронно'),
+                    if (loopIndex >= 0)
+                      ActionChip(
+                        avatar: const Icon(Icons.repeat_one_rounded, size: 16),
+                        label: const Text('Повтор строки'),
+                        tooltip: 'Снять повтор',
+                        onPressed: () =>
+                            ref.read(lyricLoopProvider.notifier).clear(),
+                      )
+                    else if (document.synced)
+                      const _LyricsChip(label: 'Синхронно'),
                     TextButton(
                       onPressed: () => launchUrl(document.sourceUrl),
                       child: Text(document.sourceName),
@@ -858,18 +872,54 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
                     controller: _scrollController,
                     padding: const EdgeInsets.fromLTRB(22, 28, 22, 48),
                     itemCount: document.lines.length,
-                    itemBuilder: (context, index) => Padding(
-                      key: _lineKeys[index],
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: LyricLineText(
-                        text: document.lines[index].text,
-                        style: style,
-                        active: index == active || !document.synced,
-                        activeColor: const Color(0xFFEFE9F5),
-                        dimColor: const Color(0xFF695D76),
-                        inactiveScale: document.synced ? .84 : 1,
-                      ),
-                    ),
+                    itemBuilder: (context, index) {
+                      final line = document.lines[index];
+                      final looped = loopIndex == index;
+                      return InkWell(
+                        key: _lineKeys[index],
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: line.start == null
+                            ? null
+                            : () => unawaited(
+                                ref
+                                    .read(playbackServiceProvider.future)
+                                    .then(
+                                      (service) => service.seek(line.start!),
+                                    ),
+                              ),
+                        onLongPress: line.start == null
+                            ? null
+                            : () => toggleLyricLoop(
+                                ref,
+                                trackId: widget.track.id,
+                                lines: document.lines,
+                                index: index,
+                                trackDuration: ref
+                                    .read(playbackFrameProvider)
+                                    .duration,
+                              ),
+                        child: AnimatedContainer(
+                          duration: ResonanceMotion.standard,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            color: looped ? const Color(0x1FB499FF) : null,
+                          ),
+                          child: LyricLineText(
+                            text: line.text,
+                            style: style,
+                            active:
+                                index == active || !document.synced || looped,
+                            activeColor: const Color(0xFFEFE9F5),
+                            dimColor: const Color(0xFF695D76),
+                            inactiveScale: document.synced ? .84 : 1,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),

@@ -44,6 +44,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     MusicProvider.spotify: false,
     MusicProvider.vk: false,
   };
+  String _obsLayout = 'card';
+  bool _obsLyrics = false;
+  bool _obsHidePaused = false;
+  bool _obsRight = false;
   final _obscureToken = <MusicProvider, bool>{
     MusicProvider.yandex: true,
     MusicProvider.soundcloud: true,
@@ -347,6 +351,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final audioOutput = ref.watch(audioOutputControllerProvider);
     final flow = ref.watch(playbackFlowControllerProvider);
     final obs = ref.watch(obsOverlayControllerProvider);
+    final obsUrl = obsOverlayUrl(
+      obs.url,
+      layout: _obsLayout,
+      lyrics: _obsLyrics,
+      hidePaused: _obsHidePaused,
+      right: _obsRight,
+    );
     final discord = ref.watch(discordPresenceControllerProvider);
     return ListView(
       padding: EdgeInsets.fromLTRB(
@@ -557,6 +568,63 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               if (obs.enabled && obs.url != null) ...[
                 const Divider(height: 1),
                 Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Вид виджета',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final (value, label) in const [
+                            ('card', 'Карточка'),
+                            ('compact', 'Компактный'),
+                            ('bar', 'Полоса'),
+                            ('square', 'Квадрат'),
+                            ('clean', 'Без фона'),
+                          ])
+                            ChoiceChip(
+                              label: Text(label),
+                              selected: _obsLayout == value,
+                              onSelected: (_) =>
+                                  setState(() => _obsLayout = value),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          FilterChip(
+                            label: const Text('Строка текста песни'),
+                            selected: _obsLyrics,
+                            onSelected: (value) =>
+                                setState(() => _obsLyrics = value),
+                          ),
+                          FilterChip(
+                            label: const Text('Скрывать на паузе'),
+                            selected: _obsHidePaused,
+                            onSelected: (value) =>
+                                setState(() => _obsHidePaused = value),
+                          ),
+                          FilterChip(
+                            label: const Text('Справа'),
+                            selected: _obsRight,
+                            onSelected: (value) =>
+                                setState(() => _obsRight = value),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
                   padding: const EdgeInsets.all(18),
                   child: Flex(
                     direction: compact ? Axis.vertical : Axis.horizontal,
@@ -566,7 +634,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     children: [
                       if (compact)
                         SelectableText(
-                          obs.url.toString(),
+                          obsUrl,
                           style: const TextStyle(
                             color: ResonanceColors.muted,
                             fontFamily: 'monospace',
@@ -575,7 +643,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       else
                         Expanded(
                           child: SelectableText(
-                            obs.url.toString(),
+                            obsUrl,
                             style: const TextStyle(
                               color: ResonanceColors.muted,
                               fontFamily: 'monospace',
@@ -588,9 +656,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                       FilledButton.icon(
                         onPressed: () async {
-                          await Clipboard.setData(
-                            ClipboardData(text: obs.url.toString()),
-                          );
+                          await Clipboard.setData(ClipboardData(text: obsUrl));
                           if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -600,6 +666,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         },
                         icon: const Icon(Icons.copy_rounded),
                         label: const Text('Копировать'),
+                      ),
+                      SizedBox(width: compact ? 0 : 8, height: compact ? 8 : 0),
+                      OutlinedButton.icon(
+                        onPressed: () => unawaited(
+                          launchUrl(
+                            Uri.parse(obsUrl),
+                            mode: LaunchMode.externalApplication,
+                          ),
+                        ),
+                        icon: const Icon(Icons.open_in_new_rounded),
+                        label: const Text('Предпросмотр'),
                       ),
                     ],
                   ),
@@ -1570,4 +1647,22 @@ class _ConnectionCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Адрес OBS-виджета с выбранными параметрами вида.
+String obsOverlayUrl(
+  Uri? base, {
+  required String layout,
+  required bool lyrics,
+  required bool hidePaused,
+  required bool right,
+}) {
+  if (base == null) return '';
+  final query = <String, String>{
+    if (layout != 'card') 'layout': layout,
+    if (lyrics) 'lyrics': '1',
+    if (hidePaused) 'hidePaused': '1',
+    if (right) 'align': 'right',
+  };
+  return base.replace(queryParameters: query.isEmpty ? null : query).toString();
 }

@@ -113,6 +113,7 @@ class WaveController extends StateNotifier<WaveState> {
     String mood = 'all',
     String language = 'any',
     String? roomCode,
+    bool append = false,
   }) async {
     if (state.loading) return;
     state = state.copyWith(
@@ -140,7 +141,12 @@ class WaveController extends StateNotifier<WaveState> {
       );
       final batch = _parseBatch(response.data);
       final service = await _serviceFuture;
-      await service.setQueue(batch.tracks, autoplay: true);
+      if (append && service.state.currentTrack != null) {
+        // Не прерываем то, что сейчас звучит: волна встаёт в хвост очереди.
+        await service.appendToQueue(batch.tracks);
+      } else {
+        await service.setQueue(batch.tracks, autoplay: true);
+      }
       state = WaveState(
         active: true,
         sessionId: batch.sessionId,

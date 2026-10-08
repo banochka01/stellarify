@@ -77,6 +77,34 @@ void main() {
     expect(store.values['resonance.discord_presence.enabled'], 'false');
   });
 
+  test('makes provider artwork usable by Discord', () {
+    expect(
+      discordArtworkUrl(
+        Uri.parse('https://avatars.yandex.net/get-music-content/1/abc/%%'),
+      ),
+      'https://avatars.yandex.net/get-music-content/1/abc/1000x1000',
+    );
+    expect(discordArtworkUrl(Uri.parse('http://img.test/a.jpg')), isNull);
+    expect(
+      discordArtworkUrl(Uri.parse('https://img.test/${'a' * 300}.jpg')),
+      isNull,
+    );
+  });
+
+  test('marks paused playback without a running timer', () {
+    final activity = DiscordPresenceActivity.fromPlayback(
+      ResonancePlaybackState(
+        queue: [_track('night-drive')],
+        currentIndex: 0,
+        position: const Duration(seconds: 40),
+        duration: const Duration(minutes: 3),
+      ),
+    );
+    expect(activity.playing, isFalse);
+    expect(activity.startedAt, isNull);
+    expect(activity.providerLabel, 'SoundCloud');
+  });
+
   test('rejects malformed Discord application IDs', () async {
     final feed = _FakePlaybackFeed(const ResonancePlaybackState());
     final controller = DiscordPresenceController(
@@ -117,7 +145,7 @@ UnifiedTrack _track(String id, {String? artwork}) => UnifiedTrack(
 );
 
 Future<void> _waitUntil(bool Function() condition) async {
-  for (var attempt = 0; attempt < 50; attempt++) {
+  for (var attempt = 0; attempt < 300; attempt++) {
     if (condition()) return;
     await Future<void>.delayed(const Duration(milliseconds: 10));
   }

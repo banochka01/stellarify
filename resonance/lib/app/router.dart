@@ -7,6 +7,7 @@ import 'package:resonance/features/library/library_screen.dart';
 import 'package:resonance/features/music_graph/music_graph_screen.dart';
 import 'package:resonance/features/player/now_playing_screen.dart';
 import 'package:resonance/features/player/visual_stage_screen.dart';
+import 'package:resonance/features/recap/recap_screen.dart';
 import 'package:resonance/features/rooms/rooms_screen.dart';
 import 'package:resonance/features/search/search_screen.dart';
 import 'package:resonance/features/settings/settings_screen.dart';
@@ -47,6 +48,11 @@ final resonanceRouter = GoRouter(
                 key: ValueKey(state.pathParameters['name']),
                 artist: state.pathParameters['name'] ?? '',
               ),
+            ),
+            GoRoute(
+              path: '/recap',
+              name: 'recap',
+              builder: (context, state) => const RecapScreen(),
             ),
           ],
         ),

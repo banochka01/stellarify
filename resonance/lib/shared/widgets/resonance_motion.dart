@@ -333,9 +333,7 @@ class _ResonanceBranchStackState extends State<ResonanceBranchStack>
   @override
   Widget build(BuildContext context) => Stack(
     fit: StackFit.expand,
-    children: [
-      for (var i = 0; i < widget.children.length; i++) _branch(i),
-    ],
+    children: [for (var i = 0; i < widget.children.length; i++) _branch(i)],
   );
 
   Widget _branch(int i) {

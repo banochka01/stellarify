@@ -15,6 +15,7 @@ import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_controller.dart';
+import 'package:resonance/features/lyrics/lyric_loop.dart';
 import 'package:resonance/features/lyrics/lyrics_follow.dart';
 import 'package:resonance/features/player/clip_service.dart';
 import 'package:resonance/features/player/stage_clip_video.dart';
@@ -24,6 +25,7 @@ import 'package:resonance/shared/widgets/ambient.dart';
 import 'package:resonance/shared/widgets/playback_position.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
+import 'package:resonance/shared/widgets/sleep_timer_button.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
@@ -967,7 +969,7 @@ class _StageHeader extends ConsumerWidget {
             Flexible(
               child: RoomChip(compact: compact, onTap: onQueue),
             )
-          else if (width >= 800)
+          else if (width >= 960)
             const Text(
               'RESONANCE / STAGE',
               style: TextStyle(
@@ -990,6 +992,7 @@ class _StageHeader extends ConsumerWidget {
                 child: const Icon(Icons.queue_music_rounded),
               ),
             ),
+          if (width >= 480) const SleepTimerButton(),
           IconButton(
             tooltip: 'Видеоисточники',
             onPressed: onSources,
@@ -1307,6 +1310,8 @@ class _FullscreenLyricsState extends ConsumerState<_FullscreenLyrics> {
               )
             : -1;
         _reveal(active);
+        final loop = ref.watch(lyricLoopProvider);
+        final loopIndex = loop?.trackId == widget.track.id ? loop!.index : -1;
         final narrow = MediaQuery.sizeOf(context).width < 600;
         final style = TextStyle(
           fontFamily: 'Manrope',
@@ -1338,9 +1343,13 @@ class _FullscreenLyricsState extends ConsumerState<_FullscreenLyrics> {
               final line = document.lines[index];
               final selected = active == index || !document.synced;
               final distance = active < 0 ? 0 : (index - active).abs();
+              final looped = loopIndex == index;
               return Semantics(
                 button: line.start != null,
                 selected: selected,
+                hint: line.start == null
+                    ? null
+                    : 'Нажмите — перемотка, удерживайте — повтор строки',
                 child: InkWell(
                   key: _keys[index],
                   borderRadius: BorderRadius.circular(14),
@@ -1351,7 +1360,28 @@ class _FullscreenLyricsState extends ConsumerState<_FullscreenLyrics> {
                               .read(playbackServiceProvider.future)
                               .then((service) => service.seek(line.start!)),
                         ),
-                  child: Padding(
+                  onLongPress: line.start == null
+                      ? null
+                      : () => toggleLyricLoop(
+                          ref,
+                          trackId: widget.track.id,
+                          lines: document.lines,
+                          index: index,
+                          trackDuration: ref
+                              .read(playbackFrameProvider)
+                              .duration,
+                        ),
+                  child: AnimatedContainer(
+                    duration: ResonanceMotion.standard,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      color: looped ? const Color(0x1FB499FF) : null,
+                      border: Border.all(
+                        color: looped
+                            ? const Color(0x66B499FF)
+                            : Colors.transparent,
+                      ),
+                    ),
                     padding: EdgeInsets.symmetric(
                       horizontal: 18,
                       vertical: narrow ? 10 : 12,
@@ -1359,7 +1389,7 @@ class _FullscreenLyricsState extends ConsumerState<_FullscreenLyrics> {
                     child: LyricLineText(
                       text: line.text,
                       style: style,
-                      active: selected,
+                      active: selected || looped,
                       dimColor: Color.lerp(
                         const Color(0xB3B3AABC),
                         const Color(0x597B6D8A),

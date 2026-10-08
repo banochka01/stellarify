@@ -4,11 +4,19 @@ import 'dart:io';
 import 'package:discord_rich_presence/discord_rich_presence.dart' as discord;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/core/security/flutter_secure_token_repository.dart';
+import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
+import 'package:resonance/shared/widgets/track_artwork.dart';
 
 const bundledDiscordApplicationId = String.fromEnvironment(
   'RESONANCE_DISCORD_APPLICATION_ID',
 );
+
+/// Значок Resonance для маленькой картинки в карточке Discord.
+const discordBadgeUrl = 'https://music.webcordes.ru/favicon-192.png';
+
+/// Discord отклоняет всю активность, если ссылка на картинку длиннее 256.
+const _discordMaxAssetUrl = 256;
 
 typedef DiscordPresenceGatewayFactory =
     DiscordPresenceGateway Function(String applicationId);
@@ -32,6 +40,8 @@ final class DiscordPresenceActivity {
     this.artworkUrl,
     this.startedAt,
     this.endsAt,
+    this.album,
+    this.providerLabel,
   });
 
   factory DiscordPresenceActivity.fromPlayback(
@@ -57,14 +67,17 @@ final class DiscordPresenceActivity {
     final endsAt = hasProgress
         ? timestamp.add(playback.duration - playback.position)
         : null;
-    final artwork = track.artworkUrl;
+    final provider =
+        playback.activeTrackSource?.provider ?? track.preferredProvider;
     return DiscordPresenceActivity(
       title: track.title,
       artist: track.artist,
+      album: track.album,
       playing: playback.playing,
-      artworkUrl: artwork?.scheme == 'https' ? artwork.toString() : null,
+      artworkUrl: discordArtworkUrl(track.artworkUrl),
       startedAt: startedAt,
       endsAt: endsAt,
+      providerLabel: provider == null ? null : discordProviderLabel(provider),
     );
   }
 
@@ -74,7 +87,30 @@ final class DiscordPresenceActivity {
   final String? artworkUrl;
   final DateTime? startedAt;
   final DateTime? endsAt;
+  final String? album;
+  final String? providerLabel;
 }
+
+/// Ссылка на обложку, которую Discord сможет показать: только https,
+/// без шаблонов вроде `%%` у Яндекса и не длиннее лимита Discord.
+String? discordArtworkUrl(Uri? artwork) {
+  if (artwork == null || !artwork.isScheme('https')) return null;
+  final value = highQualityArtworkUrl(artwork, targetSize: 512);
+  if (value.contains('%%') ||
+      value.contains('%25%25') ||
+      value.length > _discordMaxAssetUrl) {
+    return null;
+  }
+  return value;
+}
+
+String discordProviderLabel(MusicProvider provider) => switch (provider) {
+  MusicProvider.yandex => 'Яндекс Музыка',
+  MusicProvider.soundcloud => 'SoundCloud',
+  MusicProvider.youtube => 'YouTube',
+  MusicProvider.spotify => 'Spotify',
+  MusicProvider.vk => 'VK Музыка',
+};
 
 final class DiscordRpcGateway implements DiscordPresenceGateway {
   DiscordRpcGateway(String applicationId)
@@ -88,21 +124,35 @@ final class DiscordRpcGateway implements DiscordPresenceGateway {
   @override
   Future<void> update(DiscordPresenceActivity activity) {
     final artwork = activity.artworkUrl;
+    final album = activity.album?.trim();
+    final source = activity.providerLabel;
     return _client.setActivity(
       discord.Activity(
         name: 'Resonance',
         type: discord.ActivityType.listening,
         details: _discordText(activity.title),
-        state: _discordText(activity.artist),
-        timestamps: activity.playing
+        state: _discordText(
+          activity.playing ? activity.artist : 'На паузе · ${activity.artist}',
+        ),
+        timestamps: activity.playing && activity.startedAt != null
             ? discord.ActivityTimestamps(
                 start: activity.startedAt,
                 end: activity.endsAt,
               )
             : null,
         assets: discord.ActivityAssets(
-          largeImage: artwork,
-          largeText: _discordText('${activity.title} — ${activity.artist}'),
+          largeImage: artwork ?? discordBadgeUrl,
+          largeText: _discordText(
+            album != null && album.isNotEmpty && album != activity.title
+                ? album
+                : '${activity.title} — ${activity.artist}',
+          ),
+          smallImage: artwork == null ? null : discordBadgeUrl,
+          smallText: artwork == null
+              ? null
+              : _discordText(
+                  source == null ? 'Resonance' : 'Resonance · $source',
+                ),
         ),
       ),
     );
@@ -112,10 +162,16 @@ final class DiscordRpcGateway implements DiscordPresenceGateway {
   Future<void> disconnect() => _client.disconnect();
 }
 
+/// Discord принимает строки длиной 2–128 символов.
 String _discordText(String value) {
-  final normalized = value.trim();
-  if (normalized.length < 2) return '$normalized ';
-  return normalized.length <= 128 ? normalized : normalized.substring(0, 128);
+  final normalized = value.trim().replaceAll(RegExp(r'\s+'), ' ');
+  if (normalized.length < 2) return normalized.isEmpty ? '♪♪' : '$normalized ';
+  if (normalized.length <= 128) return normalized;
+  var cut = 127;
+  // Не разрезаем суррогатную пару посередине.
+  final unit = normalized.codeUnitAt(cut - 1);
+  if (unit >= 0xD800 && unit <= 0xDBFF) cut--;
+  return '${normalized.substring(0, cut)}…';
 }
 
 final class DiscordPresenceState {
@@ -186,6 +242,9 @@ final class DiscordPresenceController
   ResonancePlaybackState _playback = const ResonancePlaybackState();
   String? _publishedTrackId;
   bool? _publishedPlaying;
+  bool _publishedDuration = false;
+  Timer? _publishTimer;
+  DateTime? _lastUpdateAt;
   Duration? _publishedPosition;
   DateTime? _publishedAt;
   bool _disposed = false;
@@ -275,10 +334,26 @@ final class DiscordPresenceController
 
   Future<void> retry() => _connect();
 
+  /// Discord пропускает обновления чаще ~5 раз в 20 секунд, поэтому быстрые
+  /// переключения треков склеиваются, а в Discord уходит последний.
+  static const _minUpdateGap = Duration(milliseconds: 1500);
+
   void _onPlayback(ResonancePlaybackState playback) {
     _playback = playback;
     if (!state.connected || !_shouldPublish(playback)) return;
-    unawaited(_publish(playback));
+    if (_publishTimer?.isActive ?? false) return;
+    final last = _lastUpdateAt;
+    final wait = last == null
+        ? Duration.zero
+        : _minUpdateGap - DateTime.now().difference(last);
+    if (wait <= Duration.zero) {
+      unawaited(_publish(playback));
+      return;
+    }
+    _publishTimer = Timer(wait, () {
+      _publishTimer = null;
+      if (!_disposed && state.connected) unawaited(_publish(_playback));
+    });
   }
 
   bool _shouldPublish(ResonancePlaybackState playback) {
@@ -288,6 +363,8 @@ final class DiscordPresenceController
     final previousPosition = _publishedPosition;
     final previousAt = _publishedAt;
     if (trackChanged || playingChanged || previousPosition == null) return true;
+    final durationKnown = playback.duration > Duration.zero;
+    if (durationKnown != _publishedDuration) return true;
     if (previousAt == null) return true;
     final expected = _publishedPlaying == true
         ? previousPosition + now.difference(previousAt)
@@ -349,7 +426,9 @@ final class DiscordPresenceController
       _publishedTrackId = playback.currentTrack?.id;
       _publishedPlaying = playback.playing;
       _publishedPosition = playback.position;
+      _publishedDuration = playback.duration > Duration.zero;
       _publishedAt = DateTime.now();
+      _lastUpdateAt = _publishedAt;
     } on Object {
       await _safeDisconnect(gateway);
       if (_disposed) return;
@@ -371,6 +450,9 @@ final class DiscordPresenceController
 
   Future<void> _disconnect() async {
     _retryTimer?.cancel();
+    _publishTimer?.cancel();
+    _publishTimer = null;
+    _publishedDuration = false;
     final gateway = _gateway;
     _gateway = null;
     _publishedTrackId = null;
@@ -392,6 +474,7 @@ final class DiscordPresenceController
   void dispose() {
     _disposed = true;
     _retryTimer?.cancel();
+    _publishTimer?.cancel();
     unawaited(_playbackSubscription?.cancel());
     unawaited(_disconnect());
     super.dispose();

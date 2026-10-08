@@ -19,7 +19,10 @@ class TrackArtwork extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pixelRatio = MediaQuery.devicePixelRatioOf(context);
-    final cacheSize = (size * pixelRatio).round().clamp(96, 1600);
+    // Размер декодирования округляем до «корзины»: при переходе между
+    // плеером, текстом и клипом обложка меняет размер, но остаётся в той же
+    // корзине и берётся из памяти без повторной загрузки и мигания.
+    final cacheSize = artworkCacheBucket(size * pixelRatio);
     final fallback = ArtworkFallback(
       track: track,
       dimension: size,
@@ -31,26 +34,66 @@ class TrackArtwork extends StatelessWidget {
     if (artworkUrl == null) {
       return fallback;
     }
+    final thumbnailUrl = highQualityArtworkUrl(
+      artworkUrl,
+      targetSize: artworkThumbnailBucket,
+    );
+    // Пока крупная версия грузится, показываем маленькую: её почти всегда
+    // уже держит в памяти панель плеера или список треков.
+    final placeholder = cacheSize > artworkThumbnailBucket
+        ? Image(
+            image: ResizeImage(
+              CachedNetworkImageProvider(thumbnailUrl),
+              width: artworkThumbnailBucket,
+              policy: ResizeImagePolicy.fit,
+            ),
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            errorBuilder: (_, _, _) => fallback,
+          )
+        : fallback;
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
-      child: CachedNetworkImage(
-        imageUrl: highQualityArtworkUrl(artworkUrl, targetSize: cacheSize),
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        memCacheWidth: cacheSize,
-        maxWidthDiskCache: cacheSize,
-        fadeInDuration: const Duration(milliseconds: 180),
-        errorWidget: (_, _, _) => Image.network(
-          artworkUrl.toString(),
+      child: SizedBox.square(
+        dimension: size,
+        child: CachedNetworkImage(
+          imageUrl: highQualityArtworkUrl(artworkUrl, targetSize: cacheSize),
           width: size,
           height: size,
           fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => fallback,
+          memCacheWidth: cacheSize,
+          maxWidthDiskCache: cacheSize,
+          useOldImageOnUrlChange: true,
+          fadeInDuration: const Duration(milliseconds: 160),
+          fadeOutDuration: Duration.zero,
+          placeholderFadeInDuration: Duration.zero,
+          placeholder: (_, _) => placeholder,
+          errorWidget: (_, _, _) => Image.network(
+            highQualityArtworkUrl(artworkUrl),
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => fallback,
+          ),
         ),
       ),
     );
   }
+}
+
+/// Размер миниатюры, общий для всех маленьких обложек.
+const artworkThumbnailBucket = 160;
+
+/// Округляет нужный размер в пикселях вверх до одной из фиксированных
+/// ступеней, чтобы одинаковые обложки разных размеров делили кэш.
+int artworkCacheBucket(double pixels) {
+  const buckets = [artworkThumbnailBucket, 320, 640, 1000];
+  for (final bucket in buckets) {
+    if (pixels <= bucket) return bucket;
+  }
+  return 1400;
 }
 
 /// Graceful cover fallback: a deterministic gradient with track initials
@@ -175,8 +218,11 @@ String highQualityArtworkUrl(Uri artworkUrl, {int targetSize = 1000}) {
       (match) => '-t500x500.${match.group(1)}',
     );
   } else if (artworkUrl.host.endsWith('yandex.net')) {
-    final size = targetSize.clamp(400, 1000);
+    final size = targetSize <= 320 ? 400 : 1000;
+    // `Uri.parse` превращает шаблон `%%` в `%25%25` — подставляем размер
+    // в обоих видах, иначе обложка не загрузится.
     value = value
+        .replaceAll('%25%25', '${size}x$size')
         .replaceAll('%%', '${size}x$size')
         .replaceFirst(RegExp(r'/\d+x\d+(?=/|$)'), '/${size}x$size');
   }

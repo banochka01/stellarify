@@ -225,7 +225,29 @@ class RoomQueuePanel extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        if (room.isHost) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(
+                room.autoWaveRunning
+                    ? Icons.hourglass_top_rounded
+                    : Icons.waves_rounded,
+                size: 16,
+                color: const Color(0xFFB69CFF),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Общая волна, когда очередь пуста',
+                  style: TextStyle(fontSize: 12, color: Color(0xFFB2A9BB)),
+                ),
+              ),
+              Switch(value: room.autoWave, onChanged: controller.setAutoWave),
+            ],
+          ),
+        ],
+        const SizedBox(height: 12),
         Expanded(
           child: room.queue.isEmpty
               ? const _EmptyQueue()

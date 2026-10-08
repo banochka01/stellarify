@@ -5,6 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/core/playback/playback_service.dart';
 import 'package:resonance/core/security/flutter_secure_token_repository.dart';
 import 'package:resonance/core/streaming/obs_now_playing_server.dart';
+import 'package:resonance/domain/entities/playback_state.dart';
+import 'package:resonance/domain/entities/unified_track.dart';
+
+/// Загружает синхронизированные строки для режима OBS «с текстом».
+typedef ObsLyricsLoader = Future<List<ObsLyricLine>> Function(UnifiedTrack);
 
 final class ObsOverlayState {
   const ObsOverlayState({
@@ -38,15 +43,22 @@ final class ObsOverlayState {
 }
 
 final class ObsOverlayController extends StateNotifier<ObsOverlayState> {
-  ObsOverlayController(this._store, this._playbackFuture)
-    : super(const ObsOverlayState()) {
+  ObsOverlayController(
+    this._store,
+    this._playbackFuture, {
+    this._lyrics,
+    ObsNowPlayingServer? server,
+  }) : _server = server ?? ObsNowPlayingServer(),
+       super(const ObsOverlayState()) {
     unawaited(_initialize());
   }
 
   static const _enabledKey = 'resonance.obs.enabled';
   final SecureKeyValueStore _store;
   final Future<PlaybackService> _playbackFuture;
-  final ObsNowPlayingServer _server = ObsNowPlayingServer();
+  final ObsNowPlayingServer _server;
+  final ObsLyricsLoader? _lyrics;
+  String? _lyricsTrackId;
   StreamSubscription<Object?>? _playbackSubscription;
   bool _disposed = false;
 
@@ -55,12 +67,28 @@ final class ObsOverlayController extends StateNotifier<ObsOverlayState> {
     try {
       final playback = await _playbackFuture;
       if (_disposed) return;
-      _server.update(playback.state);
-      _playbackSubscription = playback.states.listen(_server.update);
+      _onPlayback(playback.state);
+      _playbackSubscription = playback.states.listen(_onPlayback);
       if (await _store.read(_enabledKey) == 'true') await setEnabled(true);
     } on Object {
       // OBS is optional and must never block the player startup.
     }
+  }
+
+  void _onPlayback(ResonancePlaybackState playback) {
+    _server.update(playback);
+    final track = playback.currentTrack;
+    if (track == null || track.id == _lyricsTrackId || !state.enabled) return;
+    _lyricsTrackId = track.id;
+    final loader = _lyrics;
+    if (loader == null) return;
+    unawaited(
+      loader(track)
+          .then((lines) {
+            if (!_disposed) _server.updateLyrics(track.id, lines);
+          })
+          .catchError((Object _) {}),
+    );
   }
 
   Future<void> setEnabled(bool enabled) async {
@@ -70,7 +98,6 @@ final class ObsOverlayController extends StateNotifier<ObsOverlayState> {
       if (enabled) {
         final playback = await _playbackFuture;
         if (_disposed) return;
-        _server.update(playback.state);
         await _server.start();
         if (_disposed) {
           await _server.stop();
@@ -82,6 +109,8 @@ final class ObsOverlayController extends StateNotifier<ObsOverlayState> {
           url: _server.uri,
           clearError: true,
         );
+        _lyricsTrackId = null;
+        _onPlayback(playback.state);
       } else {
         await _server.stop();
         state = state.copyWith(
@@ -98,7 +127,7 @@ final class ObsOverlayController extends StateNotifier<ObsOverlayState> {
         starting: false,
         clearUrl: true,
         error:
-            'Порт 17654 занят. Закройте другой OBS-виджет и попробуйте снова.',
+            'Порты 17654–17663 заняты. Закройте другой OBS-виджет и попробуйте снова.',
       );
     } on Object {
       state = state.copyWith(
@@ -114,7 +143,7 @@ final class ObsOverlayController extends StateNotifier<ObsOverlayState> {
   void dispose() {
     _disposed = true;
     unawaited(_playbackSubscription?.cancel());
-    unawaited(_server.stop());
+    _server.dispose();
     super.dispose();
   }
 }

@@ -5,11 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:resonance/app/providers.dart';
+import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/music_graph/music_graph.dart';
 import 'package:resonance/features/player/track_action.dart';
+import 'package:resonance/features/wave/wave_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/ambient.dart';
 import 'package:resonance/shared/widgets/aurora_backdrop.dart';
@@ -207,7 +209,8 @@ class ArtistScreen extends ConsumerWidget {
                               ],
                             ),
                           ),
-                          if (!compact) _ArtistActions(tracks: list),
+                          if (!compact)
+                            _ArtistActions(artist: artist, tracks: list),
                         ],
                       ),
                     ),
@@ -220,7 +223,7 @@ class ArtistScreen extends ConsumerWidget {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-                child: _ArtistActions(tracks: list),
+                child: _ArtistActions(artist: artist, tracks: list),
               ),
             ),
           ...switch (tracks) {
@@ -317,9 +320,47 @@ Future<void> _playFrom(
   );
 }
 
-class _ArtistActions extends ConsumerWidget {
-  const _ArtistActions({required this.tracks});
+/// Волна от артиста: стартует Wave с этим исполнителем как единственным
+/// зерном, дальше подмешиваются похожие треки из подключённых каталогов.
+Future<void> startArtistWave(
+  BuildContext context,
+  WidgetRef ref,
+  String artist,
+  List<UnifiedTrack> tracks,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  if (BackendEndpoint.displayValue.isEmpty) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Волна работает через сервер Resonance')),
+    );
+    return;
+  }
+  final controller = ref.read(waveControllerProvider.notifier);
+  await controller.start(
+    taste: [
+      ...tracks.take(5),
+      if (tracks.isEmpty)
+        UnifiedTrack(
+          id: 'artist-seed:$artist',
+          title: artist,
+          normalizedTitle: artist.toLowerCase(),
+          artist: artist,
+          normalizedArtist: artist.toLowerCase(),
+        ),
+    ],
+    prompt: 'Похоже на $artist',
+    discovery: .45,
+  );
+  final error = ref.read(waveControllerProvider).error;
+  messenger.showSnackBar(
+    SnackBar(content: Text(error ?? 'Волна «$artist» запущена')),
+  );
+}
 
+class _ArtistActions extends ConsumerWidget {
+  const _ArtistActions({required this.artist, required this.tracks});
+
+  final String artist;
   final List<UnifiedTrack> tracks;
 
   @override
@@ -346,7 +387,41 @@ class _ArtistActions extends ConsumerWidget {
                   return _playFrom(ref, shuffled, 0);
                 }),
         ),
+        const SizedBox(width: 12),
+        _ArtistWaveButton(artist: artist, tracks: tracks),
       ],
+    );
+  }
+}
+
+class _ArtistWaveButton extends ConsumerWidget {
+  const _ArtistWaveButton({required this.artist, required this.tracks});
+
+  final String artist;
+  final List<UnifiedTrack> tracks;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final loading = ref.watch(
+      waveControllerProvider.select((wave) => wave.loading),
+    );
+    return FilledButton.tonalIcon(
+      onPressed: loading
+          ? null
+          : () => fireAndForget(
+              () => startArtistWave(context, ref, artist, tracks),
+            ),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 48),
+        shape: const StadiumBorder(),
+      ),
+      icon: loading
+          ? const SizedBox.square(
+              dimension: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.waves_rounded),
+      label: const Text('Волна артиста'),
     );
   }
 }

@@ -4,8 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/core/playback/playback_service.dart';
+import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
+import 'package:resonance/features/library/library_controller.dart';
+import 'package:resonance/features/wave/wave_controller.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 class RoomParticipant {
@@ -43,6 +46,8 @@ class ListeningRoomState {
     this.queue = const [],
     this.error,
     this.busy = false,
+    this.autoWave = true,
+    this.autoWaveRunning = false,
   });
 
   final bool connected;
@@ -55,6 +60,11 @@ class ListeningRoomState {
   final List<RoomQueueEntry> queue;
   final String? error;
   final bool busy;
+
+  /// Когда очередь зала пуста, ведущий сам подмешивает общую волну по
+  /// вкусам всех участников.
+  final bool autoWave;
+  final bool autoWaveRunning;
 
   bool get inRoom => code != null;
   bool get isHost => inRoom && selfId != null && hostId == selfId;
@@ -76,6 +86,8 @@ class ListeningRoomState {
     bool clearError = false,
     bool? busy,
     bool clearRoom = false,
+    bool? autoWave,
+    bool? autoWaveRunning,
   }) => ListeningRoomState(
     connected: connected ?? this.connected,
     code: clearRoom ? null : code ?? this.code,
@@ -85,6 +97,10 @@ class ListeningRoomState {
     queue: clearRoom ? const [] : queue ?? this.queue,
     error: clearError ? null : error ?? this.error,
     busy: busy ?? this.busy,
+    autoWave: autoWave ?? this.autoWave,
+    autoWaveRunning: clearRoom
+        ? false
+        : autoWaveRunning ?? this.autoWaveRunning,
   );
 }
 
@@ -163,6 +179,11 @@ class RoomController extends StateNotifier<ListeningRoomState> {
   bool _disposed = false;
   String _participantName = 'Слушатель';
   String? _autoAdvancedFor;
+  String? _autoWaveFor;
+
+  void setAutoWave(bool enabled) {
+    state = state.copyWith(autoWave: enabled);
+  }
 
   bool get isHost => state.inRoom && state.hostId == _socket.id;
 
@@ -413,6 +434,7 @@ class RoomController extends StateNotifier<ListeningRoomState> {
   void _publishPlayback(ResonancePlaybackState playback, {bool force = false}) {
     if (!isHost) return;
     _maybeAdvanceQueue(playback);
+    _maybeStartRoomWave(playback);
     final now = DateTime.now();
     final trackChanged = playback.currentTrack?.id != _lastTrackId;
     final playChanged = playback.playing != _lastPlaying;
@@ -448,6 +470,47 @@ class RoomController extends StateNotifier<ListeningRoomState> {
     }
     _autoAdvancedFor = track.id;
     unawaited(playNextFromQueue());
+  }
+
+  /// Если голосовать не за что и локальная очередь вот-вот кончится,
+  /// ведущий дописывает в неё общую волну зала.
+  void _maybeStartRoomWave(ResonancePlaybackState playback) {
+    final track = playback.currentTrack;
+    final duration = playback.duration;
+    final code = state.code;
+    if (!state.autoWave ||
+        code == null ||
+        track == null ||
+        state.queue.isNotEmpty ||
+        state.participants.length < 2 ||
+        !playback.playing ||
+        _autoWaveFor == track.id ||
+        duration <= Duration.zero ||
+        duration - playback.position > const Duration(seconds: 20)) {
+      return;
+    }
+    final hasNext =
+        playback.currentIndex + 1 < playback.queue.length ||
+        playback.repeatMode != PlaybackRepeatMode.off;
+    if (hasNext || _ref.read(waveControllerProvider).active) return;
+    _autoWaveFor = track.id;
+    unawaited(_startRoomWave(code));
+  }
+
+  Future<void> _startRoomWave(String code) async {
+    state = state.copyWith(autoWaveRunning: true);
+    try {
+      final favorites =
+          _ref.read(libraryControllerProvider).valueOrNull?.favorites ??
+          const <UnifiedTrack>[];
+      await _ref
+          .read(waveControllerProvider.notifier)
+          .start(taste: favorites, roomCode: code, append: true);
+    } on Object {
+      // Волна — бонус; зал продолжает работать и без неё.
+    } finally {
+      if (!_disposed) state = state.copyWith(autoWaveRunning: false);
+    }
   }
 
   Map<String, dynamic> _stringMap(dynamic value) => _asStringMap(value);

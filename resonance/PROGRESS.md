@@ -1,5 +1,16 @@
 # Progress
 
+## Version 3.13.0 — Sleep, recap and creator tools
+
+- [x] Sleep timer (15/30/45/60 min or end of track) with a soft fade in Now Playing and Stage
+- [x] Listening history is recorded locally; "Итоги" for week/month with a shareable 4:5 card
+- [x] "Волна артиста" on artist pages seeds Wave with that artist
+- [x] Tap a lyric line to seek, long-press to loop it (Now Playing and Stage)
+- [x] Rooms: host auto-appends a shared room wave when the vote queue is empty
+- [x] OBS widget rebuilt: SSE updates, smooth progress, local cover proxy, layouts, current lyric line, port fallback
+- [x] Discord: Yandex covers fixed, pause state, album/source labels, throttled updates
+- [x] Covers no longer blink when switching lyrics/clip views (cache buckets + thumbnail placeholder)
+
 ## Version 3.12.0 — Artist pages and living Home
 
 - [x] Home rebuilt around the "Моя волна" hero: cover-tinted aurora, floating cover, breathing play button

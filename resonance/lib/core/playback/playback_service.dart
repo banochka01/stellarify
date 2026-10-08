@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:resonance/core/errors/app_exception.dart';
+import 'package:resonance/core/playback/lyric_loop_playback.dart';
 import 'package:resonance/core/playback/offline_downloads.dart';
 import 'package:resonance/core/playback/playback_engine.dart';
 import 'package:resonance/core/playback/resolved_source_cache.dart';
+import 'package:resonance/core/playback/sleep_timer.dart';
 import 'package:resonance/core/preferences/playback_flow_preferences.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_session.dart';
@@ -16,7 +18,7 @@ import 'package:resonance/domain/repositories/playback_persistence.dart';
 import 'package:resonance/domain/services/source_selection_policy.dart';
 import 'package:resonance/providers/common/provider_registry.dart';
 
-final class PlaybackService {
+final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
   factory PlaybackService({
     required PlaybackEngine engine,
     required ProviderRegistry providers,
@@ -142,7 +144,9 @@ final class PlaybackService {
   bool _transitioning = false;
   bool _disposed = false;
 
+  @override
   ResonancePlaybackState get state => _state;
+  @override
   Stream<ResonancePlaybackState> get states => _states.stream;
 
   AudioQuality get quality => _quality;
@@ -299,6 +303,40 @@ final class PlaybackService {
 
   Future<void> pause() => _engine.pause();
 
+  /// Плавно уводит громкость в ноль и ставит паузу; громкость пользователя
+  /// возвращается сразу после паузы, чтобы следующее «Play» звучало как раньше.
+  @override
+  Future<void> fadeOutAndPause({
+    Duration duration = const Duration(seconds: 12),
+  }) async {
+    if (!_state.playing || _transitioning) {
+      await pause();
+      return;
+    }
+    final targetVolume = _state.volume;
+    _transitioning = true;
+    try {
+      const steps = 24;
+      final stepDuration = Duration(
+        milliseconds: duration.inMilliseconds ~/ steps,
+      );
+      for (var step = 1; step <= steps; step++) {
+        if (_disposed || !_state.playing) break;
+        final eased = 1 - pow(1 - step / steps, 2);
+        await _engine.setVolume(targetVolume * (1 - eased));
+        if (stepDuration > Duration.zero) {
+          await Future<void>.delayed(stepDuration);
+        }
+      }
+      await _engine.pause();
+    } finally {
+      await _engine.setVolume(targetVolume);
+      _transitioning = false;
+      _emit(_state.copyWith(volume: targetVolume));
+    }
+  }
+
+  @override
   Future<void> seek(Duration position) {
     final clamped = position < Duration.zero
         ? Duration.zero

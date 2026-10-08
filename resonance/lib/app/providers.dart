@@ -18,11 +18,13 @@ import 'package:resonance/core/playback/playback_engine.dart';
 import 'package:resonance/core/playback/playback_service.dart';
 import 'package:resonance/core/playback/resolved_source_cache.dart';
 import 'package:resonance/core/playback/resonance_audio_handler.dart';
+import 'package:resonance/core/playback/sleep_timer.dart';
 import 'package:resonance/core/playback/windows_media_controls.dart';
 import 'package:resonance/core/preferences/appearance_preferences.dart';
 import 'package:resonance/core/preferences/onboarding_preferences.dart';
 import 'package:resonance/core/preferences/playback_flow_preferences.dart';
 import 'package:resonance/core/security/flutter_secure_token_repository.dart';
+import 'package:resonance/core/streaming/obs_now_playing_server.dart';
 import 'package:resonance/core/streaming/obs_overlay_controller.dart';
 import 'package:resonance/core/update/app_update_service.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
@@ -350,11 +352,30 @@ final playbackStateProvider = StreamProvider<ResonancePlaybackState>((
   yield* service.states;
 });
 
+final sleepTimerProvider =
+    StateNotifierProvider<SleepTimerController, SleepTimerState>((ref) {
+      return SleepTimerController(
+        () => ref
+            .read(playbackServiceProvider.future)
+            .then<SleepTimerPlayback>((service) => service),
+      );
+    });
+
 final obsOverlayControllerProvider =
     StateNotifierProvider<ObsOverlayController, ObsOverlayState>((ref) {
+      final lyrics = ref.watch(lyricsServiceProvider);
       return ObsOverlayController(
         ref.watch(secureKeyValueStoreProvider),
         ref.watch(playbackServiceProvider.future),
+        lyrics: (track) async {
+          final document = await lyrics.find(track);
+          if (document == null || !document.synced) return const [];
+          return [
+            for (final line in document.lines)
+              if (line.start != null)
+                ObsLyricLine(line.start!.inMilliseconds, line.text),
+          ];
+        },
       );
     });
 
