@@ -62,6 +62,7 @@ dependencies:
   # transitive runtime aborts SMTC initialization before the first frame.
   flutter_rust_bridge: 2.11.1
   flutter_inappwebview: ^6.1.5
+  flutter_svg: ^2.2.1
 
 dev_dependencies:
   flutter_test:
@@ -93,6 +94,7 @@ flutter:
     - assets/audio/resonance_test.wav
     - assets/images/resonance_fallback_cover.png
     - assets/images/resonance_mark.png
+    - assets/logos/
     - assets/images/resonance_cinematic_background.png
   fonts:
     - family: Manrope

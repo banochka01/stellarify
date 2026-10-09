@@ -170,12 +170,8 @@ class _Header extends ConsumerWidget {
             )
           else
             const Text(
-              'RESONANCE',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 2.4,
-              ),
+              'Сейчас играет',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
             ),
           const SizedBox(width: 24),
           Expanded(
@@ -194,16 +190,44 @@ class _Header extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 24),
-          const SleepTimerButton(),
-          IconButton(
-            tooltip: 'Клип и видеофон на весь экран',
-            onPressed: () => context.push('/stage?mode=video'),
-            icon: const Icon(Icons.videocam_rounded),
-          ),
-          IconButton(
-            tooltip: 'Текст на весь экран',
-            onPressed: () => context.push('/stage?mode=lyrics'),
-            icon: const Icon(Icons.lyrics_rounded),
+          if (ref.watch(sleepTimerProvider.select((timer) => timer.active)))
+            const SleepTimerButton(),
+          PopupMenuButton<String>(
+            tooltip: 'Ещё',
+            icon: const Icon(Icons.more_horiz_rounded),
+            onSelected: (value) {
+              switch (value) {
+                case 'video':
+                  unawaited(context.push('/stage?mode=video'));
+                case 'lyrics':
+                  unawaited(context.push('/stage?mode=lyrics'));
+                case 'sleep':
+                  unawaited(showSleepTimerSheet(context));
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'video',
+                child: ListTile(
+                  leading: Icon(Icons.videocam_rounded),
+                  title: Text('Клип на весь экран'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'lyrics',
+                child: ListTile(
+                  leading: Icon(Icons.lyrics_rounded),
+                  title: Text('Текст на весь экран'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'sleep',
+                child: ListTile(
+                  leading: Icon(Icons.bedtime_outlined),
+                  title: Text('Таймер сна'),
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: 8),
           _SourceShiftPanel(state: state, track: current, compact: true),
@@ -624,9 +648,10 @@ class _GlowingArtwork extends ConsumerWidget {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: palette.glow.withValues(alpha: .38),
+            color: palette.glow.withValues(alpha: .22),
             blurRadius: 70,
-            offset: const Offset(0, 28),
+            spreadRadius: -18,
+            offset: const Offset(0, 22),
           ),
         ],
       ),

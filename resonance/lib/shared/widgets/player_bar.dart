@@ -27,13 +27,15 @@ class PlayerBar extends ConsumerWidget {
     final library = ref.watch(libraryControllerProvider).valueOrNull;
     final favorite = library?.favoriteIds.contains(track.id) ?? false;
 
-    return Material(
-      color: const Color(0xFF09070C),
+    final bar = Material(
+      color: compact ? ResonanceColors.surfaceRaised : const Color(0xFF09070C),
       child: Container(
-        height: compact ? 74 : 88,
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: ResonanceColors.border)),
-        ),
+        height: compact ? 70 : 88,
+        decoration: compact
+            ? null
+            : const BoxDecoration(
+                border: Border(top: BorderSide(color: ResonanceColors.border)),
+              ),
         child: Column(
           children: [
             SmoothPlaybackPosition(
@@ -163,6 +165,24 @@ class PlayerBar extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+    if (!compact) return bar;
+    // На телефоне мини-плеер — отдельная плавающая карточка над панелью вкладок.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x55000000),
+              blurRadius: 24,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ClipRRect(borderRadius: BorderRadius.circular(22), child: bar),
       ),
     );
   }

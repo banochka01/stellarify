@@ -969,13 +969,12 @@ class _StageHeader extends ConsumerWidget {
             Flexible(
               child: RoomChip(compact: compact, onTap: onQueue),
             )
-          else if (width >= 960)
+          else if (width >= 800)
             const Text(
-              'RESONANCE / STAGE',
+              'Stage',
               style: TextStyle(
-                fontSize: 11,
-                letterSpacing: 2,
-                fontWeight: FontWeight.w700,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
                 color: Color(0xFFD1C1E1),
               ),
             ),
@@ -992,16 +991,45 @@ class _StageHeader extends ConsumerWidget {
                 child: const Icon(Icons.queue_music_rounded),
               ),
             ),
-          if (width >= 480) const SleepTimerButton(),
-          IconButton(
-            tooltip: 'Видеоисточники',
-            onPressed: onSources,
-            icon: const Icon(Icons.video_library_outlined),
-          ),
-          IconButton(
-            tooltip: 'Скрыть управление',
-            onPressed: onFocus,
-            icon: const Icon(Icons.center_focus_strong_rounded),
+          // Таймер виден в шапке, только когда он заведён.
+          if (ref.watch(sleepTimerProvider.select((timer) => timer.active)))
+            const SleepTimerButton(),
+          PopupMenuButton<String>(
+            tooltip: 'Ещё',
+            icon: const Icon(Icons.more_horiz_rounded),
+            onSelected: (value) {
+              switch (value) {
+                case 'sleep':
+                  unawaited(showSleepTimerSheet(context));
+                case 'sources':
+                  onSources();
+                case 'focus':
+                  onFocus();
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'sleep',
+                child: ListTile(
+                  leading: Icon(Icons.bedtime_outlined),
+                  title: Text('Таймер сна'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'sources',
+                child: ListTile(
+                  leading: Icon(Icons.video_library_outlined),
+                  title: Text('Видеоисточники'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'focus',
+                child: ListTile(
+                  leading: Icon(Icons.center_focus_strong_rounded),
+                  title: Text('Скрыть управление'),
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: 4),
           SegmentedButton<VisualStageMode>(
@@ -1159,9 +1187,10 @@ class _StageIdentity extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(26),
                 boxShadow: [
                   BoxShadow(
-                    color: palette.glow.withValues(alpha: .38),
+                    color: palette.glow.withValues(alpha: .22),
                     blurRadius: 64,
-                    offset: const Offset(0, 24),
+                    spreadRadius: -16,
+                    offset: const Offset(0, 20),
                   ),
                 ],
               ),
@@ -1315,10 +1344,10 @@ class _FullscreenLyricsState extends ConsumerState<_FullscreenLyrics> {
         final narrow = MediaQuery.sizeOf(context).width < 600;
         final style = TextStyle(
           fontFamily: 'Manrope',
-          fontSize: narrow ? 30 : 46,
-          height: 1.14,
-          fontWeight: FontWeight.w800,
-          letterSpacing: narrow ? -1.1 : -1.8,
+          fontSize: narrow ? 27 : 38,
+          height: 1.18,
+          fontWeight: FontWeight.w700,
+          letterSpacing: narrow ? -.8 : -1.2,
           shadows: const [Shadow(color: Color(0x80000000), blurRadius: 18)],
         );
         return ShaderMask(

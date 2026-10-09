@@ -94,48 +94,48 @@ abstract final class ResonanceTheme {
       textTheme: const TextTheme(
         displayLarge: TextStyle(
           fontFamily: ResonanceFonts.display,
-          fontSize: 56,
-          height: 1,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -1.6,
+          fontSize: 48,
+          height: 1.02,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -1.4,
           color: ResonanceColors.text,
         ),
         displayMedium: TextStyle(
           fontFamily: ResonanceFonts.display,
-          fontSize: 44,
-          height: 1,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -1.2,
+          fontSize: 38,
+          height: 1.04,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -1,
           color: ResonanceColors.text,
         ),
         displaySmall: TextStyle(
           fontFamily: ResonanceFonts.display,
-          fontSize: 36,
-          height: 1.02,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -1,
+          fontSize: 30,
+          height: 1.06,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -.8,
           color: ResonanceColors.text,
         ),
+        // Unbounded — только для крупных заголовков экранов; остальное
+        // набирается спокойным Manrope.
         headlineMedium: TextStyle(
-          fontFamily: ResonanceFonts.display,
-          fontSize: 26,
-          height: 1.08,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -.6,
+          fontSize: 24,
+          height: 1.15,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -.5,
         ),
         headlineSmall: TextStyle(
-          fontFamily: ResonanceFonts.display,
-          fontSize: 20,
-          height: 1.1,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -.4,
+          fontSize: 19,
+          height: 1.2,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -.3,
         ),
-        titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-        titleMedium: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-        titleSmall: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        titleMedium: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        titleSmall: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
         bodyLarge: TextStyle(height: 1.5),
         bodyMedium: TextStyle(color: ResonanceColors.muted, height: 1.5),
-        labelLarge: TextStyle(fontWeight: FontWeight.w800),
+        labelLarge: TextStyle(fontWeight: FontWeight.w700),
         labelSmall: TextStyle(
           fontFamily: ResonanceFonts.mono,
           fontSize: 10,
@@ -144,12 +144,9 @@ abstract final class ResonanceTheme {
         ),
       ),
       cardTheme: CardThemeData(
-        color: palette.surface.withValues(alpha: .92),
+        color: palette.surface.withValues(alpha: .86),
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
-          side: BorderSide(color: palette.border),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
       navigationBarTheme: NavigationBarThemeData(
         height: 70,
@@ -183,7 +180,7 @@ abstract final class ResonanceTheme {
       ),
       listTileTheme: ListTileThemeData(
         iconColor: ResonanceColors.text,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         minLeadingWidth: 40,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       ),
@@ -216,7 +213,7 @@ abstract final class ResonanceTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: ResonanceColors.text,
-          side: BorderSide(color: palette.border),
+          side: BorderSide(color: palette.border.withValues(alpha: .7)),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(99),
           ),
@@ -229,17 +226,15 @@ abstract final class ResonanceTheme {
         disabledColor: ResonanceColors.surfaceHigh,
         labelStyle: const TextStyle(
           fontFamily: ResonanceFonts.body,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
         ),
         secondaryLabelStyle: const TextStyle(
           fontFamily: ResonanceFonts.body,
           color: ResonanceColors.text,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(99),
-          side: BorderSide(color: palette.border),
-        ),
+        side: BorderSide.none,
+        shape: const StadiumBorder(),
         showCheckmark: false,
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -251,7 +246,7 @@ abstract final class ResonanceTheme {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: palette.border),
+          borderSide: BorderSide(color: palette.border.withValues(alpha: .45)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),

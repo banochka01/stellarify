@@ -28,16 +28,6 @@ class LibraryScreen extends ConsumerWidget {
     final heading = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'ВАША КОЛЛЕКЦИЯ',
-          style: TextStyle(
-            color: ResonanceColors.primary,
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.8,
-          ),
-        ),
-        const SizedBox(height: 10),
         FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
@@ -380,30 +370,17 @@ class _LibraryHero extends ConsumerWidget {
     final intro = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'ЕДИНАЯ МЕДИАТЕКА',
-          style: TextStyle(
-            color: ResonanceColors.primary,
-            fontSize: 10,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.7,
-          ),
-        ),
-        const SizedBox(height: 12),
         Text(
           state.tracks.isEmpty
-              ? 'Здесь поселится\nтвоя музыка'
-              : '${state.tracks.length} треков.\nОдин дом.',
-          style: Theme.of(context).textTheme.displaySmall?.copyWith(
-            fontSize: compact ? 36 : 46,
-            height: .98,
-          ),
+              ? 'Здесь поселится твоя музыка'
+              : '${state.tracks.length} треков в одной коллекции',
+          style: Theme.of(context).textTheme.headlineMedium,
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 8),
         Text(
           state.tracks.isEmpty
               ? 'Перенеси коллекцию из сервиса или добавь первый плейлист.'
-              : 'Яндекс, Spotify, VK и SoundCloud — в одной коллекции.',
+              : 'Яндекс, Spotify, VK и SoundCloud — вместе.',
           style: const TextStyle(color: ResonanceColors.muted, height: 1.45),
         ),
       ],
@@ -413,7 +390,6 @@ class _LibraryHero extends ConsumerWidget {
       padding: EdgeInsets.all(compact ? 22 : 30),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0x55B499FF)),
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -485,9 +461,8 @@ class _HeroMetric extends StatelessWidget {
     width: 104,
     padding: const EdgeInsets.all(15),
     decoration: BoxDecoration(
-      color: const Color(0xAA0A070D),
+      color: const Color(0x14FFFFFF),
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: ResonanceColors.border),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,

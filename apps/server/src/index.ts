@@ -20,7 +20,7 @@ import {
 import { parseImportPayload } from "./importer.js";
 import { PlaylistImportService } from "./playlist-import.js";
 import { LyricsError, LyricsService } from "./lyrics.js";
-import { ClipService, createClipRouter } from "./clips.js";
+import { ClipService, createClipRouter, youtubeStreamFromEnvironment } from "./clips.js";
 import { ClipOffsetStore } from "./clip-embed.js";
 import { installProviderProxy } from "./outbound-proxy.js";
 import { ProviderGateway, ProviderGatewayError, type ProviderAccess } from "./provider-gateway.js";
@@ -119,7 +119,8 @@ app.use("/api/v1/clips", createClipRouter(
   async (query, request) => query.yandexId
     ? yandex.clips(query.yandexId, query, providerAccess(request))
     : [],
-  clipOffsets
+  clipOffsets,
+  { service: youtubeStreamFromEnvironment(), publicUrl: absoluteRelayUrl }
 ));
 app.use("/api/v1/subscription", createLegacyAccessRouter(accessControl));
 app.use("/api/v1/account", createAccountRouter(accountStore));

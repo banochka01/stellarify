@@ -3,6 +3,7 @@ import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/features/rooms/room_queue_panel.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/desktop_window_bar.dart';
+import 'package:resonance/shared/widgets/floating_tab_bar.dart';
 import 'package:resonance/shared/widgets/player_bar.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_logo.dart';
@@ -31,31 +32,33 @@ class AdaptiveAppShell extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const PlayerBar(compact: true),
-            NavigationBar(
+            FloatingTabBar(
               selectedIndex: selectedIndex,
-              onDestinationSelected: onSelected,
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.home_outlined),
-                  selectedIcon: Icon(Icons.home_rounded),
+              onSelected: onSelected,
+              items: const [
+                FloatingTabItem(
+                  icon: Icons.home_outlined,
+                  selectedIcon: Icons.home_rounded,
                   label: 'Волна',
                 ),
-                NavigationDestination(
-                  icon: Icon(Icons.search_rounded),
+                FloatingTabItem(
+                  icon: Icons.search_rounded,
+                  selectedIcon: Icons.search_rounded,
                   label: 'Поиск',
                 ),
-                NavigationDestination(
-                  icon: Icon(Icons.library_music_outlined),
-                  selectedIcon: Icon(Icons.library_music_rounded),
+                FloatingTabItem(
+                  icon: Icons.library_music_outlined,
+                  selectedIcon: Icons.library_music_rounded,
                   label: 'Медиатека',
                 ),
-                NavigationDestination(
-                  icon: Icon(Icons.groups_outlined),
-                  selectedIcon: Icon(Icons.groups_rounded),
+                FloatingTabItem(
+                  icon: Icons.groups_outlined,
+                  selectedIcon: Icons.groups_rounded,
                   label: 'Вместе',
                 ),
-                NavigationDestination(
-                  icon: Icon(Icons.tune_rounded),
+                FloatingTabItem(
+                  icon: Icons.tune_rounded,
+                  selectedIcon: Icons.tune_rounded,
                   label: 'Настройки',
                 ),
               ],
@@ -166,12 +169,11 @@ class _SourceList extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'ИСТОЧНИКИ',
+          'Источники',
           style: TextStyle(
             color: ResonanceColors.muted,
-            fontSize: 9,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.5,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
           ),
         ),
         SizedBox(height: 14),

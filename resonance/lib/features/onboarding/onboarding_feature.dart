@@ -8,6 +8,7 @@ import 'package:resonance/core/preferences/appearance_preferences.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_logo.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -721,7 +722,7 @@ class _ProviderChoice extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(_providerIcon(provider), color: color, size: 30),
+                  ProviderLogo(provider: provider, size: 30),
                   const Spacer(),
                   Checkbox(
                     value: selected,
@@ -785,11 +786,7 @@ class _ConnectionCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(
-                  _providerIcon(provider),
-                  color: _providerColor(provider),
-                  size: 25,
-                ),
+                ProviderLogo(provider: provider, size: 25),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -1017,14 +1014,6 @@ String _credentialHint(MusicProvider provider) => switch (provider) {
     'Можно пропустить, если на сервере настроены клиентские ключи.',
   MusicProvider.vk =>
     'Токен должен иметь права audio.*; хранится на устройстве.',
-};
-
-IconData _providerIcon(MusicProvider provider) => switch (provider) {
-  MusicProvider.yandex => Icons.album_rounded,
-  MusicProvider.soundcloud => Icons.cloud_rounded,
-  MusicProvider.youtube => Icons.smart_display_rounded,
-  MusicProvider.spotify => Icons.graphic_eq_rounded,
-  MusicProvider.vk => Icons.radio_rounded,
 };
 
 Color _providerColor(MusicProvider provider) => switch (provider) {

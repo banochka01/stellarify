@@ -84,6 +84,19 @@ class _StageClipEmbedState extends State<StageClipEmbed> {
     );
   }
 
+  /// На паузе кадра и не должно быть, поэтому ждём, только пока музыка играет.
+  void _armFrameTimeout() {
+    _readyTimeout?.cancel();
+    _readyTimeout = Timer(const Duration(seconds: 12), () {
+      if (_visible || !mounted) return;
+      if (widget.state.playing) {
+        _fail();
+      } else {
+        _armFrameTimeout();
+      }
+    });
+  }
+
   void _onMessage(List<dynamic> args) {
     if (args.isEmpty || args.first is! Map) return;
     final message = args.first as Map;
@@ -91,6 +104,10 @@ class _StageClipEmbedState extends State<StageClipEmbed> {
       case 'ready':
         _ready = true;
         _readyTimeout?.cancel();
+        // YouTube может вместо видео показать «подтвердите, что вы не бот» и
+        // не прислать ошибку. Если кадра нет за 12 секунд — берём другой
+        // источник, а не висим на чёрном экране.
+        _armFrameTimeout();
         final duration = message['duration'];
         if (duration is num) {
           _duration = Duration(milliseconds: (duration * 1000).round());
@@ -100,6 +117,7 @@ class _StageClipEmbedState extends State<StageClipEmbed> {
       case 'time':
         // 1 = playing: show the frame only once real video is on screen.
         if (message['state'] == 1 && !_visible && mounted) {
+          _readyTimeout?.cancel();
           setState(() => _visible = true);
         }
       case 'error':

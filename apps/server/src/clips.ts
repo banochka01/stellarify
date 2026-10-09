@@ -5,6 +5,7 @@ import { z } from "zod";
 import { normalizeProxyUrl } from "./soundcloud.js";
 import { ClipOffsetStore, isYoutubeId, youtubeEmbedPage, youtubeId } from "./clip-embed.js";
 import { invidiousVideos, songLinkVideos, YoutubeWebSearch, type JsonFetcher, type VideoHit } from "./clip-sources.js";
+import { YoutubeStreamService } from "./youtube-stream.js";
 
 const httpsUrl = z.string().url().max(2048).refine((value) => {
   const url = new URL(value);
@@ -333,8 +334,27 @@ export class ClipService {
 
 type ExtraClipFinder = (query: ClipQuery, request: Request) => Promise<Clip[]>;
 
-export function createClipRouter(service: ClipService, extraFinder?: ExtraClipFinder, offsets?: ClipOffsetStore) {
+/** Shared YouTube relay; uses the same outbound proxy as clip discovery. */
+export function youtubeStreamFromEnvironment(env = process.env) {
+  return new YoutubeStreamService(youtubeProxy(env));
+}
+
+type StreamOptions = { service: YoutubeStreamService; publicUrl: (request: Request, path: string) => string };
+
+export function createClipRouter(
+  service: ClipService,
+  extraFinder?: ExtraClipFinder,
+  offsets?: ClipOffsetStore,
+  stream?: StreamOptions
+) {
   const router = Router();
+  router.get("/youtube/:id/video", (request, response) => {
+    if (!stream) {
+      response.status(404).end();
+      return;
+    }
+    void stream.service.relay(String(request.params.id), request, response);
+  });
   router.get("/embed/youtube", (request, response) => {
     const id = request.query.v;
     if (!isYoutubeId(id)) {
@@ -374,7 +394,9 @@ export function createClipRouter(service: ClipService, extraFinder?: ExtraClipFi
       response.setHeader("Cache-Control", query.data.yandexId ? "private, max-age=60" : "public, max-age=300");
       const embeds = new Set((query.data.embed ?? "").split(",").map((value) => value.trim()));
       const voted = offsets?.offsets(clipTrackKey(query.data.title, query.data.artist));
-      const clips = service.merge(query.data.title, query.data.artist, base, extra)
+      const merged = service.merge(query.data.title, query.data.artist, base, extra);
+      const streamed = stream ? await youtubeStreams(merged, stream, request) : [];
+      const clips = [...streamed, ...merged]
         .map((clip) => withEmbed(clip, embeds.has("youtube")))
         .map((clip) => voted?.has(clip.id) ? { ...clip, offsetMs: voted.get(clip.id)! } : clip);
       response.json({ clips: clips.sort((left, right) => clipRank(left) - clipRank(right)) });
@@ -384,6 +406,36 @@ export function createClipRouter(service: ClipService, extraFinder?: ExtraClipFi
     }
   });
   return router;
+}
+
+/**
+ * Adds a directly playable copy of the best YouTube music videos, relayed by
+ * this server. Any client that plays direct clips gets them, older ones too.
+ */
+async function youtubeStreams(clips: Clip[], stream: StreamOptions, request: Request): Promise<Clip[]> {
+  if (!stream.service.enabled) return [];
+  const candidates = clips.flatMap((clip) => {
+    if (clip.kind !== "musicVideo") return [];
+    const id = clip.embed?.id ?? youtubeId(clip.sourceUrl);
+    return id ? [{ clip, id }] : [];
+  }).slice(0, 2);
+  const resolved = await Promise.all(candidates.map(async ({ clip, id }) => {
+    const format = await Promise.race([
+      stream.service.resolve(id),
+      new Promise<undefined>((resolve) => (globalThis.setTimeout(resolve, 7000) as unknown as NodeJS.Timeout).unref())
+    ]);
+    if (!format) return undefined;
+    stream.service.allow(id);
+    return {
+      ...clip,
+      id: `yt-stream-${id}`,
+      url: stream.publicUrl(request, `/api/v1/clips/youtube/${id}/video`),
+      playback: "direct" as const,
+      embed: undefined,
+      source: clip.source.startsWith("YouTube") ? clip.source : "YouTube"
+    };
+  }));
+  return resolved.filter((clip): clip is NonNullable<typeof clip> => Boolean(clip));
 }
 
 /** Upgrades YouTube links to the in-app embed for clients that support it. */

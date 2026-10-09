@@ -66,9 +66,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         final width = constraints.maxWidth;
         final compact = width < 1000;
         final gutter = compact ? 16.0 : 32.0;
-        final heroHeight = (constraints.maxHeight * .46).clamp(
-          compact ? 420.0 : 340.0,
-          compact ? 520.0 : 440.0,
+        final heroHeight = (constraints.maxHeight * .4).clamp(
+          compact ? 400.0 : 300.0,
+          compact ? 440.0 : 380.0,
         );
         var section = 0;
         Widget reveal(Widget child) => ResonanceEntrance(
@@ -96,7 +96,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     compact: compact,
                     history: state.queue.reversed.toList(growable: false),
                     favorites: favorites,
-                    animate: state.playing,
+                    animate: false,
                   ),
                 ),
               ),
@@ -196,10 +196,10 @@ class _WaveHero extends ConsumerWidget {
       'Моя\nволна',
       style: TextStyle(
         fontFamily: ResonanceFonts.display,
-        fontSize: compact ? 52 : 84,
-        height: .92,
-        fontWeight: FontWeight.w800,
-        letterSpacing: compact ? -2 : -3.5,
+        fontSize: compact ? 38 : 60,
+        height: .98,
+        fontWeight: FontWeight.w600,
+        letterSpacing: compact ? -1.2 : -2.2,
         shadows: const [Shadow(color: Color(0x66000000), blurRadius: 30)],
       ),
     );
@@ -271,7 +271,12 @@ class _WaveHero extends ConsumerWidget {
               colors: [Colors.white, Colors.white, Colors.transparent],
               stops: [0, .62, 1],
             ).createShader(bounds),
-            child: AuroraBackdrop(track: track, animate: state.playing),
+            child: AuroraBackdrop(
+              track: track,
+              intensity: .6,
+              ribbons: false,
+              animate: false,
+            ),
           ),
         Padding(
           padding: EdgeInsets.fromLTRB(gutter, compact ? 24 : 36, gutter, 20),
@@ -282,11 +287,7 @@ class _WaveHero extends ConsumerWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _FloatingCover(
-                          track: track,
-                          size: 116,
-                          animate: state.playing,
-                        ),
+                        _FloatingCover(track: track, size: 116, animate: false),
                         const Spacer(),
                         _HeroPlay(state: state, size: 68),
                       ],
@@ -301,11 +302,7 @@ class _WaveHero extends ConsumerWidget {
                 )
               : Row(
                   children: [
-                    _FloatingCover(
-                      track: track,
-                      size: 200,
-                      animate: state.playing,
-                    ),
+                    _FloatingCover(track: track, size: 200, animate: false),
                     const SizedBox(width: 44),
                     Expanded(
                       child: Column(
@@ -346,82 +343,22 @@ class _HeroPlay extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return _Breathing(
-      active: state.playing,
-      child: CreamPlayButton(
-        size: size,
-        playing: state.playing,
-        buffering: state.buffering,
-        onPressed: () => fireAndForget(
-          () => ref.read(playbackServiceProvider.future).then((service) {
-            if (state.currentTrack == null) {
-              return service.playTrack(demoTrack);
-            }
-            return state.playing ? service.pause() : service.play();
-          }),
-        ),
+    return CreamPlayButton(
+      size: size,
+      playing: state.playing,
+      buffering: state.buffering,
+      onPressed: () => fireAndForget(
+        () => ref.read(playbackServiceProvider.future).then((service) {
+          if (state.currentTrack == null) {
+            return service.playTrack(demoTrack);
+          }
+          return state.playing ? service.pause() : service.play();
+        }),
       ),
     );
   }
 }
 
-/// Мягкое «дыхание»: элемент чуть пульсирует, пока музыка играет.
-class _Breathing extends StatefulWidget {
-  const _Breathing({required this.active, required this.child});
-
-  final bool active;
-  final Widget child;
-
-  @override
-  State<_Breathing> createState() => _BreathingState();
-}
-
-class _BreathingState extends State<_Breathing>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 2200),
-  );
-  late final Animation<double> _scale = Tween(
-    begin: 1.0,
-    end: 1.05,
-  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOutSine));
-
-  void _sync() {
-    final reduced = MediaQuery.disableAnimationsOf(context);
-    if (widget.active && !reduced) {
-      if (!_controller.isAnimating) {
-        unawaited(_controller.repeat(reverse: true));
-      }
-    } else {
-      unawaited(_controller.animateTo(0, duration: ResonanceMotion.standard));
-    }
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _sync();
-  }
-
-  @override
-  void didUpdateWidget(_Breathing oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.active != widget.active) _sync();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) =>
-      ScaleTransition(scale: _scale, child: widget.child);
-}
-
-/// Обложка текущего трека, медленно парящая над фоном.
 class _FloatingCover extends StatefulWidget {
   const _FloatingCover({
     required this.track,
@@ -567,10 +504,9 @@ class _HomeSectionTitle extends StatelessWidget {
       child: Text(
         title,
         style: const TextStyle(
-          fontFamily: ResonanceFonts.display,
-          fontSize: 22,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -.4,
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -.3,
         ),
       ),
     ),
