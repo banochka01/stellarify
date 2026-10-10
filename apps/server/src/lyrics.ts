@@ -43,7 +43,8 @@ export type LyricsQuery = {
   durationMs?: number;
 };
 
-export type LyricLine = { startMs: number | null; text: string };
+export type LyricWord = { startMs: number; text: string };
+export type LyricLine = { startMs: number | null; text: string; words?: LyricWord[] };
 export type LyricsResult = {
   id: number;
   title: string;
@@ -411,20 +412,103 @@ export function parseLrc(input: string): LyricLine[] {
     if (offsetMatch) { offset = Number(offsetMatch[1]); continue; }
     const stamps = [...raw.matchAll(/\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g)];
     if (!stamps.length) continue;
-    const text = raw.replace(/\[[^\]]+\]/g, "").trim();
+    const body = raw.replace(/\[[^\]]+\]/g, "");
+    const text = body.replace(/<\d{1,3}:\d{2}(?:[.:]\d{1,3})?>/g, "").replace(/\s+/g, " ").trim();
+    const words = parseWordStamps(body, offset);
     for (const stamp of stamps) {
-      const fraction = stamp[3] ?? "0";
-      const fractionMs = fraction.length === 1 ? Number(fraction) * 100
-        : fraction.length === 2 ? Number(fraction) * 10 : Number(fraction.slice(0, 3));
-      const startMs = Math.max(0,
-        Number(stamp[1]) * 60_000 + Number(stamp[2]) * 1_000 + fractionMs + offset);
-      output.push({ startMs, text: text.slice(0, 1_000), order: order++ });
+      const startMs = Math.max(0, stampMs(stamp[1]!, stamp[2]!, stamp[3]) + offset);
+      output.push({
+        startMs, text: text.slice(0, 1_000), order: order++,
+        ...(words.length >= 2 && stamps.length === 1 ? { words } : {})
+      });
     }
   }
   return output
     .sort((left, right) => (left.startMs ?? 0) - (right.startMs ?? 0) || left.order - right.order)
     .slice(0, 2_500)
-    .map(({ startMs, text }) => ({ startMs, text }));
+    .map(({ order: _order, ...line }) => line);
+}
+
+function stampMs(minutes: string, seconds: string, fraction = "0") {
+  const fractionMs = fraction.length === 1 ? Number(fraction) * 100
+    : fraction.length === 2 ? Number(fraction) * 10 : Number(fraction.slice(0, 3));
+  return Number(minutes) * 60_000 + Number(seconds) * 1_000 + fractionMs;
+}
+
+/** Enhanced LRC (A2): `<mm:ss.xx>word <mm:ss.xx>word`. Returns [] without word stamps. */
+function parseWordStamps(body: string, offset: number): LyricWord[] {
+  const pattern = /<(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?>([^<]*)/g;
+  const words: LyricWord[] = [];
+  for (const match of body.matchAll(pattern)) {
+    const text = match[4]!.replace(/\s+/g, " ");
+    if (!text.trim()) continue;
+    words.push({ startMs: Math.max(0, stampMs(match[1]!, match[2]!, match[3]) + offset), text });
+  }
+  if (words.length) {
+    words[0]!.text = words[0]!.text.trimStart();
+    words[words.length - 1]!.text = words[words.length - 1]!.text.trimEnd();
+  }
+  return words.slice(0, 200);
+}
+
+export type TranslationOptions = { baseUrl?: string; apiKey?: string };
+
+/**
+ * Optional line translation through a LibreTranslate-compatible endpoint the
+ * operator already runs (LYRICS_TRANSLATE_URL). Without it the feature is
+ * reported as unavailable and the client hides it. No paid provider is used.
+ */
+export class LyricsTranslator {
+  private readonly cache = new Map<string, string[]>();
+
+  constructor(
+    private readonly options: TranslationOptions,
+    private readonly request: FetchLike = fetch
+  ) {}
+
+  static fromEnvironment(request: FetchLike = fetch, env: NodeJS.ProcessEnv = process.env) {
+    const baseUrl = env.LYRICS_TRANSLATE_URL?.trim();
+    const apiKey = env.LYRICS_TRANSLATE_KEY?.trim();
+    return new LyricsTranslator({
+      ...(baseUrl && isHttpUrl(baseUrl) ? { baseUrl } : {}),
+      ...(apiKey ? { apiKey } : {})
+    }, request);
+  }
+
+  get available() { return Boolean(this.options.baseUrl); }
+
+  async translate(lines: string[], target: string): Promise<string[]> {
+    if (!this.options.baseUrl) {
+      throw new LyricsError("UPSTREAM_ERROR", "Translation is not configured", 503);
+    }
+    const input = lines.slice(0, 400).map(line => line.slice(0, 500));
+    const key = `${target}|${input.join("\n")}`;
+    const cached = this.cache.get(key);
+    if (cached) return cached;
+    const base = this.options.baseUrl.endsWith("/") ? this.options.baseUrl : `${this.options.baseUrl}/`;
+    let response: Response;
+    try {
+      response = await this.request(new URL("translate", base), {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({
+          q: input, source: "auto", target, format: "text",
+          ...(this.options.apiKey ? { api_key: this.options.apiKey } : {})
+        }),
+        signal: AbortSignal.timeout(12_000)
+      });
+    } catch (error) {
+      throw new LyricsError("UPSTREAM_TIMEOUT", "Translation provider failed", 504, { cause: error });
+    }
+    if (!response.ok) throw upstreamError(response.status, "Translation");
+    const body = z.object({ translatedText: z.union([z.string(), z.array(z.string())]) })
+      .parse(await readJson(response));
+    const output = Array.isArray(body.translatedText) ? body.translatedText : body.translatedText.split("\n");
+    const result = input.map((_, index) => (output[index] ?? "").trim());
+    if (this.cache.size >= 200) this.cache.delete(this.cache.keys().next().value ?? "");
+    this.cache.set(key, result);
+    return result;
+  }
 }
 
 function bestMatch(records: Array<z.infer<typeof lyricsRecordSchema>>, query: LyricsQuery) {

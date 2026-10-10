@@ -7,6 +7,7 @@ import 'package:resonance/core/playback/offline_downloads.dart';
 import 'package:resonance/core/playback/playback_engine.dart';
 import 'package:resonance/core/playback/resolved_source_cache.dart';
 import 'package:resonance/core/playback/sleep_timer.dart';
+import 'package:resonance/core/playback/transition_policy.dart';
 import 'package:resonance/core/preferences/playback_flow_preferences.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_session.dart';
@@ -542,6 +543,10 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     if (configured == Duration.zero) return Duration.zero;
     final currentProvider = _state.activeTrackSource?.provider;
     final next = _state.queue[nextIndex];
+    if (_flowSettings.smartTransitions &&
+        smartTransitionSkipsFade(_state.currentTrack, next)) {
+      return Duration.zero;
+    }
     final nextProvider =
         next.preferredProvider ??
         (next.sources.isEmpty ? null : next.sources.first.provider);
@@ -555,7 +560,7 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     return Duration(
       milliseconds: (configured.inMilliseconds * sourceFactor * trackFactor)
           .round()
-          .clamp(300, 4000)
+          .clamp(300, 12000)
           .toInt(),
     );
   }

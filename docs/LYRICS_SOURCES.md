@@ -31,3 +31,14 @@ The server prefers synchronized candidates, caps upstream responses at 512 KiB,
 uses six-second timeouts, limits documents to 2,500 lines, and caches public
 positive results for six hours. It does not scrape lyrics websites or use
 private Spotify/Apple endpoints.
+
+## Word timing and translation (4.0)
+
+- Enhanced LRC word stamps (`[mm:ss.xx]<mm:ss.xx>word <mm:ss.xx>word`) are
+  returned as `lines[].words[{startMs,text}]`; the client karaoke mode fills
+  word by word, otherwise it fills the active line smoothly until the next one.
+- Line translation is optional. Set `LYRICS_TRANSLATE_URL` to a
+  LibreTranslate-compatible endpoint the operator already runs (optional
+  `LYRICS_TRANSLATE_KEY` for a self-hosted instance). Without it, responses
+  carry `translatable: false`, `POST /api/v1/lyrics/translate` answers 503 and
+  the client hides the translate button. No paid provider is used.

@@ -1,4 +1,5 @@
 import 'package:media_kit/media_kit.dart' as media_kit;
+import 'package:resonance/core/playback/audio_effects.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/resolved_audio_source.dart';
 
@@ -49,6 +50,12 @@ abstract interface class PlaybackEngine {
   Future<void> setShuffle(bool enabled);
   Future<void> setRepeatMode(PlaybackRepeatMode mode);
   Future<void> setLoudnessNormalization(bool enabled);
+
+  /// Усиление полос эквалайзера в дБ ([equalizerBands]); `null` — выключен.
+  Future<void> setEqualizer(List<double>? gainsDb);
+
+  /// Какие аудиофильтры реально есть в этой сборке плеера.
+  Future<AudioFilterSupport> audioFilterSupport();
   Future<void> setAudioOutput(AudioOutputDevice device);
   Future<void> dispose();
 }
@@ -143,13 +150,60 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
     return player.setPlaylistMode(playlistMode);
   }
 
+  bool _normalize = false;
+  List<double>? _equalizer;
+  Future<AudioFilterSupport>? _support;
+
   @override
-  Future<void> setLoudnessNormalization(bool enabled) async {
+  Future<void> setLoudnessNormalization(bool enabled) {
+    _normalize = enabled;
+    return _applyFilters();
+  }
+
+  @override
+  Future<void> setEqualizer(List<double>? gainsDb) {
+    _equalizer = gainsDb == null ? null : List.unmodifiable(gainsDb);
+    return _applyFilters();
+  }
+
+  @override
+  Future<AudioFilterSupport> audioFilterSupport() =>
+      _support ??= _probeFilters();
+
+  /// libmpv отклоняет неизвестный фильтр ещё при разборе `af`, и свойство
+  /// остаётся прежним. Поэтому пробуем каждый фильтр по имени и читаем
+  /// `af` обратно — так видно, что собрано в конкретную libmpv.
+  Future<AudioFilterSupport> _probeFilters() async {
     try {
+      final dynamic platform = player.platform;
+      Future<bool> probe(String filter) async {
+        await platform.setProperty('af', '@probe:$filter');
+        final value = await platform.getProperty('af') as String;
+        await platform.setProperty('af', '');
+        return value.contains(filter);
+      }
+
+      return AudioFilterSupport(
+        equalizer: await probe('equalizer'),
+        loudnorm: await probe('loudnorm'),
+        dynaudnorm: await probe('dynaudnorm'),
+      );
+    } on Object {
+      return AudioFilterSupport.none;
+    }
+  }
+
+  Future<void> _applyFilters() async {
+    try {
+      final support = await audioFilterSupport();
       final dynamic platform = player.platform;
       await platform.setProperty(
         'af',
-        enabled ? 'loudnorm=I=-16:TP=-1.5:LRA=11' : '',
+        buildAudioFilterChain(
+          support: support,
+          equalizerGains: _equalizer,
+          normalize: _normalize,
+        ),
       );
     } on Object {
       // Some media backends do not expose libmpv audio filters. Flow must fail open.

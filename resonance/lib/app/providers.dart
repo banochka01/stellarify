@@ -10,6 +10,7 @@ import 'package:resonance/core/integrations/discord_presence_controller.dart';
 import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/core/networking/resonance_http_client.dart';
 import 'package:resonance/core/networking/soundcloud_proxy_preference.dart';
+import 'package:resonance/core/playback/audio_effects.dart';
 import 'package:resonance/core/playback/audio_focus_coordinator.dart';
 import 'package:resonance/core/playback/audio_output_controller.dart';
 import 'package:resonance/core/playback/demo_audio_source_resolver.dart';
@@ -299,8 +300,17 @@ final audioOutputControllerProvider =
       );
     });
 
+final audioEffectsControllerProvider =
+    StateNotifierProvider<AudioEffectsController, AudioEffectsState>((ref) {
+      return AudioEffectsController(
+        ref.watch(playbackEngineProvider),
+        ref.watch(secureKeyValueStoreProvider),
+      );
+    });
+
 final playbackServiceProvider = FutureProvider<PlaybackService>((ref) async {
   ref.watch(audioOutputControllerProvider);
+  ref.watch(audioEffectsControllerProvider.notifier);
   final onboarding = await ref.watch(onboardingPreferencesProvider).read();
   final flowSettings = await ref.watch(playbackFlowPreferencesProvider).read();
   final service = PlaybackService(

@@ -16,6 +16,7 @@ import 'package:resonance/core/preferences/playback_flow_preferences.dart';
 import 'package:resonance/core/update/app_update_service.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/features/auth/account_controller.dart';
+import 'package:resonance/features/settings/equalizer_card.dart';
 import 'package:resonance/features/wave/wave_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
@@ -456,6 +457,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         ),
         const SizedBox(height: 16),
+        const EqualizerCard(),
+        const SizedBox(height: 16),
         Text('Интеграции', style: Theme.of(context).textTheme.displaySmall),
         const SizedBox(height: 8),
         const Text(
@@ -518,14 +521,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               const Divider(height: 1),
               SwitchListTile(
+                value: flow.smartTransitions,
+                onChanged: flow.enabled
+                    ? (enabled) => unawaited(
+                        _updateFlow(flow.copyWith(smartTransitions: enabled)),
+                      )
+                    : null,
+                secondary: const Icon(Icons.auto_awesome_rounded),
+                title: const Text('Умный переход'),
+                subtitle: const Text(
+                  'Альбом играет подряд без затухания, а концертные записи и классика звучат до последней ноты.',
+                ),
+              ),
+              const Divider(height: 1),
+              SwitchListTile(
                 value: flow.normalizeLoudness,
                 onChanged: (enabled) => unawaited(
                   _updateFlow(flow.copyWith(normalizeLoudness: enabled)),
                 ),
                 secondary: const Icon(Icons.graphic_eq_rounded),
                 title: const Text('Выравнивать громкость'),
-                subtitle: const Text(
-                  'Сглаживает резкие перепады между тихими и громкими записями.',
+                subtitle: Text(
+                  ref
+                              .watch(audioEffectsControllerProvider)
+                              .support
+                              ?.normalization ==
+                          false
+                      ? 'В этой сборке плеера нет фильтра громкости — настройка сохранится и заработает, когда он появится.'
+                      : 'Одна громкость для YouTube, Яндекса, SoundCloud и офлайн-треков.',
                 ),
               ),
               const Divider(height: 1),
