@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/app/router.dart';
 import 'package:resonance/features/auth/account_controller.dart';
+import 'package:resonance/features/offline/offline_controller.dart';
 import 'package:resonance/features/onboarding/onboarding_feature.dart';
 import 'package:resonance/features/recap/listening_recorder.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
@@ -70,6 +71,7 @@ class _ResonanceAppState extends ConsumerState<ResonanceApp> {
     ref.watch(accountControllerProvider);
     ref.watch(obsOverlayControllerProvider);
     ref.watch(listeningRecorderProvider);
+    ref.watch(offlineCoordinatorProvider);
     return MaterialApp.router(
       title: 'Resonance',
       debugShowCheckedModeBanner: false,

@@ -12,6 +12,7 @@ import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/features/rooms/rooms_screen.dart';
 import 'package:resonance/features/search/search_screen.dart';
 import 'package:resonance/features/settings/settings_screen.dart';
+import 'package:resonance/features/settings/storage_screen.dart';
 import 'package:resonance/shared/widgets/adaptive_app_shell.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 
@@ -106,6 +107,11 @@ final resonanceRouter = GoRouter(
               path: '/settings',
               name: 'settings',
               builder: (context, state) => const SettingsScreen(),
+            ),
+            GoRoute(
+              path: '/storage',
+              name: 'storage',
+              builder: (context, state) => const StorageScreen(),
             ),
             GoRoute(
               path: '/account',

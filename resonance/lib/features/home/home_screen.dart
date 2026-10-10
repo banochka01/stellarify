@@ -12,6 +12,8 @@ import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/artist/artist_screen.dart';
 import 'package:resonance/features/library/library_controller.dart';
+import 'package:resonance/features/offline/offline_controller.dart';
+import 'package:resonance/features/offline/offline_widgets.dart';
 import 'package:resonance/features/player/track_action.dart';
 import 'package:resonance/features/recap/listening_recap.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
@@ -46,6 +48,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final state = ref.watch(playbackFrameProvider);
     final track = state.currentTrack ?? demoTrack;
     final library = ref.watch(libraryControllerProvider).valueOrNull;
+    final offline = ref.watch(isOfflineProvider);
     final favorites = library?.favorites ?? const <UnifiedTrack>[];
     final forYou = <String, UnifiedTrack>{
       for (final item in [
@@ -88,6 +91,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
             ),
+            if (offline) ...[
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(gutter, 12, gutter, 0),
+                sliver: const SliverToBoxAdapter(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: OfflineModeBanner(),
+                  ),
+                ),
+              ),
+              _HomeSectionTitle(title: 'Доступно офлайн', gutter: gutter),
+              SliverPadding(
+                padding: EdgeInsets.symmetric(horizontal: gutter),
+                sliver: const SliverToBoxAdapter(
+                  child: OfflineAvailableList(limit: 12),
+                ),
+              ),
+            ],
             SliverPadding(
               padding: EdgeInsets.fromLTRB(gutter, 8, gutter, 0),
               sliver: SliverToBoxAdapter(

@@ -11,6 +11,8 @@ import 'package:resonance/features/library/library_actions.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/library/library_transfer_dialog.dart';
 import 'package:resonance/features/library/playlist_import_progress_dialog.dart';
+import 'package:resonance/features/offline/offline_controller.dart';
+import 'package:resonance/features/offline/offline_widgets.dart';
 import 'package:resonance/features/player/track_action.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/offline_download_button.dart';
@@ -23,6 +25,7 @@ class LibraryScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(libraryControllerProvider);
+    final offline = ref.watch(isOfflineProvider);
     final favorites = library.valueOrNull?.favorites ?? const <UnifiedTrack>[];
     final compact = MediaQuery.sizeOf(context).width < 650;
     final heading = Column(
@@ -106,6 +109,13 @@ class LibraryScreen extends ConsumerWidget {
                       actions,
                     ],
                   ),
+                if (offline) ...[
+                  const SizedBox(height: 18),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: OfflineModeBanner(),
+                  ),
+                ],
                 const SizedBox(height: 34),
                 ResonanceAnimatedSwap(
                   child: KeyedSubtree(
@@ -113,12 +123,15 @@ class LibraryScreen extends ConsumerWidget {
                     child: library.when(
                       loading: () =>
                           const LinearProgressIndicator(minHeight: 2),
-                      error: (error, _) => _ErrorState(
-                        message: error.toString(),
-                        onRetry: () => ref
-                            .read(libraryControllerProvider.notifier)
-                            .refresh(),
-                      ),
+                      // Без сети вместо ошибки — то, что уже скачано.
+                      error: (error, _) => offline
+                          ? const OfflineAvailableList()
+                          : _ErrorState(
+                              message: error.toString(),
+                              onRetry: () => ref
+                                  .read(libraryControllerProvider.notifier)
+                                  .refresh(),
+                            ),
                       data: (state) => _LibraryContent(state: state),
                     ),
                   ),

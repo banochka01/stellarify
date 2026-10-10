@@ -14,7 +14,7 @@ class OfflineDownloadButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final downloads = ref.watch(offlineDownloadsProvider);
-    final saved = downloads.contains(track.id);
+    final saved = downloads.isManual(track.id);
     final busy = downloads.isDownloading(track.id);
     return IconButton(
       tooltip: saved ? 'Удалить загрузку' : 'Скачать для офлайна',
