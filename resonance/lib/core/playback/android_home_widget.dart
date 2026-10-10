@@ -30,6 +30,7 @@ final class AndroidHomeWidget {
   final Ref _ref;
   StreamSubscription<ResonancePlaybackState>? _subscription;
   Map<String, Object?>? _last;
+  bool _disposed = false;
 
   Future<void> start() async {
     homeWidgetChannel.setMethodCallHandler((call) async {
@@ -48,6 +49,7 @@ final class AndroidHomeWidget {
       );
     }
     final service = await _ref.read(playbackServiceProvider.future);
+    if (_disposed) return;
     _subscription = service.states.listen(_publish);
     _publish(service.state);
   }
@@ -74,6 +76,7 @@ final class AndroidHomeWidget {
   }
 
   Future<void> dispose() async {
+    _disposed = true;
     homeWidgetChannel.setMethodCallHandler(null);
     await _subscription?.cancel();
   }

@@ -550,6 +550,7 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     try {
       final half = Duration(milliseconds: duration.inMilliseconds ~/ 2);
       await _rampVolume(targetVolume, 0, half);
+      if (_disposed) return;
       _emit(_state.copyWith(currentIndex: index));
       await _engine.setVolume(0);
       if (_pauseAfterTransition) {
@@ -559,11 +560,15 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
         await _openCurrent(play: true);
         await _rampVolume(0, targetVolume, half);
       }
-      await _engine.setVolume(targetVolume);
     } finally {
       _transitioning = false;
       _pauseAfterTransition = false;
-      _emit(_state.copyWith(volume: targetVolume));
+      // Даже если следующий трек не открылся, движок не должен остаться на
+      // нулевой громкости: иначе всё дальнейшее играет беззвучно.
+      if (!_disposed) {
+        await _engine.setVolume(targetVolume);
+        _emit(_state.copyWith(volume: targetVolume));
+      }
     }
   }
 
@@ -713,8 +718,44 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     if (nextIndex < 0) return;
     final lead = _effectiveTransitionDuration(nextIndex);
     if (lead > Duration.zero && _state.duration - position <= lead) {
-      unawaited(_moveTo(nextIndex));
+      // С перемешиванием Flow должен идти туда же, куда пошёл бы next().
+      unawaited(
+        _moveTo(
+          _state.shuffle && _state.queue.length > 1
+              ? _randomOtherIndex()
+              : nextIndex,
+        ).then((_) => _persist()),
+      );
     }
+  }
+
+  int _randomOtherIndex() {
+    var index = _state.currentIndex;
+    while (index == _state.currentIndex) {
+      index = _random.nextInt(_state.queue.length);
+    }
+    return index;
+  }
+
+  /// Убирает из очереди ещё не сыгранные треки, подходящие под [test]
+  /// (например, только что заблокированного исполнителя в радио).
+  Future<int> removeUpcomingWhere(bool Function(UnifiedTrack) test) async {
+    final current = _state.currentIndex;
+    final queue = <UnifiedTrack>[];
+    var removed = 0;
+    for (var i = 0; i < _state.queue.length; i++) {
+      final track = _state.queue[i];
+      if (i > current && test(track)) {
+        removed++;
+      } else {
+        queue.add(track);
+      }
+    }
+    if (removed == 0) return 0;
+    _emit(_state.copyWith(queue: List.unmodifiable(queue)));
+    await _persist();
+    _startNextPreflight();
+    return removed;
   }
 
   Future<void> _openCurrent({
@@ -896,6 +937,8 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     String? recoveryReason,
   }) async {
     final previous = _state.activeTrackSource;
+    // Автокэш/предзагрузка не должны вытеснить файл, который сейчас звучит.
+    _offlineDownloads?.setActiveTrackId(track.id);
     await _engine.open(resolved, play: play, start: start);
     _lastSuccessfulProvider[track.id] = source.provider;
     _emit(
@@ -966,6 +1009,7 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
       return;
     }
     _disposed = true;
+    _offlineDownloads?.setActiveTrackId(null);
     _accessTimer?.cancel();
     _sourceNoticeTimer?.cancel();
     for (final subscription in _subscriptions) {

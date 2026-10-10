@@ -135,7 +135,10 @@ final class AutoCacheWorker {
 /// Связывает сеть, настройки, плеер и загрузки: качество по сети,
 /// предзагрузка следующего трека и автокэш частых треков и «Моей волны».
 final offlineCoordinatorProvider = FutureProvider<void>((ref) async {
-  final downloads = ref.watch(offlineDownloadsProvider);
+  // Только сам объект, без подписки на notifyListeners: иначе каждая
+  // загрузка пересоздавала координатор (и его очередь автокэша), а через
+  // него — перестраивала ResonanceApp.
+  final downloads = ref.watch(offlineDownloadsProvider.notifier);
   final database = ref.watch(appDatabaseProvider);
   final service = await ref.watch(playbackServiceProvider.future);
 
