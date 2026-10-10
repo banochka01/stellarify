@@ -10,6 +10,7 @@ import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/music_graph/music_graph.dart';
 import 'package:resonance/features/player/track_action.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
+import 'package:resonance/features/wave/wave_track_actions.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/offline_download_button.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
@@ -327,6 +328,9 @@ class _TrackResult extends ConsumerWidget {
               PopupMenuButton<String>(
                 tooltip: 'Действия',
                 onSelected: (value) {
+                  if (handleWaveTrackAction(context, ref, track, value)) {
+                    return;
+                  }
                   if (value == 'favorite') {
                     unawaited(
                       ref
@@ -354,6 +358,8 @@ class _TrackResult extends ConsumerWidget {
                   }
                 },
                 itemBuilder: (_) => [
+                  ...waveTrackMenuItems(),
+                  const PopupMenuDivider(),
                   PopupMenuItem(
                     value: 'favorite',
                     child: ListTile(

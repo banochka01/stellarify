@@ -17,6 +17,7 @@ import 'package:resonance/core/update/app_update_service.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/features/auth/account_controller.dart';
 import 'package:resonance/features/wave/wave_controller.dart';
+import 'package:resonance/features/wave/wave_home_sections.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -443,6 +444,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             );
           },
         ),
+        const SizedBox(height: 16),
+        const WaveSettingsCards(),
         const SizedBox(height: 34),
         Text(
           'Воспроизведение',

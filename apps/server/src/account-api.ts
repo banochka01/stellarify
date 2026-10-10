@@ -74,6 +74,16 @@ const operationSchema = z.discriminatedUnion("type", [
 
 const operationsSchema = z.object({ operations: z.array(operationSchema).min(1).max(100) }).strict();
 
+const waveBlocksSchema = z.object({
+  blocks: z.array(z.object({
+    kind: z.enum(["track", "artist"]),
+    key: z.string().trim().min(1).max(400),
+    label: z.string().trim().min(1).max(400),
+    removed: z.boolean().default(false),
+    updatedAt: z.string().datetime()
+  }).strict()).max(500)
+}).strict();
+
 export function createAccountRouter(store: AccountStore) {
   const router = express.Router();
   const identityLimiter = new SlidingWindowLimiter(10, 15 * 60 * 1_000);
@@ -140,6 +150,19 @@ export function createAccountRouter(store: AccountStore) {
 
   router.get("/me", (_request, response) => {
     response.json({ user: response.locals.accountUser as AccountUser });
+  });
+
+  router.get("/wave/blocks", (_request, response) => {
+    const user = response.locals.accountUser as AccountUser;
+    response.json({ blocks: store.getWaveBlocks(user.id) });
+  });
+
+  router.put("/wave/blocks", (request, response) => {
+    const input = waveBlocksSchema.safeParse(request.body);
+    if (!input.success) return invalid(response, "Некорректный список исключений");
+    const user = response.locals.accountUser as AccountUser;
+    if (!syncLimiter.allow(user.id)) return limited(response, 60);
+    response.json({ blocks: store.mergeWaveBlocks(user.id, input.data.blocks) });
   });
 
   router.get("/library", (_request, response) => {

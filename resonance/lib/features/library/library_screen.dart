@@ -14,6 +14,7 @@ import 'package:resonance/features/library/playlist_import_progress_dialog.dart'
 import 'package:resonance/features/offline/offline_controller.dart';
 import 'package:resonance/features/offline/offline_widgets.dart';
 import 'package:resonance/features/player/track_action.dart';
+import 'package:resonance/features/wave/wave_track_actions.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/offline_download_button.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
@@ -580,6 +581,7 @@ class _FavoriteTrack extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             OfflineDownloadButton(track: track),
+            WaveTrackMenuButton(track: track),
             IconButton(
               tooltip: 'Добавить в плейлист',
               onPressed: () => showAddToPlaylistDialog(context, ref, track),

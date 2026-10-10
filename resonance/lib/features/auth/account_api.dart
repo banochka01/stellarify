@@ -72,6 +72,21 @@ final class AccountApi implements AccountLibraryApi {
     return _libraryFromResponse(response);
   }
 
+  /// "Не предлагать" list synced through Resonance ID (last write wins).
+  Future<List<Map<String, dynamic>>> mergeWaveBlocks(
+    List<Map<String, dynamic>> blocks,
+  ) async {
+    final response = await _authorized(
+      'PUT',
+      '/api/v1/account/wave/blocks',
+      data: {'blocks': blocks},
+    );
+    final raw = (response.data as Map<String, dynamic>?)?['blocks'];
+    return raw is List
+        ? [for (final item in raw) Map<String, dynamic>.from(item as Map)]
+        : const [];
+  }
+
   Future<void> logout() async {
     final session = await _sessions.read();
     if (session == null) return;

@@ -10,6 +10,7 @@ import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/track_source.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/domain/repositories/secure_token_repository.dart';
+import 'package:resonance/features/wave/wave_blocks.dart';
 import 'package:uuid/uuid.dart';
 
 final waveControllerProvider = StateNotifierProvider<WaveController, WaveState>(
@@ -19,9 +20,20 @@ final waveControllerProvider = StateNotifierProvider<WaveController, WaveState>(
       BackendEndpoint.requireCurrent,
       ref.watch(secureTokenRepositoryProvider),
       ref.watch(playbackServiceProvider.future),
+      blocks: () => ref.read(waveBlocksProvider.notifier),
     );
   },
 );
+
+/// Russian label for the time-of-day context the server applied.
+String? waveContextLabel(String? context) => switch (context) {
+  'morning' => 'Утро',
+  'focus' => 'Фокус',
+  'evening' => 'Вечер',
+  'night' => 'Ночь',
+  'weekend' => 'Выходной',
+  _ => null,
+};
 
 class WaveState {
   const WaveState({
@@ -33,8 +45,14 @@ class WaveState {
     this.prompt = '',
     this.summary,
     this.profile,
+    this.context,
+    this.radioTitle,
   });
 
+  final String? context;
+
+  /// "Радио: Artist — Title" when the session was started from a track.
+  final String? radioTitle;
   final bool active;
   final bool loading;
   final String? sessionId;
@@ -55,6 +73,8 @@ class WaveState {
     String? summary,
     WaveProfile? profile,
   }) => WaveState(
+    context: context,
+    radioTitle: radioTitle,
     active: active ?? this.active,
     loading: loading ?? this.loading,
     sessionId: sessionId ?? this.sessionId,
@@ -91,8 +111,18 @@ class WaveProfile {
 }
 
 class WaveController extends StateNotifier<WaveState> {
-  WaveController(this._dio, this._baseUri, this._tokens, this._serviceFuture)
-    : super(const WaveState());
+  WaveController(
+    this._dio,
+    this._baseUri,
+    this._tokens,
+    this._serviceFuture, {
+    this._blocks,
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now,
+       super(const WaveState());
+
+  final WaveBlocksController Function()? _blocks;
+  final DateTime Function() _now;
 
   final Dio _dio;
   final Uri Function() _baseUri;
@@ -114,6 +144,7 @@ class WaveController extends StateNotifier<WaveState> {
     String language = 'any',
     String? roomCode,
     bool append = false,
+    UnifiedTrack? radioSeed,
   }) async {
     if (state.loading) return;
     state = state.copyWith(
@@ -136,6 +167,10 @@ class WaveController extends StateNotifier<WaveState> {
           'mood': mood,
           'language': language,
           'roomCode': ?roomCode,
+          ...waveContextFields(_now()),
+          ..._blockFields(),
+          if (radioSeed != null)
+            'radioSeed': {'title': radioSeed.title, 'artist': radioSeed.artist},
         },
         options: await _options(),
       );
@@ -161,6 +196,10 @@ class WaveController extends StateNotifier<WaveState> {
         prompt: prompt.trim(),
         summary: batch.summary,
         profile: state.profile,
+        context: batch.context,
+        radioTitle: radioSeed == null
+            ? null
+            : '${radioSeed.artist} — ${radioSeed.title}',
       );
       await _subscription?.cancel();
       _subscription = service.states.listen(_onPlayback);
@@ -173,6 +212,38 @@ class WaveController extends StateNotifier<WaveState> {
         profile: state.profile,
       );
     }
+  }
+
+  /// "Запустить радио": endless queue of tracks similar to [track].
+  Future<void> startRadio(UnifiedTrack track) async {
+    await stop();
+    await start(radioSeed: track, discovery: .35);
+  }
+
+  /// "Не предлагать" for the current track or its artist; skips it at once.
+  Future<void> blockCurrent({required bool artist}) async {
+    final service = await _serviceFuture;
+    final track = service.state.currentTrack;
+    final blocks = _blocks?.call();
+    if (track == null || blocks == null) return;
+    if (artist) {
+      await blocks.blockArtist(track.artist);
+    } else {
+      await blocks.blockTrack(track);
+    }
+    if (state.active) {
+      await _feedback(track.id, 'disliked', service.state.position);
+      await service.next();
+    }
+  }
+
+  Map<String, Object> _blockFields() {
+    final blocks = _blocks?.call();
+    if (blocks == null) return const {};
+    return {
+      'blockedArtists': blocks.blockedArtists.take(500).toList(),
+      'blockedTracks': blocks.blockedTracks.take(500).toList(),
+    };
   }
 
   Future<void> resume() async {
@@ -286,13 +357,10 @@ class WaveController extends StateNotifier<WaveState> {
     if (!state.active) return;
     final track = playback.currentTrack;
     if (_currentTrackId != null && track?.id != _currentTrackId) {
-      final ratio = _currentDuration.inMilliseconds <= 0
-          ? 0.0
-          : _currentPosition.inMilliseconds / _currentDuration.inMilliseconds;
       unawaited(
         _feedback(
           _currentTrackId!,
-          ratio >= .85 ? 'finished' : 'skipped',
+          waveFeedbackType(_currentPosition, _currentDuration),
           _currentPosition,
         ),
       );
@@ -418,6 +486,7 @@ class WaveController extends StateNotifier<WaveState> {
           ),
         ],
       );
+      if (_blocks?.call().isBlocked(track) ?? false) continue;
       tracks.add(track);
       _metadata[track.id] = _WaveMeta(
         provider,
@@ -444,6 +513,7 @@ class WaveController extends StateNotifier<WaveState> {
     return _WaveBatch(
       sessionId,
       tracks,
+      context: json?['context'] as String?,
       currentIndex: currentIndex,
       summary: intentMap?['summary'] as String?,
       discovery: (intentMap?['discovery'] as num?)?.toDouble(),
@@ -488,7 +558,9 @@ class _WaveBatch {
     this.summary,
     this.discovery,
     this.position = Duration.zero,
+    this.context,
   });
+  final String? context;
   final String sessionId;
   final List<UnifiedTrack> tracks;
   final int currentIndex;
@@ -502,4 +574,20 @@ class _WaveMeta {
   final MusicProvider provider;
   final String externalId;
   final String? batchId;
+}
+
+/// Listener-local clock for time-of-day and weekday awareness.
+Map<String, int> waveContextFields(DateTime now) => {
+  'localHour': now.hour,
+  'weekday': now.weekday,
+};
+
+/// Skip learning: a skip in the first 30 seconds is a negative signal,
+/// a full listen is positive. Repeats are detected on the server.
+String waveFeedbackType(Duration played, Duration duration) {
+  if (duration > Duration.zero &&
+      played.inMilliseconds >= duration.inMilliseconds * .85) {
+    return 'finished';
+  }
+  return 'skipped';
 }

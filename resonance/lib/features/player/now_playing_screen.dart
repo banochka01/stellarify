@@ -16,6 +16,7 @@ import 'package:resonance/features/lyrics/lyric_loop.dart';
 import 'package:resonance/features/lyrics/lyrics_follow.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/features/rooms/room_queue_panel.dart';
+import 'package:resonance/features/wave/wave_track_actions.dart';
 import 'package:resonance/shared/widgets/ambient.dart';
 import 'package:resonance/shared/widgets/offline_download_button.dart';
 import 'package:resonance/shared/widgets/playback_position.dart';
@@ -196,6 +197,7 @@ class _Header extends ConsumerWidget {
             tooltip: 'Ещё',
             icon: const Icon(Icons.more_horiz_rounded),
             onSelected: (value) {
+              if (handleWaveTrackAction(context, ref, current, value)) return;
               switch (value) {
                 case 'video':
                   unawaited(context.push('/stage?mode=video'));
@@ -205,8 +207,10 @@ class _Header extends ConsumerWidget {
                   unawaited(showSleepTimerSheet(context));
               }
             },
-            itemBuilder: (context) => const [
-              PopupMenuItem(
+            itemBuilder: (context) => [
+              ...waveTrackMenuItems(),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
                 value: 'video',
                 child: ListTile(
                   leading: Icon(Icons.videocam_rounded),

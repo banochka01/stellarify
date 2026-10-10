@@ -18,6 +18,7 @@ import 'package:resonance/features/player/track_action.dart';
 import 'package:resonance/features/recap/listening_recap.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/features/wave/wave_controller.dart';
+import 'package:resonance/features/wave/wave_home_sections.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/ambient.dart';
 import 'package:resonance/shared/widgets/aurora_backdrop.dart';
@@ -121,6 +122,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 ),
               ),
+            ),
+            SliverToBoxAdapter(
+              child: WaveDaySection(gutter: gutter, compact: compact),
+            ),
+            SliverToBoxAdapter(
+              child: NewReleasesSection(gutter: gutter, compact: compact),
             ),
             if (forYou.isNotEmpty) ...[
               _HomeSectionTitle(title: 'Для вас', gutter: gutter),

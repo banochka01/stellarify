@@ -87,6 +87,34 @@ export class SpotifyAdapter implements MusicProviderAdapter {
     });
   }
 
+  /** Latest albums/singles of an artist (catalog search, app credentials). */
+  async artistReleases(artist: string, limit = 10): Promise<SpotifyRelease[]> {
+    const data = await this.apiGet(
+      new URL(`${apiBase}/search`),
+      { q: `artist:"${artist.replace(/"/g, "")}"`, type: "album", limit: String(Math.min(limit, 20)) }
+    );
+    return array(object(data.albums).items).flatMap((raw) => {
+      const album = object(raw);
+      const id = string(album.id);
+      const title = string(album.name);
+      const releaseDate = string(album.release_date);
+      const externalUrl = string(object(album.external_urls).spotify);
+      const artists = array(album.artists).map((entry) => string(object(entry).name)).filter((name): name is string => Boolean(name));
+      if (!id || !title || !releaseDate || !externalUrl || !artists.length) return [];
+      const kind = album.album_type === "single" ? "single" as const : album.album_type === "compilation" ? "compilation" as const : "album" as const;
+      return [{
+        id: `spotify:album:${id}`,
+        title,
+        artist: artists.join(", "),
+        releaseDate,
+        kind,
+        trackCount: Number.isFinite(Number(album.total_tracks)) ? Number(album.total_tracks) : undefined,
+        artworkUrl: pickImage(array(album.images)),
+        externalUrl
+      }];
+    });
+  }
+
   async importPlaylist(playlistId: string, access?: ProviderAccess): Promise<SpotifyImportedPlaylist> {
     if (!/^[A-Za-z0-9]{16,32}$/.test(playlistId)) {
       throw new ProviderGatewayError("TRACK_NOT_FOUND", "Invalid Spotify playlist id", 400);
@@ -353,6 +381,17 @@ function requireSpotifyUserToken(access?: ProviderAccess) {
     );
   }
   return token;
+}
+
+export interface SpotifyRelease {
+  id: string;
+  title: string;
+  artist: string;
+  releaseDate: string;
+  kind: "album" | "single" | "compilation";
+  trackCount?: number;
+  artworkUrl?: string;
+  externalUrl: string;
 }
 
 export function mapSpotifyTrack(raw: Record<string, unknown>): ProviderTrack | undefined {
