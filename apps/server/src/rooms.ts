@@ -304,13 +304,31 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
     } catch { /* best effort */ }
   };
 
+  type Ack = (response: unknown) => void;
+  /**
+   * Registers a room event. Clients control the argument list, so a non-function
+   * "ack" or a handler bug must never escape: a throw inside a socket.io listener
+   * is an uncaught exception that takes the whole API process down.
+   */
+  const on = (event: string, handler: (payload: any, acknowledge?: Ack) => void) => {
+    socket.on(event, (payload: unknown, acknowledge: unknown) => {
+      const ack = typeof acknowledge === "function" ? (acknowledge as Ack) : undefined;
+      try {
+        handler(payload, ack);
+      } catch (error) {
+        console.error(`Room event ${event} failed`, error instanceof Error ? error.message : error);
+        try { ack?.({ ok: false, error: "Не удалось выполнить действие" }); } catch { /* client gone */ }
+      }
+    });
+  };
+
   socket.use(([event], next) => {
     if (event === "room:leave") { next(); return; }
     try { authorize?.(event === "room:create"); next(); }
     catch { socket.emit("room:access-denied", { message: "Для комнат нужен аккаунт Resonance" }); }
   });
 
-  socket.on("room:create", (payload, acknowledge) => {
+  on("room:create", (payload, acknowledge) => {
     leaveRooms(io, socket);
     let code = createCode();
     while (rooms.has(code) || roomStore().hasRoom(code)) code = createCode();
@@ -347,9 +365,16 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
     acknowledge?.({ ok: true, room: publicRoom(room), ...(inviteToken ? { invite: inviteToken } : {}) });
   });
 
-  socket.on("room:join", (payload, acknowledge) => {
+  on("room:join", (payload, acknowledge) => {
     const code = roomCode(payload);
-    const room = rooms.get(code) ?? (code ? reviveRoom(code) : undefined);
+    const live = rooms.get(code);
+    if (live?.participants.has(socket.id)) {
+      // Re-joining the current room must not "leave" it first: a lone member
+      // would end the persisted session and keep playing into a closed one.
+      acknowledge?.({ ok: true, room: publicRoom(live) });
+      return;
+    }
+    const room = live ?? (code ? reviveRoom(code) : undefined);
     if (!room) {
       acknowledge?.({ ok: false, error: "Комната не найдена" });
       return;
@@ -380,7 +405,7 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
     acknowledge?.({ ok: true, room: publicRoom(room) });
   });
 
-  socket.on("room:invite", (payload, acknowledge) => {
+  on("room:invite", (payload, acknowledge) => {
     const room = findRoomForParticipant(socket, roomCode(payload));
     if (!room) { acknowledge?.({ ok: false, error: "Комната не найдена" }); return; }
     if (!canControl(room, socket.id)) {
@@ -390,7 +415,7 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
     acknowledge?.({ ok: true, private: room.isPrivate, invite: room.inviteToken });
   });
 
-  socket.on("room:set-private", (payload, acknowledge) => {
+  on("room:set-private", (payload, acknowledge) => {
     const room = findRoomForParticipant(socket, roomCode(payload));
     if (!room) { acknowledge?.({ ok: false, error: "Комната не найдена" }); return; }
     if (roleOf(room, room.participants.get(socket.id)) !== "host") {
@@ -405,7 +430,7 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
     acknowledge?.({ ok: true, private: room.isPrivate, invite: room.inviteToken });
   });
 
-  socket.on("room:set-role", (payload, acknowledge) => {
+  on("room:set-role", (payload, acknowledge) => {
     const room = findRoomForParticipant(socket, roomCode(payload));
     if (!room) { acknowledge?.({ ok: false, error: "Комната не найдена" }); return; }
     if (roleOf(room, room.participants.get(socket.id)) !== "host") {
@@ -425,7 +450,7 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
     acknowledge?.({ ok: true });
   });
 
-  socket.on("playback:update", (payload, acknowledge) => {
+  on("playback:update", (payload, acknowledge) => {
     const code = roomCode(payload);
     const room = rooms.get(code);
     if (!room) {
@@ -455,7 +480,7 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
     acknowledge?.({ ok: true });
   });
 
-  socket.on("room:queue-add", (payload, acknowledge) => {
+  on("room:queue-add", (payload, acknowledge) => {
     const code = roomCode(payload);
     const room = findRoomForParticipant(socket, code);
     if (!room) {
@@ -487,7 +512,7 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
     acknowledge?.({ ok: true });
   });
 
-  socket.on("room:queue-vote", (payload, acknowledge) => {
+  on("room:queue-vote", (payload, acknowledge) => {
     const code = roomCode(payload);
     const entryId = typeof payload?.entryId === "string" ? payload.entryId.trim().slice(0, 64) : "";
     const room = findRoomForParticipant(socket, code);
@@ -503,7 +528,7 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
     acknowledge?.({ ok: true });
   });
 
-  socket.on("room:queue-remove", (payload, acknowledge) => {
+  on("room:queue-remove", (payload, acknowledge) => {
     const code = roomCode(payload);
     const entryId = typeof payload?.entryId === "string" ? payload.entryId.trim().slice(0, 64) : "";
     const room = findRoomForParticipant(socket, code);
@@ -526,7 +551,7 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
     acknowledge?.({ ok: true });
   });
 
-  socket.on("room:queue-next", (payload, acknowledge) => {
+  on("room:queue-next", (payload, acknowledge) => {
     const code = roomCode(payload);
     const room = findRoomForParticipant(socket, code);
     if (!room) {
@@ -558,7 +583,7 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
     acknowledge?.({ ok: true, trackId: next.track.id });
   });
 
-  socket.on("room:chat", (payload, acknowledge) => {
+  on("room:chat", (payload, acknowledge) => {
     const room = findRoomForParticipant(socket, roomCode(payload));
     if (!room) { acknowledge?.({ ok: false, error: "Комната не найдена" }); return; }
     const raw = typeof payload?.text === "string" ? payload.text : "";
@@ -585,7 +610,7 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
     acknowledge?.({ ok: true });
   });
 
-  socket.on("room:react", (payload, acknowledge) => {
+  on("room:react", (payload, acknowledge) => {
     const room = findRoomForParticipant(socket, roomCode(payload));
     if (!room) { acknowledge?.({ ok: false, error: "Комната не найдена" }); return; }
     const emoji = typeof payload?.emoji === "string" ? payload.emoji : "";
@@ -607,7 +632,7 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
     acknowledge?.({ ok: true });
   });
 
-  socket.on("room:history", (_payload, acknowledge) => {
+  on("room:history", (_payload, acknowledge) => {
     const id = userId();
     if (!id) { acknowledge?.({ ok: true, sessions: [] }); return; }
     try {
@@ -617,7 +642,7 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
     }
   });
 
-  socket.on("room:leave", (_payload, acknowledge) => {
+  on("room:leave", (_payload, acknowledge) => {
     leaveRooms(io, socket);
     acknowledge?.({ ok: true });
   });

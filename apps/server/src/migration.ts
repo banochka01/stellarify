@@ -173,7 +173,11 @@ export class MigrationService {
   }
 
   #launch(job: MigrationJob, access: MigrationAccess) {
-    const run = this.#run(job, access).finally(() => this.#running.delete(job.id));
+    // #run's own error path writes to the store; if that write fails too the
+    // rejection must not escape as an unhandled rejection (fatal on Node ≥15).
+    const run = this.#run(job, access)
+      .catch((error) => this.#log(`Migration ${job.id} crashed: ${error instanceof Error ? error.message : String(error)}`))
+      .finally(() => this.#running.delete(job.id));
     this.#running.set(job.id, run);
   }
 

@@ -56,7 +56,8 @@ function foldLatin(value: string) {
     .replace(/w/g, "v")
     .replace(/x/g, "ks")
     .replace(/ph/g, "f")
-    .replace(/(.)\1+/g, "$1");
+    // Letters only: collapsing digits would make "Song 2" equal "Song 22".
+    .replace(/(\p{L})\1+/gu, "$1");
 }
 
 export function transliterate(value: string) {
