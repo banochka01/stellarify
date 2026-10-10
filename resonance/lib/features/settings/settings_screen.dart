@@ -260,8 +260,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
     try {
       await ref.read(onboardingPreferencesProvider).setQuality(quality);
-      final playback = await ref.read(playbackServiceProvider.future);
-      playback.setQuality(quality);
+      // Офлайн-координатор сам выберет качество по типу сети.
+      ref.invalidate(onboardingSettingsProvider);
     } finally {
       if (mounted) setState(() => _savingQuality = false);
     }
@@ -795,7 +795,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Качество воспроизведения',
+                        'Качество по Wi‑Fi',
                         style: TextStyle(fontWeight: FontWeight.w800),
                       ),
                     ),
@@ -824,6 +824,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ],
             ),
+          ),
+        ),
+        const SizedBox(height: 18),
+        Card(
+          margin: EdgeInsets.zero,
+          child: ListTile(
+            leading: const Icon(Icons.sd_storage_rounded),
+            title: const Text('Хранилище и офлайн'),
+            subtitle: const Text(
+              'Загрузки, автокэш, качество по мобильной сети',
+            ),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => context.go('/storage'),
           ),
         ),
         const SizedBox(height: 34),

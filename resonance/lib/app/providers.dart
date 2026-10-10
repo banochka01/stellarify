@@ -39,6 +39,7 @@ import 'package:resonance/features/auth/client_identity_service.dart';
 import 'package:resonance/features/auth/library_sync_service.dart';
 import 'package:resonance/features/library/playlist_import_service.dart';
 import 'package:resonance/features/lyrics/lyrics_service.dart';
+import 'package:resonance/features/offline/offline_controller.dart';
 import 'package:resonance/features/settings/spotify_oauth_client.dart';
 import 'package:resonance/providers/common/backend_token_provider.dart';
 import 'package:resonance/providers/common/provider_registry.dart';
@@ -204,8 +205,14 @@ final spotifyOAuthClientProvider = Provider<SpotifyOAuthClient>((ref) {
 });
 
 final lyricsProvider = FutureProvider.autoDispose
-    .family<LyricsDocument?, UnifiedTrack>((ref, track) {
-      return ref.watch(lyricsServiceProvider).find(track);
+    .family<LyricsDocument?, UnifiedTrack>((ref, track) async {
+      final service = ref.watch(lyricsServiceProvider);
+      // Текст, скачанный вместе с треком, работает и без сети.
+      final offline = await ref
+          .read(offlineDownloadsProvider)
+          .lyricsFor(track.id);
+      if (offline != null) return LyricsDocument.fromJson(offline);
+      return service.find(track);
     });
 
 final sourceSelectionPolicyProvider = Provider<SourceSelectionPolicy>((ref) {
@@ -261,6 +268,8 @@ final offlineDownloadsProvider = ChangeNotifierProvider<OfflineDownloads>((
     providers: ref.watch(providerRegistryProvider),
     // Resonance бесплатен: загрузка не требует отдельного доступа.
     authorizeSource: (_) async {},
+    quality: () => ref.read(effectiveQualityProvider),
+    fetchLyrics: (track) => ref.read(lyricsServiceProvider).findRaw(track),
   );
   unawaited(downloads.initialize());
   return downloads;

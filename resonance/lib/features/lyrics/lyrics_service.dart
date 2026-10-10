@@ -62,6 +62,12 @@ final class LyricsService {
   final SecureTokenRepository? _tokens;
 
   Future<LyricsDocument?> find(UnifiedTrack track) async {
+    final data = await findRaw(track);
+    return data == null ? null : LyricsDocument.fromJson(data);
+  }
+
+  /// Ответ сервера как есть — его сохраняют рядом со скачанным треком.
+  Future<Map<String, dynamic>?> findRaw(UnifiedTrack track) async {
     try {
       final yandexSource = track.sourceFor(MusicProvider.yandex);
       final yandexToken = yandexSource == null
@@ -85,8 +91,7 @@ final class LyricsService {
             ? Options(headers: {'X-Provider-Token': yandexToken})
             : null,
       );
-      final data = response.data;
-      return data == null ? null : LyricsDocument.fromJson(data);
+      return response.data;
     } on DioException catch (error) {
       if (error.response?.statusCode == 404) return null;
       rethrow;

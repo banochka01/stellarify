@@ -163,6 +163,35 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     await _engine.setLoudnessNormalization(settings.normalizeLoudness);
   }
 
+  bool _preloadNext = false;
+
+  /// Предзагрузка следующего трека очереди целиком, пока играет текущий:
+  /// на плохой сети переход не ждёт буферизации.
+  bool get preloadNext => _preloadNext;
+
+  void setPreloadNext(bool enabled) {
+    _preloadNext = enabled;
+    if (enabled) _preloadNextAudio();
+  }
+
+  void _preloadNextAudio() {
+    final downloads = _offlineDownloads;
+    if (!_preloadNext || downloads == null || _state.queue.isEmpty) return;
+    final nextIndex = _state.currentIndex + 1 < _state.queue.length
+        ? _state.currentIndex + 1
+        : (_state.repeatMode == PlaybackRepeatMode.all ? 0 : -1);
+    if (nextIndex < 0 || nextIndex == _state.currentIndex) return;
+    final next = _state.queue[nextIndex];
+    if (downloads.contains(next.id) || downloads.isDownloading(next.id)) {
+      return;
+    }
+    unawaited(
+      downloads.preload(next).then((ok) {
+        if (ok && !_disposed) _setSourceReadiness(next.id, 'ready');
+      }, onError: (Object _) {}),
+    );
+  }
+
   void setQuality(AudioQuality quality) {
     if (_quality == quality) return;
     _quality = quality;
@@ -887,6 +916,7 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     }
     _scheduleAccessCheck();
     _startNextPreflight();
+    _preloadNextAudio();
   }
 
   void _showSourceNotice(String message) {
