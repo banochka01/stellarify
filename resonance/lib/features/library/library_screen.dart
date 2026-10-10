@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/database/app_database.dart';
+import 'package:resonance/core/desktop/quick_actions.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_actions.dart';
@@ -718,6 +719,11 @@ class _PlaylistCard extends ConsumerWidget {
                       FilledButton.icon(
                         onPressed: () {
                           Navigator.pop(sheetContext);
+                          unawaited(
+                            ref
+                                .read(secureKeyValueStoreProvider)
+                                .write(lastPlaylistStorageKey, playlist.id),
+                          );
                           if (tracks.first.preferredProvider ==
                               MusicProvider.youtube) {
                             unawaited(

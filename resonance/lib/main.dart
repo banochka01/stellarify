@@ -4,18 +4,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:resonance/app/resonance_app.dart';
+import 'package:resonance/core/desktop/quick_actions.dart';
+import 'package:resonance/core/desktop/windows_shell.dart';
+import 'package:resonance/core/diagnostics/client_error_reporter.dart';
 import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/core/playback/windows_media_controls.dart';
 import 'package:window_manager/window_manager.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  ClientErrorReporter.instance.installGlobalHandlers();
   MediaKit.ensureInitialized();
   await BackendEndpoint.initialize();
   if (Platform.isWindows) {
     // Native media controls are optional. Their initialization must not keep
     // the window hidden when Windows or a native dependency rejects them.
     await WindowsMediaControls.initialize();
+    pendingLaunchActions.addAll(args.map(QuickAction.parse).nonNulls);
     await windowManager.ensureInitialized();
     const options = WindowOptions(
       size: Size(1280, 800),

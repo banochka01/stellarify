@@ -52,3 +52,13 @@ curl -fsS https://music.webcordes.ru/api/health
 
 Rollback by restoring the timestamped `/opt/resonance/backups/app-*` archive
 and the matching Nginx backup, then rebuilding the Compose service.
+
+After deploy, run `./deploy/smoke.sh https://music.webcordes.ru [version]`. It
+only issues read-only GETs: health, client version, provider lists,
+`/api/v1/status` (per-provider health, cached 60 s), lyrics and
+`/api/v1/rooms/stats` (counts only).
+
+Client crash/playback reports (`POST /api/v1/client-reports`, 30 per IP per
+10 minutes) are appended as JSON lines to `client-reports.jsonl` next to the
+auth database (override with `CLIENT_REPORTS_PATH`); the file rotates to
+`.1` above 5 MB.

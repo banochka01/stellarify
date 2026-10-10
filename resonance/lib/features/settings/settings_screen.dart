@@ -17,6 +17,7 @@ import 'package:resonance/core/update/app_update_service.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/features/auth/account_controller.dart';
 import 'package:resonance/features/settings/equalizer_card.dart';
+import 'package:resonance/features/settings/service_status_screen.dart';
 import 'package:resonance/features/wave/wave_controller.dart';
 import 'package:resonance/features/wave/wave_home_sections.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
@@ -989,6 +990,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             unawaited(launchUrl(_availableUpdate!.downloadUrl)),
                         child: const Text('Обновить'),
                       ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.monitor_heart_outlined),
+                title: const Text('Состояние сервисов'),
+                subtitle: const Text('Доступность и задержка провайдеров'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => openServiceStatus(context),
               ),
               const Divider(height: 1),
               ListTile(

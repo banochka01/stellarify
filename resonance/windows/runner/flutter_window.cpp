@@ -2,6 +2,11 @@
 
 #include <optional>
 
+#include <flutter/standard_method_codec.h>
+
+#include <string>
+
+#include "desktop_integration.h"
 #include "flutter/generated_plugin_registrant.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
@@ -25,6 +30,11 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  actions_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(),
+          "resonance/desktop_actions",
+          &flutter::StandardMethodCodec::GetInstance());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -40,6 +50,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  actions_channel_ = nullptr;
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -62,6 +73,18 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+    case WM_COPYDATA: {
+      const auto* data = reinterpret_cast<const COPYDATASTRUCT*>(lparam);
+      if (data != nullptr && data->dwData == kQuickActionCopyDataTag &&
+          data->cbData > 0 && data->cbData < 256 && actions_channel_) {
+        std::string action(static_cast<const char*>(data->lpData),
+                           data->cbData);
+        actions_channel_->InvokeMethod(
+            "action", std::make_unique<flutter::EncodableValue>(action));
+        return TRUE;
+      }
+      break;
+    }
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;

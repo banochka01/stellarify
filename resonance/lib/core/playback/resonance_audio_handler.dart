@@ -6,12 +6,22 @@ import 'package:resonance/domain/entities/playback_state.dart';
 
 final class ResonanceAudioHandler extends audio_service.BaseAudioHandler
     with audio_service.QueueHandler, audio_service.SeekHandler {
-  ResonanceAudioHandler(this._service) {
+  ResonanceAudioHandler(this._service, {this.onLike}) {
     _subscription = _service.states.listen(_publish);
     _publish(_service.state);
   }
 
   final PlaybackService _service;
+
+  /// Toggles the current track in Favorites ("Нравится" notification action).
+  final Future<void> Function()? onLike;
+
+  static const likeActionName = 'like';
+  static final _like = audio_service.MediaControl.custom(
+    androidIcon: 'drawable/ic_notification_like',
+    label: 'Нравится',
+    name: likeActionName,
+  );
   late final StreamSubscription<ResonancePlaybackState> _subscription;
 
   void _publish(ResonancePlaybackState state) {
@@ -51,13 +61,17 @@ final class ResonanceAudioHandler extends audio_service.BaseAudioHandler
           else
             audio_service.MediaControl.play,
           audio_service.MediaControl.skipToNext,
+          if (onLike != null && track != null) _like,
         ],
+        androidCompactActionIndices: const [0, 1, 2],
         systemActions: const {
           audio_service.MediaAction.seek,
           audio_service.MediaAction.seekForward,
           audio_service.MediaAction.seekBackward,
         },
-        processingState: state.buffering
+        processingState: track == null
+            ? audio_service.AudioProcessingState.idle
+            : state.buffering
             ? audio_service.AudioProcessingState.buffering
             : audio_service.AudioProcessingState.ready,
         playing: state.playing,
@@ -82,6 +96,49 @@ final class ResonanceAudioHandler extends audio_service.BaseAudioHandler
 
   @override
   Future<void> skipToPrevious() => _service.previous();
+
+  @override
+  Future<void> stop() async {
+    await _service.pause();
+    await super.stop();
+  }
+
+  @override
+  Future<void> fastForward() =>
+      _service.seek(_service.state.position + const Duration(seconds: 10));
+
+  @override
+  Future<void> rewind() =>
+      _service.seek(_service.state.position - const Duration(seconds: 10));
+
+  @override
+  Future<void> skipToQueueItem(int index) => _service.skipToIndex(index);
+
+  @override
+  Future<void> click([
+    audio_service.MediaButton button = audio_service.MediaButton.media,
+  ]) async {
+    switch (button) {
+      case audio_service.MediaButton.next:
+        await skipToNext();
+      case audio_service.MediaButton.previous:
+        await skipToPrevious();
+      case audio_service.MediaButton.media:
+        if (_service.state.playing) {
+          await pause();
+        } else {
+          await play();
+        }
+    }
+  }
+
+  @override
+  Future<dynamic> customAction(
+    String name, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    if (name == likeActionName) await onLike?.call();
+  }
 
   Future<void> close() => _subscription.cancel();
 }

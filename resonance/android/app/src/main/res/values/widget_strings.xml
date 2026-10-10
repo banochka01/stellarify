@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">Обложка, управление и «Моя волна»</string>
+    <string name="widget_cover">Обложка трека</string>
+    <string name="widget_idle">Нажмите «Моя волна»</string>
+    <string name="widget_play">Играть или пауза</string>
+    <string name="widget_next">Следующий трек</string>
+    <string name="widget_wave">Моя волна</string>
+    <string name="notification_like">Нравится</string>
+</resources>
