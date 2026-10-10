@@ -1,7 +1,9 @@
 import { Client } from "@dvxch/yandex-music";
 import {
   type AudioQuality,
+  type ImportedProviderArtist,
   type ImportedProviderLibrary,
+  type ImportedProviderPlaylist,
   type MusicProviderAdapter,
   type ProviderAccess,
   type ProviderTrack,
@@ -63,6 +65,9 @@ interface YandexClientLike {
   trackSupplement?(trackId: string | number): Promise<YandexSupplementLike | null>;
   usersLikesTracks?(): Promise<{ tracks?: Array<YandexTrackLike & { track?: YandexTrackLike }> } | null>;
   usersPlaylistsList?(): Promise<YandexPlaylistLike[]>;
+  usersLikesAlbums?(): Promise<Array<{ id?: string | number; album?: YandexAlbumLike }>>;
+  usersLikesArtists?(): Promise<Array<{ id?: string | number; name?: string; cover?: { uri?: string } }>>;
+  albumsWithTracks?(albumId: string | number): Promise<(YandexAlbumLike & { volumes?: YandexTrackLike[][] }) | null>;
   rotorWaveSettings?(): Promise<{ defaultStation?: { stationId?: string } } | null>;
   rotorStationSettings2?(
     station: string,
@@ -89,6 +94,13 @@ interface YandexClientLike {
       from?: string;
     }
   ): Promise<boolean>;
+}
+
+interface YandexAlbumLike {
+  id?: string | number;
+  title?: string;
+  coverUri?: string;
+  artists?: Array<{ name?: string }>;
 }
 
 interface YandexPlaylistLike {
@@ -335,11 +347,15 @@ export class YandexAdapter implements MusicProviderAdapter {
           failedPlaylists += 1;
         }
       }
+      const albums = await importYandexAlbums(client).catch(() => []);
+      const artists = await importYandexArtists(client).catch(() => []);
       return {
         provider: "yandex",
         title: "Моя музыка · Яндекс",
         favorites,
         playlists,
+        albums,
+        artists,
         truncated: summaries.length > selected.length ||
           (liked?.tracks?.length ?? 0) > favorites.length ||
           failedPlaylists > 0
@@ -450,6 +466,40 @@ async function materializeYandexTracks(
     const track = reference.track ?? complete.get(String(reference.id));
     return track && isPlayableTrack(track) ? [mapTrack(track)] : [];
   });
+}
+
+async function importYandexAlbums(client: YandexClientLike): Promise<ImportedProviderPlaylist[]> {
+  if (!client.usersLikesAlbums || !client.albumsWithTracks) return [];
+  const likes = (await client.usersLikesAlbums()).slice(0, 30);
+  const albums: ImportedProviderPlaylist[] = [];
+  for (const like of likes) {
+    const id = like.album?.id ?? like.id;
+    if (id == null) continue;
+    try {
+      const album = await client.albumsWithTracks(id);
+      if (!album?.title) continue;
+      const tracks = (album.volumes ?? []).flat().filter(isPlayableTrack).map(mapTrack).slice(0, 300);
+      albums.push({
+        externalId: `yandex:album:${id}`,
+        title: album.title,
+        artworkUrl: yandexArtwork(album.coverUri),
+        artist: album.artists?.map((item) => item.name).filter(Boolean).join(", ") || undefined,
+        tracks
+      });
+    } catch {
+      // A single unavailable album must not abort the whole migration.
+    }
+  }
+  return albums;
+}
+
+async function importYandexArtists(client: YandexClientLike): Promise<ImportedProviderArtist[]> {
+  if (!client.usersLikesArtists) return [];
+  return (await client.usersLikesArtists()).slice(0, 500).flatMap((artist) =>
+    artist.id != null && artist.name
+      ? [{ externalId: `yandex:artist:${artist.id}`, name: artist.name, artworkUrl: yandexArtwork(artist.cover?.uri) }]
+      : []
+  );
 }
 
 function yandexArtwork(value?: string) {

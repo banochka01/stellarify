@@ -15,6 +15,8 @@ export interface ProviderTrack {
   durationMs?: number;
   artworkUrl?: string;
   externalUrl: string;
+  /** International Standard Recording Code when the provider exposes it. */
+  isrc?: string;
 }
 
 export interface ImportedProviderPlaylist {
@@ -22,6 +24,14 @@ export interface ImportedProviderPlaylist {
   title: string;
   artworkUrl?: string;
   tracks: ProviderTrack[];
+  /** Album artist for saved albums. */
+  artist?: string;
+}
+
+export interface ImportedProviderArtist {
+  externalId: string;
+  name: string;
+  artworkUrl?: string;
 }
 
 export interface ImportedProviderLibrary {
@@ -29,6 +39,10 @@ export interface ImportedProviderLibrary {
   title: string;
   favorites: ProviderTrack[];
   playlists: ImportedProviderPlaylist[];
+  /** Saved albums (optional: not every provider exposes them). */
+  albums?: ImportedProviderPlaylist[];
+  /** Followed artists (optional). */
+  artists?: ImportedProviderArtist[];
   truncated: boolean;
 }
 

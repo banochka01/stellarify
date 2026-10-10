@@ -20,6 +20,9 @@ import {
 import { parseImportPayload } from "./importer.js";
 import { PlaylistImportService } from "./playlist-import.js";
 import { LyricsError, LyricsService } from "./lyrics.js";
+import { createMigrationRouter } from "./migration-api.js";
+import { MigrationService } from "./migration.js";
+import { MigrationStore } from "./migration-store.js";
 import { ClipService, createClipRouter, youtubeStreamFromEnvironment } from "./clips.js";
 import { ClipOffsetStore } from "./clip-embed.js";
 import { installProviderProxy } from "./outbound-proxy.js";
@@ -124,6 +127,18 @@ app.use("/api/v1/clips", createClipRouter(
 ));
 app.use("/api/v1/subscription", createLegacyAccessRouter(accessControl));
 app.use("/api/v1/account", createAccountRouter(accountStore));
+// "Переезд": background whole-library migration into the Resonance ID library.
+const migrations = new MigrationService(
+  new MigrationStore(
+    process.env.MIGRATIONS_DB_PATH || join(dirname(process.env.AUTH_DB_PATH || "./data/resonance.sqlite"), "migrations.sqlite")
+  ),
+  playlistImports,
+  gateway,
+  accountStore
+);
+app.use("/api/v1/migrations", createMigrationRouter(migrations, accountStore, {
+  adminToken: process.env.MIGRATION_ADMIN_TOKEN
+}));
 
 app.get("/api/health", (_request, response) => {
   response.json({

@@ -4,9 +4,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/app/providers.dart';
+import 'package:resonance/app/router.dart';
 import 'package:resonance/core/preferences/appearance_preferences.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/features/library/library_controller.dart';
+import 'package:resonance/features/migration/migration_screen.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_logo.dart';
@@ -74,6 +76,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   ResonanceThemePreset _theme = ResonanceThemePreset.graphite;
   MusicProvider? _savingProvider;
   bool _finishing = false;
+  bool _openMigration = false;
   String? _finishError;
 
   @override
@@ -204,6 +207,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           .complete(providers: _providers, quality: _quality);
       ref.invalidate(onboardingSettingsProvider);
       widget.onCompleted?.call();
+      if (importPlaylist && _openMigration) _launchMigration();
     } on Object catch (error) {
       if (!mounted) return;
       setState(() {
@@ -212,6 +216,21 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     } finally {
       if (mounted) setState(() => _finishing = false);
     }
+  }
+
+  /// Онбординг живёт над Navigator'ом: ждём, пока приложение построится,
+  /// и открываем «Переезд» из медиатеки.
+  static void _launchMigration() {
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 400), () {
+        resonanceRouter.go('/library');
+        final context =
+            resonanceRouter.routerDelegate.navigatorKey.currentContext;
+        if (context != null && context.mounted) {
+          unawaited(openMigrationScreen(context));
+        }
+      }),
+    );
   }
 
   @override
@@ -320,6 +339,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         );
       },
       onQualityChanged: (quality) => setState(() => _quality = quality),
+      openMigration: _openMigration,
+      onOpenMigrationChanged: (value) => setState(() => _openMigration = value),
     ),
   };
 
@@ -609,7 +630,12 @@ class _PersonalizationStep extends StatelessWidget {
     required this.error,
     required this.onThemeChanged,
     required this.onQualityChanged,
+    required this.openMigration,
+    required this.onOpenMigrationChanged,
   });
+
+  final bool openMigration;
+  final ValueChanged<bool> onOpenMigrationChanged;
 
   final ResonanceThemePreset theme;
   final AudioQuality quality;
@@ -681,6 +707,19 @@ class _PersonalizationStep extends StatelessWidget {
               prefixIcon: Icon(Icons.link_rounded),
               labelText: 'Ссылка на плейлист Spotify, VK, Яндекса или YouTube',
               hintText: 'https://open.spotify.com/playlist/…',
+            ),
+          ),
+          const SizedBox(height: 12),
+          SwitchListTile(
+            key: const ValueKey('onboarding-migration'),
+            contentPadding: EdgeInsets.zero,
+            value: openMigration,
+            onChanged: onOpenMigrationChanged,
+            secondary: const Icon(Icons.local_shipping_rounded),
+            title: const Text('Переезд всей медиатеки'),
+            subtitle: const Text(
+              'После запуска перенесём лайки, плейлисты, альбомы и артистов '
+              'из Spotify, VK или Яндекса. Нужен Resonance ID.',
             ),
           ),
           if (error != null) ...[
