@@ -7,12 +7,17 @@ final class PlaybackFlowSettings {
     this.transitionMs = 1600,
     this.normalizeLoudness = true,
     this.visualizer = true,
+    this.smartTransitions = true,
   });
 
   final bool enabled;
   final int transitionMs;
   final bool normalizeLoudness;
   final bool visualizer;
+
+  /// «Умный» переход: не режет концовки live/классики и не вставляет
+  /// затухание между соседними треками одного альбома.
+  final bool smartTransitions;
 
   Duration get transitionDuration => Duration(milliseconds: transitionMs);
 
@@ -21,11 +26,13 @@ final class PlaybackFlowSettings {
     int? transitionMs,
     bool? normalizeLoudness,
     bool? visualizer,
+    bool? smartTransitions,
   }) => PlaybackFlowSettings(
     enabled: enabled ?? this.enabled,
     transitionMs: transitionMs ?? this.transitionMs,
     normalizeLoudness: normalizeLoudness ?? this.normalizeLoudness,
     visualizer: visualizer ?? this.visualizer,
+    smartTransitions: smartTransitions ?? this.smartTransitions,
   );
 }
 
@@ -36,7 +43,17 @@ final class PlaybackFlowPreferences {
   static const _transitionKey = 'resonance.flow.transition_ms';
   static const _normalizeKey = 'resonance.flow.normalize';
   static const _visualizerKey = 'resonance.flow.visualizer';
-  static const allowedTransitionMs = [0, 800, 1600, 2500, 4000];
+  static const _smartKey = 'resonance.flow.smart';
+  static const allowedTransitionMs = [
+    0,
+    800,
+    1600,
+    2500,
+    4000,
+    6000,
+    8000,
+    12000,
+  ];
   final SecureKeyValueStore _store;
 
   Future<PlaybackFlowSettings> read() async {
@@ -45,6 +62,7 @@ final class PlaybackFlowPreferences {
       _store.read(_transitionKey),
       _store.read(_normalizeKey),
       _store.read(_visualizerKey),
+      _store.read(_smartKey),
     ]);
     final parsedTransition = int.tryParse(values[1] ?? '');
     return PlaybackFlowSettings(
@@ -54,6 +72,7 @@ final class PlaybackFlowPreferences {
           : 1600,
       normalizeLoudness: values[2] != 'false',
       visualizer: values[3] != 'false',
+      smartTransitions: values[4] != 'false',
     );
   }
 
@@ -62,6 +81,7 @@ final class PlaybackFlowPreferences {
     _store.write(_transitionKey, value.transitionMs.toString()),
     _store.write(_normalizeKey, value.normalizeLoudness.toString()),
     _store.write(_visualizerKey, value.visualizer.toString()),
+    _store.write(_smartKey, value.smartTransitions.toString()),
   ]);
 }
 

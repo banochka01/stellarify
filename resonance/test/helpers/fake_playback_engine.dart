@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:resonance/core/playback/audio_effects.dart';
 import 'package:resonance/core/playback/playback_engine.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/resolved_audio_source.dart';
@@ -123,6 +124,17 @@ final class FakePlaybackEngine implements PlaybackEngine {
   Future<void> setLoudnessNormalization(bool enabled) async {
     loudnessNormalization = enabled;
   }
+
+  List<double>? equalizerGains;
+
+  @override
+  Future<void> setEqualizer(List<double>? gainsDb) async {
+    equalizerGains = gainsDb;
+  }
+
+  @override
+  Future<AudioFilterSupport> audioFilterSupport() async =>
+      const AudioFilterSupport(equalizer: true);
 
   @override
   Future<void> setAudioOutput(AudioOutputDevice device) async {

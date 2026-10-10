@@ -13,7 +13,9 @@ import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/artist/artist_screen.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/lyrics/lyric_loop.dart';
+import 'package:resonance/features/lyrics/lyric_quote_card.dart';
 import 'package:resonance/features/lyrics/lyrics_follow.dart';
+import 'package:resonance/features/lyrics/lyrics_karaoke.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/features/rooms/room_queue_panel.dart';
 import 'package:resonance/features/wave/wave_track_actions.dart';
@@ -847,6 +849,12 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
           _ensureActiveVisible(active);
           final loop = ref.watch(lyricLoopProvider);
           final loopIndex = loop?.trackId == widget.track.id ? loop!.index : -1;
+          final translation = watchLyricsTranslation(
+            ref,
+            widget.track,
+            document,
+          );
+          final translationOn = ref.watch(lyricsTranslationEnabledProvider);
           const style = TextStyle(
             fontFamily: 'Manrope',
             fontSize: 21,
@@ -876,6 +884,29 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
                       )
                     else if (document.synced)
                       const _LyricsChip(label: 'Синхронно'),
+                    if (document.translatable)
+                      IconButton(
+                        tooltip: translationOn
+                            ? 'Скрыть перевод'
+                            : 'Показать перевод',
+                        isSelected: translationOn,
+                        onPressed: () => ref
+                            .read(lyricsTranslationEnabledProvider.notifier)
+                            .toggle(),
+                        icon: const Icon(Icons.translate_rounded, size: 20),
+                      ),
+                    IconButton(
+                      tooltip: 'Карточка с цитатой',
+                      onPressed: () => unawaited(
+                        showLyricQuotePicker(
+                          context,
+                          track: widget.track,
+                          document: document,
+                          initialIndex: active,
+                        ),
+                      ),
+                      icon: const Icon(Icons.format_quote_rounded, size: 20),
+                    ),
                     TextButton(
                       onPressed: () => launchUrl(document.sourceUrl),
                       child: Text(document.sourceName),
@@ -937,8 +968,13 @@ class _LyricsPanelState extends ConsumerState<_LyricsPanel> {
                             borderRadius: BorderRadius.circular(12),
                             color: looped ? const Color(0x1FB499FF) : null,
                           ),
-                          child: LyricLineText(
-                            text: line.text,
+                          child: KaraokeLyricLine(
+                            line: line,
+                            nextStart: index == active
+                                ? nextLyricStart(document.lines, index)
+                                : null,
+                            karaoke: document.synced && index == active,
+                            translation: translation?[index],
                             style: style,
                             active:
                                 index == active || !document.synced || looped,

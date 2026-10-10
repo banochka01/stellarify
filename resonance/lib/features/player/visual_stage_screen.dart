@@ -16,7 +16,9 @@ import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/lyrics/lyric_loop.dart';
+import 'package:resonance/features/lyrics/lyric_quote_card.dart';
 import 'package:resonance/features/lyrics/lyrics_follow.dart';
+import 'package:resonance/features/lyrics/lyrics_karaoke.dart';
 import 'package:resonance/features/player/clip_service.dart';
 import 'package:resonance/features/player/stage_clip_video.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
@@ -1344,16 +1346,18 @@ class _FullscreenLyricsState extends ConsumerState<_FullscreenLyrics> {
         final loop = ref.watch(lyricLoopProvider);
         final loopIndex = loop?.trackId == widget.track.id ? loop!.index : -1;
         final narrow = MediaQuery.sizeOf(context).width < 600;
+        final translation = watchLyricsTranslation(ref, widget.track, document);
+        final translationOn = ref.watch(lyricsTranslationEnabledProvider);
         final style = TextStyle(
           fontFamily: 'Manrope',
-          fontSize: narrow ? 27 : 38,
+          // Караоке: крупные строки, чтобы читать с другого конца комнаты.
+          fontSize: narrow ? 30 : 44,
           height: 1.18,
           fontWeight: FontWeight.w700,
           letterSpacing: narrow ? -.8 : -1.2,
           shadows: const [Shadow(color: Color(0x80000000), blurRadius: 18)],
         );
-        return ShaderMask(
-          key: ValueKey('lyrics-${widget.track.id}'),
+        final list = ShaderMask(
           shaderCallback: (bounds) => const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -1417,8 +1421,13 @@ class _FullscreenLyricsState extends ConsumerState<_FullscreenLyrics> {
                       horizontal: 18,
                       vertical: narrow ? 10 : 12,
                     ),
-                    child: LyricLineText(
-                      text: line.text,
+                    child: KaraokeLyricLine(
+                      line: line,
+                      nextStart: active == index
+                          ? nextLyricStart(document.lines, index)
+                          : null,
+                      karaoke: document.synced && active == index,
+                      translation: translation?[index],
                       style: style,
                       active: selected || looped,
                       dimColor: Color.lerp(
@@ -1433,6 +1442,44 @@ class _FullscreenLyricsState extends ConsumerState<_FullscreenLyrics> {
               );
             },
           ),
+        );
+        return Stack(
+          key: ValueKey('lyrics-${widget.track.id}'),
+          children: [
+            Positioned.fill(child: list),
+            Positioned(
+              top: 4,
+              right: 8,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (document.translatable)
+                    IconButton(
+                      tooltip: translationOn
+                          ? 'Скрыть перевод'
+                          : 'Показать перевод',
+                      isSelected: translationOn,
+                      onPressed: () => ref
+                          .read(lyricsTranslationEnabledProvider.notifier)
+                          .toggle(),
+                      icon: const Icon(Icons.translate_rounded),
+                    ),
+                  IconButton(
+                    tooltip: 'Карточка с цитатой',
+                    onPressed: () => unawaited(
+                      showLyricQuotePicker(
+                        context,
+                        track: widget.track,
+                        document: document,
+                        initialIndex: active,
+                      ),
+                    ),
+                    icon: const Icon(Icons.format_quote_rounded),
+                  ),
+                ],
+              ),
+            ),
+          ],
         );
       },
     );

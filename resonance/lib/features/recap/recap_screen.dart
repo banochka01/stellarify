@@ -1,15 +1,14 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:ui' as ui;
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/artist/artist_screen.dart';
+import 'package:resonance/features/recap/card_export.dart';
 import 'package:resonance/features/recap/listening_recap.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/ambient.dart';
@@ -32,28 +31,16 @@ class _RecapScreenState extends ConsumerState<RecapScreen> {
   bool _saving = false;
 
   Future<void> _saveImage(ListeningRecap recap) async {
-    final boundary =
-        _cardKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-    if (boundary == null || _saving) return;
+    if (_cardKey.currentContext == null || _saving) return;
     setState(() => _saving = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final image = await boundary.toImage(pixelRatio: 3);
-      final data = await image.toByteData(format: ui.ImageByteFormat.png);
-      image.dispose();
-      if (data == null) throw StateError('png');
-      final stamp = DateTime.now();
-      final saved = await FilePicker.saveFile(
+      final saved = await saveCardImage(
+        _cardKey,
         dialogTitle: 'Сохранить итоги',
-        fileName:
-            'resonance-itogi-${recap.period.name}-'
-            '${stamp.year}-${_two(stamp.month)}-${_two(stamp.day)}.png',
-        bytes: data.buffer.asUint8List(),
-        mimeType: 'image/png',
-        type: FileType.custom,
-        allowedExtensions: const ['png'],
+        fileName: 'resonance-itogi-${recap.period.name}-${cardDateStamp()}.png',
       );
-      if (saved != null) {
+      if (saved) {
         messenger.showSnackBar(
           const SnackBar(content: Text('Картинка с итогами сохранена')),
         );

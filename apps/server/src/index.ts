@@ -19,10 +19,10 @@ import {
 } from "./access.js";
 import { parseImportPayload } from "./importer.js";
 import { PlaylistImportService } from "./playlist-import.js";
-import { LyricsError, LyricsService } from "./lyrics.js";
 import { createMigrationRouter } from "./migration-api.js";
 import { MigrationService } from "./migration.js";
 import { MigrationStore } from "./migration-store.js";
+import { LyricsError, LyricsService, LyricsTranslator } from "./lyrics.js";
 import { ClipService, createClipRouter, youtubeStreamFromEnvironment } from "./clips.js";
 import { ClipOffsetStore } from "./clip-embed.js";
 import { installProviderProxy } from "./outbound-proxy.js";
@@ -92,6 +92,7 @@ const gateway = new ProviderGateway([
 ]);
 const playlistImports = new PlaylistImportService(yandex, youtube, spotify, vk);
 const lyrics = LyricsService.fromEnvironment();
+const lyricsTranslator = LyricsTranslator.fromEnvironment();
 const accountStore = new AccountStore(
   process.env.AUTH_DB_PATH || "./data/resonance.sqlite",
   process.env.AUTH_PASSWORD_PEPPER || ""
@@ -208,6 +209,28 @@ const lyricsQuerySchema = z.object({
   yandexId: z.string().trim().regex(/^\d+(?::\d+)?$/).optional()
 });
 
+const lyricsTranslateSchema = z.object({
+  lines: z.array(z.string().max(500)).min(1).max(400),
+  target: z.string().trim().regex(/^[a-z]{2}(?:-[A-Za-z]{2})?$/).default("ru")
+});
+
+app.post("/api/v1/lyrics/translate", async (request, response) => {
+  if (!lyricsTranslator.available) {
+    response.status(503).json({ error: { code: "TRANSLATION_UNAVAILABLE", message: "Перевод недоступен" } });
+    return;
+  }
+  const input = lyricsTranslateSchema.safeParse(request.body);
+  if (!input.success) {
+    response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Invalid translation request" } });
+    return;
+  }
+  try {
+    response.json({ lines: await lyricsTranslator.translate(input.data.lines, input.data.target) });
+  } catch {
+    response.status(502).json({ error: { code: "UPSTREAM_ERROR", message: "Не удалось перевести текст" } });
+  }
+});
+
 app.get("/api/v1/lyrics", async (request, response) => {
   const input = lyricsQuerySchema.safeParse(request.query);
   if (!input.success) {
@@ -231,7 +254,7 @@ app.get("/api/v1/lyrics", async (request, response) => {
           ? "private, max-age=300"
           : "public, max-age=900, stale-while-revalidate=3600"
       );
-    response.json(result);
+    response.json({ ...result, translatable: lyricsTranslator.available });
   } catch (error) {
     if (error instanceof LyricsError) {
       response.status(error.status).json({ error: { code: error.code, message: "Не удалось загрузить текст песни" } });

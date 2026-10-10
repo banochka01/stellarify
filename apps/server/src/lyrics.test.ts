@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { LyricsService, parseLrc } from "./lyrics.js";
+import { LyricsService, LyricsTranslator, parseLrc } from "./lyrics.js";
 
 test("parses timestamps, offset and duplicate LRC stamps", () => {
   assert.deepEqual(
@@ -204,4 +204,25 @@ test("accepts request-scoped provider lyrics without sharing them through cache"
   assert.equal((await service.find(query, [attempt]))?.id, 77);
   assert.equal((await service.find(query, [attempt]))?.id, 77);
   assert.equal(extras, 2);
+});
+
+test("parses enhanced LRC word timing", () => {
+  const [line] = parseLrc("[00:01.00]<00:01.00>Hello <00:01.50>big <00:02.00>world");
+  assert.equal(line?.text, "Hello big world");
+  assert.deepEqual(line?.words?.map(word => word.startMs), [1_000, 1_500, 2_000]);
+  assert.equal(line?.words?.map(word => word.text).join(""), "Hello big world");
+});
+
+test("translator is unavailable without a configured endpoint", async () => {
+  const translator = LyricsTranslator.fromEnvironment(fetch, {});
+  assert.equal(translator.available, false);
+  await assert.rejects(translator.translate(["a"], "ru"));
+});
+
+test("translator maps LibreTranslate responses line by line", async () => {
+  const translator = new LyricsTranslator({ baseUrl: "https://translate.local" }, async (_url, init) => {
+    const body = JSON.parse(String(init?.body)) as { q: string[] };
+    return Response.json({ translatedText: body.q.map(line => `ru:${line}`) });
+  });
+  assert.deepEqual(await translator.translate(["One", "Two"], "ru"), ["ru:One", "ru:Two"]);
 });
