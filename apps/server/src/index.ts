@@ -172,9 +172,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "3.13.2",
+    version: process.env.CLIENT_VERSION || "4.0.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Resonance 3.13.2: таймер сна, «Итоги» недели и месяца, волна от артиста, повтор строки текста, общая волна в зале, новый OBS-виджет и исправления обложек и Discord.",
+      "Resonance 4.0: переезд всей медиатеки из Spotify, VK и Яндекса, умный офлайн, «Ваш день» и радио по треку, новые релизы, Комнаты 2.0 с чатом и реакциями, караоке-тексты, эквалайзер, трей и хоткеи на Windows, виджет на Android.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       windowsPortable: "https://music.webcordes.ru/downloads/windows-portable",

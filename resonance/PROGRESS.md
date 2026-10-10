@@ -1,5 +1,18 @@
 # Progress
 
+## Version 4.0.0 — Переезд
+
+- [x] Whole-library migration from Spotify / VK / Yandex: ISRC + fuzzy matching, background resumable jobs, report with manual fix, incremental re-sync
+- [x] Smart offline: auto-cache of top tracks and Wave, next-track preload, Wi-Fi/mobile quality, Storage screen, offline mode, offline lyrics
+- [x] Wave 2.0: "Ваш день" daily mixes, track radio, time-of-day awareness, skip learning, synced "Не предлагать"
+- [x] New releases feed and "Свежее за неделю"
+- [x] Rooms 2.0: persistent rooms, private invites, host/DJ/listener roles, chat, emoji reactions on Stage and OBS, history and room playlist
+- [x] Karaoke lyrics with word timing, optional translation, quote cards
+- [x] 10-band equalizer with presets, smart crossfade, normalization where the player supports it
+- [x] Windows tray, global hotkeys, jump list, compact always-on-top mode; Android widget and richer notification
+- [x] Service status screen, client error reports, extended smoke checks
+- [x] Bug hunt: room event crash, playing-file eviction, crossfade mute, rebuild loop, UI overflows and dead ends
+
 ## Version 3.13.2 — OBS layout fix
 
 - [x] OBS "Полоса" layout no longer collapses the page (CSS class clash), readable light theme
