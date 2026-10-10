@@ -57,6 +57,14 @@ export type WaveTasteSignals = {
   playlistTracks: WaveTrackSignal[];
 };
 
+export type WaveBlock = {
+  kind: "track" | "artist";
+  key: string;
+  label: string;
+  removed: boolean;
+  updatedAt: string;
+};
+
 export class AccountError extends Error {
   constructor(
     readonly code: "EMAIL_TAKEN" | "INVALID_CREDENTIALS" | "INVALID_SESSION" | "LIBRARY_LIMIT",
@@ -144,6 +152,15 @@ export class AccountStore {
       );
       CREATE INDEX IF NOT EXISTS idx_account_wave_feedback_recent
         ON account_wave_feedback(user_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS account_wave_blocks (
+        user_id TEXT NOT NULL REFERENCES account_users(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        block_key TEXT NOT NULL,
+        label TEXT NOT NULL,
+        removed INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (user_id, kind, block_key)
+      );
     `);
   }
 
@@ -306,6 +323,45 @@ export class AccountStore {
 
   clearWaveFeedback(userId: string) {
     this.#database.prepare("DELETE FROM account_wave_feedback WHERE user_id = ?").run(userId);
+  }
+
+  /** "Не предлагать" list with tombstones so devices merge by last write. */
+  getWaveBlocks(userId: string): WaveBlock[] {
+    return this.#database.prepare(`
+      SELECT kind, block_key, label, removed, updated_at FROM account_wave_blocks
+      WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1000
+    `).all(userId).map((raw) => {
+      const row = raw as { kind: WaveBlock["kind"]; block_key: string; label: string; removed: number; updated_at: number };
+      return {
+        kind: row.kind,
+        key: row.block_key,
+        label: row.label,
+        removed: row.removed === 1,
+        updatedAt: new Date(row.updated_at).toISOString()
+      };
+    });
+  }
+
+  mergeWaveBlocks(userId: string, blocks: WaveBlock[]) {
+    const upsert = this.#database.prepare(`
+      INSERT INTO account_wave_blocks (user_id, kind, block_key, label, removed, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT (user_id, kind, block_key) DO UPDATE SET
+        label = excluded.label, removed = excluded.removed, updated_at = excluded.updated_at
+      WHERE excluded.updated_at > account_wave_blocks.updated_at
+    `);
+    this.#transaction(() => {
+      for (const block of blocks) {
+        const updatedAt = Math.min(Date.parse(block.updatedAt) || Date.now(), Date.now());
+        upsert.run(userId, block.kind, block.key, block.label, block.removed ? 1 : 0, updatedAt);
+      }
+      this.#database.prepare(`
+        DELETE FROM account_wave_blocks WHERE user_id = ? AND rowid NOT IN (
+          SELECT rowid FROM account_wave_blocks WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1000
+        )
+      `).run(userId, userId);
+    });
+    return this.getWaveBlocks(userId);
   }
 
   applyOperations(userId: string, operations: LibraryOperation[]) {

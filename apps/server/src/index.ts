@@ -38,6 +38,8 @@ import { YandexAdapter } from "./yandex.js";
 import { YouTubeAdapter } from "./youtube.js";
 import { WaveService, WaveSessionError } from "./wave.js";
 import { WavePersonalizer } from "./wave-personalizer.js";
+import { DailyMixService } from "./daily-mixes.js";
+import { ReleaseService } from "./releases.js";
 
 const port = Number(process.env.PORT || 8787);
 const webOrigin = process.env.WEB_ORIGIN || "http://localhost:5173";
@@ -98,6 +100,11 @@ const wavePersonalizer = new WavePersonalizer(accountStore, {
   cacheMs: optionalNumber(process.env.AGENTROUTER_CACHE_MS)
 });
 const wave = new WaveService(gateway, yandex, wavePersonalizer);
+const waveSearch = (provider: "soundcloud" | "yandex" | "spotify" | "vk", query: string, limit: number, access?: ProviderAccess) =>
+  gateway.search(provider, query, limit, access);
+const dailyMixes = new DailyMixService(waveSearch);
+const releases = new ReleaseService(spotify, waveSearch);
+releases.startPolling();
 const accessControl = new AccessControl(accountStore);
 
 app.disable("x-powered-by");
@@ -289,7 +296,32 @@ const waveRequestSchema = z.object({
   discovery: z.number().min(0).max(1).default(.3),
   mood: z.enum(["fun", "active", "calm", "sad", "all"]).default("all"),
   language: z.enum(["not-russian", "russian", "any"]).default("any"),
-  roomCode: z.string().trim().regex(/^[A-F0-9]{6}$/).optional()
+  roomCode: z.string().trim().regex(/^[A-F0-9]{6}$/).optional(),
+  radioSeed: z.object({
+    title: z.string().trim().min(1).max(200),
+    artist: z.string().trim().min(1).max(200)
+  }).strict().optional(),
+  blockedArtists: z.array(z.string().trim().min(1).max(200)).max(500).default([]),
+  blockedTracks: z.array(z.string().trim().min(1).max(400)).max(500).default([]),
+  localHour: z.number().int().min(0).max(23).optional(),
+  weekday: z.number().int().min(1).max(7).optional()
+});
+const waveProviderList = z.array(z.enum(["soundcloud", "yandex", "spotify", "vk"])).min(1).max(4).default(["soundcloud", "yandex"]);
+const dailyMixesSchema = z.object({
+  favoriteArtists: z.array(z.string().trim().min(1).max(200)).max(50).default([]),
+  forgottenTracks: z.array(z.object({
+    title: z.string().trim().min(1).max(200),
+    artist: z.string().trim().min(1).max(200)
+  }).strict()).max(50).default([]),
+  blockedArtists: z.array(z.string().trim().min(1).max(200)).max(500).default([]),
+  blockedTracks: z.array(z.string().trim().min(1).max(400)).max(500).default([]),
+  enabledProviders: waveProviderList,
+  tzOffsetMinutes: z.number().int().min(-840).max(840).default(180)
+});
+const releasesSchema = z.object({
+  artists: z.array(z.string().trim().min(1).max(200)).max(50).default([]),
+  days: z.number().int().min(1).max(90).default(30),
+  enabledProviders: waveProviderList
 });
 const waveFeedbackSchema = z.object({
   eventId: z.string().uuid(),
@@ -313,10 +345,70 @@ app.post("/api/v1/wave/sessions", async (request, response) => {
     const roomUsers = input.data.roomCode && identity.userId
       ? roomWaveUserIds(input.data.roomCode, identity.userId)
       : [];
+    const accountBlocks = identity.userId ? accountStore.getWaveBlocks(identity.userId).filter((block) => !block.removed) : [];
     response.status(201).json(await wave.start({
       ...input.data,
+      blockedArtists: [...input.data.blockedArtists, ...accountBlocks.filter((block) => block.kind === "artist").map((block) => block.key)],
+      blockedTracks: [...input.data.blockedTracks, ...accountBlocks.filter((block) => block.kind === "track").map((block) => block.key)]
     }, waveAccess(request), waveOwner(request), identity.userId,
     roomUsers.length ? roomUsers : identity.userId ? [identity.userId] : []));
+  } catch (error) { sendGatewayError(response, error); }
+});
+
+/** Account top artists, favorites missing from recent listening, and synced blocks. */
+function accountTaste(userId: string | undefined) {
+  if (!userId) return { artists: [] as string[], forgotten: [] as Array<{ title: string; artist: string }>, blockedArtists: [] as string[], blockedTracks: [] as string[] };
+  const signals = accountStore.getWaveTasteSignals(userId);
+  const counts = new Map<string, number>();
+  for (const item of [...signals.favorites, ...signals.favorites, ...signals.playlistTracks, ...signals.listening.filter((entry) => entry.type !== "skipped" && entry.type !== "disliked")]) {
+    counts.set(item.artist, (counts.get(item.artist) ?? 0) + 1);
+  }
+  const recent = new Set(signals.listening.map((item) => `${item.artist}::${item.title}`.toLowerCase()));
+  const blocks = accountStore.getWaveBlocks(userId).filter((block) => !block.removed);
+  return {
+    artists: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20).map(([artist]) => artist),
+    forgotten: signals.favorites.filter((item) => !recent.has(`${item.artist}::${item.title}`.toLowerCase())).slice(0, 30)
+      .map((item) => ({ title: item.title, artist: item.artist })),
+    blockedArtists: blocks.filter((block) => block.kind === "artist").map((block) => block.key),
+    blockedTracks: blocks.filter((block) => block.kind === "track").map((block) => block.key)
+  };
+}
+
+app.post("/api/v1/wave/daily-mixes", async (request, response) => {
+  const input = dailyMixesSchema.safeParse(request.body);
+  if (!input.success) return void response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Invalid daily mix request" } });
+  try {
+    const identity = accessControl.fromRequest(request);
+    const taste = accountTaste(identity.userId);
+    response.setHeader("cache-control", "private, no-store");
+    response.json(await dailyMixes.build(identity.userId ?? waveOwner(request), {
+      favoriteArtists: [...input.data.favoriteArtists, ...taste.artists],
+      forgottenTracks: [...input.data.forgottenTracks, ...taste.forgotten],
+      blockedArtists: [...input.data.blockedArtists, ...taste.blockedArtists],
+      blockedTracks: [...input.data.blockedTracks, ...taste.blockedTracks],
+      enabledProviders: input.data.enabledProviders,
+      tzOffsetMinutes: input.data.tzOffsetMinutes
+    }, waveAccess(request)));
+  } catch (error) { sendGatewayError(response, error); }
+});
+
+app.post("/api/v1/releases/feed", async (request, response) => {
+  const input = releasesSchema.safeParse(request.body);
+  if (!input.success) return void response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Invalid releases request" } });
+  try {
+    const identity = accessControl.fromRequest(request);
+    const artists = [...input.data.artists, ...accountTaste(identity.userId).artists];
+    response.json(await releases.feed(artists, input.data.days));
+  } catch (error) { sendGatewayError(response, error); }
+});
+
+app.post("/api/v1/releases/fresh-week", async (request, response) => {
+  const input = releasesSchema.safeParse(request.body);
+  if (!input.success) return void response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Invalid releases request" } });
+  try {
+    const identity = accessControl.fromRequest(request);
+    const artists = [...input.data.artists, ...accountTaste(identity.userId).artists];
+    response.json(await releases.freshWeek(artists, input.data.enabledProviders, waveAccess(request)));
   } catch (error) { sendGatewayError(response, error); }
 });
 

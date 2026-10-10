@@ -16,6 +16,52 @@ export interface WaveRequest {
   discovery: number;
   mood: "fun" | "active" | "calm" | "sad" | "all";
   language: "not-russian" | "russian" | "any";
+  /** "Запустить радио" seed: endless queue of tracks similar to this one. */
+  radioSeed?: { title: string; artist: string };
+  /** "Не предлагать": normalized artist names and `artist::title` keys. */
+  blockedArtists?: string[];
+  blockedTracks?: string[];
+  /** Listener-local clock so the wave can follow time of day and weekday. */
+  localHour?: number;
+  weekday?: number;
+}
+
+export type WaveContext = "morning" | "focus" | "evening" | "night" | "weekend";
+
+/** Explainable time-of-day/weekday adjustment applied only when the user left mood on "all". */
+export function waveContext(hour: number | undefined, weekday: number | undefined): WaveContext | undefined {
+  if (hour === undefined || !Number.isInteger(hour) || hour < 0 || hour > 23) return undefined;
+  const weekend = weekday === 6 || weekday === 7;
+  if (hour < 6 || hour >= 23) return "night";
+  if (hour < 11) return "morning";
+  if (hour < 18) return weekend ? "weekend" : "focus";
+  return "evening";
+}
+
+export function applyWaveContext(request: WaveRequest): { request: WaveRequest; context?: WaveContext } {
+  const context = waveContext(request.localHour, request.weekday);
+  if (!context || request.mood !== "all" || request.radioSeed) return { request, ...(context ? { context } : {}) };
+  const tuned: Record<WaveContext, { mood: WaveRequest["mood"]; discovery: number }> = {
+    morning: { mood: "fun", discovery: 0 },
+    focus: { mood: "calm", discovery: -.05 },
+    evening: { mood: "all", discovery: .05 },
+    night: { mood: "calm", discovery: -.05 },
+    weekend: { mood: "active", discovery: .1 }
+  };
+  const value = tuned[context];
+  return {
+    context,
+    request: { ...request, mood: value.mood, discovery: clamp(request.discovery + value.discovery, 0, 1) }
+  };
+}
+
+/** Skip learning: an early skip is negative, a full listen or a repeat is positive. */
+export const EARLY_SKIP_MS = 30_000;
+export function feedbackSignal(type: WaveFeedbackType, playedDurationMs: number): -1 | 0 | 1 {
+  if (type === "disliked") return -1;
+  if (type === "skipped") return playedDurationMs < EARLY_SKIP_MS ? -1 : 0;
+  if (type === "finished" || type === "liked") return 1;
+  return 0;
 }
 
 export interface WaveItem extends ProviderTrack {
@@ -45,6 +91,9 @@ interface WaveSession {
   currentTrackKey?: string;
   currentPositionMs: number;
   expiresAt: number;
+  context?: WaveContext;
+  artistBias: Record<string, number>;
+  playCounts: Map<string, number>;
 }
 
 export class WaveService {
@@ -85,11 +134,25 @@ export class WaveService {
       seedQueries: [...new Set([...interpretedRequest.seedQueries, ...personalization.seedQueries])].slice(0, 10),
       discovery: clamp(interpretedRequest.discovery + personalization.discoveryDelta, 0, 1)
     } : interpretedRequest;
+    const radioRequest = request.radioSeed ? {
+      ...personalizedRequest,
+      // Radio stays close to the seed: its artist first, then the track itself.
+      seedQueries: [...new Set([
+        request.radioSeed.artist,
+        `${request.radioSeed.artist} ${request.radioSeed.title}`,
+        ...personalizedRequest.seedQueries
+      ])].slice(0, 10),
+      discovery: Math.min(personalizedRequest.discovery, .45)
+    } : personalizedRequest;
+    const contextual = request.prompt?.trim() ? { request: radioRequest } : applyWaveContext(radioRequest);
     const session: WaveSession = {
       id: randomUUID(),
       owner,
       ...(userId ? { userId } : {}),
-      request: personalizedRequest,
+      request: contextual.request,
+      ...("context" in contextual && contextual.context ? { context: contextual.context } : {}),
+      artistBias: {},
+      playCounts: new Map(),
       ...(personalization ? { personalization } : {}),
       ...(intent ? { intent } : {}),
       recentTracks: [],
@@ -150,7 +213,23 @@ export class WaveService {
     }
     session.expiresAt = this.now() + 30 * 60_000;
     const track = session.tracks.get(`${event.provider}:${event.trackId}`);
-    if (event.type === "started") session.currentTrackKey = `${event.provider}:${event.trackId}`;
+    if (event.type === "started") {
+      session.currentTrackKey = `${event.provider}:${event.trackId}`;
+      if (track) {
+        const key = trackKey(track);
+        const plays = (session.playCounts.get(key) ?? 0) + 1;
+        session.playCounts.set(key, plays);
+        // A repeat is a strong positive signal for that artist.
+        if (plays > 1) bumpArtist(session, track.artist, .5);
+      }
+    }
+    if (track) {
+      const signal = feedbackSignal(event.type, event.playedDurationMs);
+      if (signal !== 0) bumpArtist(session, track.artist, signal * (event.type === "disliked" ? 1 : .35));
+      if (event.type === "disliked") {
+        session.request.blockedTracks = [...new Set([...(session.request.blockedTracks ?? []), trackKey(track)])];
+      }
+    }
     if (session.userId && track && this.personalizer) {
       this.personalizer.recordFeedback(session.userId, event, {
         title: track.title,
@@ -232,13 +311,23 @@ export class WaveService {
     }));
     for (const result of await Promise.all(searches)) candidates.push(...result);
     const excluded = (session.request.excludedTerms ?? []).map(normalize).filter(Boolean);
-    const allowed = excluded.length === 0 ? candidates : candidates.filter((item) => {
+    const blockedArtists = new Set((session.request.blockedArtists ?? []).map(normalize));
+    const blockedTracks = new Set((session.request.blockedTracks ?? []).map((key) => {
+      const [artist = "", title = ""] = key.split("::");
+      return `${normalize(artist)}::${normalize(title)}`;
+    }));
+    const allowed = candidates.filter((item) => {
+      if (blockedArtists.has(normalize(item.artist)) || blockedTracks.has(trackKey(item))) return false;
+      if ((session.artistBias[normalize(item.artist)] ?? 0) <= -1) return false;
+      if (excluded.length === 0) return true;
       const haystack = normalize(`${item.artist} ${item.title} ${item.album ?? ""}`);
       return !excluded.some((term) => haystack.includes(term));
     });
     const items = rerank(allowed, session, 20, session.request.discovery).map((item) => ({
       ...item,
-      reason: item.lane === "safe"
+      reason: session.request.radioSeed
+        ? `Радио: ${session.request.radioSeed.artist}`
+        : item.lane === "safe"
         ? "Знакомое направление"
         : item.lane === "wild"
           ? "Немного нового"
@@ -278,6 +367,8 @@ export class WaveService {
         mood: session.request.mood,
         language: session.request.language
       } : undefined,
+      context: session.context,
+      radio: session.request.radioSeed ? true : undefined,
       currentTrackKey: session.currentTrackKey,
       positionMs: session.currentPositionMs
     };
@@ -300,7 +391,7 @@ export class WaveSessionError extends Error {}
 
 export function rerank(
   candidates: WaveItem[],
-  history: Pick<WaveSession, "recentTracks" | "recentArtists" | "recentAlbums"> & Partial<Pick<WaveSession, "personalization">>,
+  history: Pick<WaveSession, "recentTracks" | "recentArtists" | "recentAlbums"> & Partial<Pick<WaveSession, "personalization" | "artistBias">>,
   limit: number,
   discovery: number
 ) {
@@ -311,7 +402,8 @@ export function rerank(
     const providerBonus = candidate.provider === "soundcloud" ? .02 : 0;
     const discoveryBonus = candidate.lane === "wild" ? discovery * .12 : candidate.lane === "safe" ? (1 - discovery) * .12 : .06;
     const tasteBonus = (history.personalization?.artistWeights[normalize(candidate.artist)] ?? 0) * .12;
-    const scored = { ...candidate, score: candidate.score + providerBonus + discoveryBonus + tasteBonus };
+    const sessionBias = clamp(history.artistBias?.[normalize(candidate.artist)] ?? 0, -1, 1) * .15;
+    const scored = { ...candidate, score: candidate.score + providerBonus + discoveryBonus + tasteBonus + sessionBias };
     if (!old || scored.score > old.score) unique.set(key, scored);
   }
   const pending = [...unique.values()].sort((a, b) => b.score - a.score);
@@ -340,11 +432,17 @@ export function rerank(
   return result;
 }
 
-function trackKey(track: ProviderTrack) {
+function bumpArtist(session: WaveSession, artist: string, delta: number) {
+  const key = normalize(artist);
+  if (!key) return;
+  session.artistBias[key] = clamp((session.artistBias[key] ?? 0) + delta, -1.5, 1.5);
+}
+
+export function trackKey(track: Pick<ProviderTrack, "artist" | "title">) {
   return `${normalize(track.artist)}::${normalize(track.title)}`;
 }
 
-function normalize(value: string) {
+export function normalize(value: string) {
   return value.toLocaleLowerCase("ru").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
