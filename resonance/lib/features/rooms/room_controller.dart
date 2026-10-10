@@ -483,6 +483,10 @@ class RoomController extends StateNotifier<ListeningRoomState> {
       const Duration(seconds: 8),
       onTimeout: () => const {'ok': false},
     );
+    // Сбой нельзя показывать как «историй нет»: панель покажет ошибку.
+    if (response['ok'] == false) {
+      throw StateError('room history unavailable');
+    }
     return parseRoomHistory(response['sessions']);
   }
 
