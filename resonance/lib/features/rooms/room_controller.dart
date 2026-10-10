@@ -11,12 +11,99 @@ import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/wave/wave_controller.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
+/// Роль в комнате: ведущий управляет всем, диджей — воспроизведением и
+/// очередью, слушатель — предлагает треки, голосует, пишет в чат.
+enum RoomRole {
+  host('Ведущий'),
+  dj('Диджей'),
+  listener('Слушатель');
+
+  const RoomRole(this.label);
+  final String label;
+
+  static RoomRole parse(Object? raw) => switch (raw) {
+    'host' => RoomRole.host,
+    'dj' => RoomRole.dj,
+    _ => RoomRole.listener,
+  };
+}
+
 class RoomParticipant {
-  const RoomParticipant({required this.id, required this.name});
+  const RoomParticipant({
+    required this.id,
+    required this.name,
+    this.role = RoomRole.listener,
+  });
 
   final String id;
   final String name;
+  final RoomRole role;
 }
+
+class RoomChatMessage {
+  const RoomChatMessage({
+    required this.id,
+    required this.fromId,
+    required this.fromName,
+    required this.text,
+    required this.at,
+  });
+
+  final String id;
+  final String fromId;
+  final String fromName;
+  final String text;
+  final DateTime at;
+
+  static RoomChatMessage? fromJson(Map<String, dynamic> json) {
+    final id = json['id']?.toString() ?? '';
+    final text = json['text']?.toString() ?? '';
+    if (id.isEmpty || text.isEmpty) return null;
+    final from = _asStringMap(json['from']);
+    return RoomChatMessage(
+      id: id,
+      fromId: from['id']?.toString() ?? '',
+      fromName: from['name']?.toString() ?? 'Слушатель',
+      text: text,
+      at: DateTime.fromMillisecondsSinceEpoch(
+        (json['at'] as num?)?.toInt() ?? 0,
+      ),
+    );
+  }
+}
+
+/// Живая реакция: живёт несколько секунд поверх Stage и OBS-оверлея.
+class RoomReaction {
+  const RoomReaction({
+    required this.id,
+    required this.emoji,
+    required this.fromName,
+    required this.at,
+  });
+
+  final String id;
+  final String emoji;
+  final String fromName;
+  final DateTime at;
+}
+
+/// Прошлая сессия комнаты из истории для «Переслушать».
+class RoomSessionSummary {
+  const RoomSessionSummary({
+    required this.id,
+    required this.code,
+    required this.startedAt,
+    required this.tracks,
+  });
+
+  final String id;
+  final String code;
+  final DateTime startedAt;
+  final List<UnifiedTrack> tracks;
+}
+
+const roomReactionEmojis = ['🔥', '❤️', '👏', '😂', '😮', '🎉', '💃', '🙌'];
+const roomChatMaxLength = 280;
 
 class RoomQueueEntry {
   const RoomQueueEntry({
@@ -48,6 +135,11 @@ class ListeningRoomState {
     this.busy = false,
     this.autoWave = true,
     this.autoWaveRunning = false,
+    this.isPrivate = false,
+    this.invite,
+    this.played = const [],
+    this.chat = const [],
+    this.reactions = const [],
   });
 
   final bool connected;
@@ -66,6 +158,23 @@ class ListeningRoomState {
   final bool autoWave;
   final bool autoWaveRunning;
 
+  /// Приватная комната пускает только по ссылке-приглашению.
+  final bool isPrivate;
+
+  /// Токен приглашения; известен ведущему и диджеям.
+  final String? invite;
+
+  /// Всё, что прозвучало в этой сессии, — можно сохранить себе одним тапом.
+  final List<UnifiedTrack> played;
+  final List<RoomChatMessage> chat;
+  final List<RoomReaction> reactions;
+
+  RoomRole get selfRole =>
+      participants.where((item) => item.id == selfId).firstOrNull?.role ??
+      (isHost ? RoomRole.host : RoomRole.listener);
+  bool get canControl =>
+      isHost || selfRole == RoomRole.host || selfRole == RoomRole.dj;
+
   bool get inRoom => code != null;
   bool get isHost => inRoom && selfId != null && hostId == selfId;
 
@@ -73,7 +182,7 @@ class ListeningRoomState {
       selfId != null && entry.voters.contains(selfId);
 
   bool canRemove(RoomQueueEntry entry) =>
-      isHost || (selfId != null && entry.addedById == selfId);
+      canControl || (selfId != null && entry.addedById == selfId);
 
   ListeningRoomState copyWith({
     bool? connected,
@@ -88,6 +197,12 @@ class ListeningRoomState {
     bool clearRoom = false,
     bool? autoWave,
     bool? autoWaveRunning,
+    bool? isPrivate,
+    String? invite,
+    bool clearInvite = false,
+    List<UnifiedTrack>? played,
+    List<RoomChatMessage>? chat,
+    List<RoomReaction>? reactions,
   }) => ListeningRoomState(
     connected: connected ?? this.connected,
     code: clearRoom ? null : code ?? this.code,
@@ -101,6 +216,11 @@ class ListeningRoomState {
     autoWaveRunning: clearRoom
         ? false
         : autoWaveRunning ?? this.autoWaveRunning,
+    isPrivate: clearRoom ? false : isPrivate ?? this.isPrivate,
+    invite: clearRoom || clearInvite ? null : invite ?? this.invite,
+    played: clearRoom ? const [] : played ?? this.played,
+    chat: clearRoom ? const [] : chat ?? this.chat,
+    reactions: clearRoom ? const [] : reactions ?? this.reactions,
   );
 }
 
@@ -156,6 +276,8 @@ class RoomController extends StateNotifier<ListeningRoomState> {
       _scheduleReconnect();
     });
     _socket.on('room:state', _applyRoom);
+    _socket.on('room:chat', _applyChat);
+    _socket.on('room:reaction', _applyReaction);
     _socket.on('room:access-denied', (_) {
       state = state.copyWith(
         busy: false,
@@ -180,6 +302,8 @@ class RoomController extends StateNotifier<ListeningRoomState> {
   String _participantName = 'Слушатель';
   String? _autoAdvancedFor;
   String? _autoWaveFor;
+  String? _pendingInvite;
+  Timer? _reactionSweep;
 
   void setAutoWave(bool enabled) {
     state = state.copyWith(autoWave: enabled);
@@ -224,7 +348,11 @@ class RoomController extends StateNotifier<ListeningRoomState> {
     if (code == null || !_socket.connected || _disposed) return;
     _socket.emitWithAck(
       'room:join',
-      {'code': code, 'name': _participantName},
+      {
+        'code': code,
+        'name': _participantName,
+        if (_pendingInvite != null) 'invite': _pendingInvite,
+      },
       ack: (raw) {
         if (_disposed) return;
         final response = _stringMap(raw);
@@ -247,23 +375,130 @@ class RoomController extends StateNotifier<ListeningRoomState> {
     _playbackSubscription = service.states.listen(_publishPlayback);
   }
 
-  void create(String name) {
+  void create(String name, {bool private = false}) {
     _participantName = name.trim().isEmpty ? 'Слушатель' : name.trim();
-    _perform('room:create', {'name': _participantName});
+    _pendingInvite = null;
+    _perform('room:create', {'name': _participantName, 'private': private});
   }
 
-  void join(String code, String name) {
+  /// Принимает код комнаты или ссылку-приглашение целиком.
+  void join(String codeOrLink, String name, {String? invite}) {
     _participantName = name.trim().isEmpty ? 'Слушатель' : name.trim();
+    final parsed = parseRoomInvite(codeOrLink);
+    final code = parsed?.code ?? codeOrLink.trim().toUpperCase();
+    _pendingInvite = invite ?? parsed?.invite;
     _perform('room:join', {
-      'code': code.trim().toUpperCase(),
+      'code': code,
       'name': _participantName,
+      if (_pendingInvite != null) 'invite': _pendingInvite,
     });
+  }
+
+  /// Ссылка-приглашение для приватной комнаты (или код для открытой).
+  Future<String?> inviteLink() async {
+    final code = state.code;
+    if (code == null) return null;
+    if (!state.isPrivate) return roomInviteLink(code);
+    final response = await _request('room:invite', {'code': code});
+    if (!_reportFailure(response, 'Приглашение недоступно.')) return null;
+    final token = response['invite']?.toString();
+    if (token != null) state = state.copyWith(invite: token);
+    return roomInviteLink(code, invite: token);
+  }
+
+  Future<void> setPrivate(bool private) async {
+    final response = await _request('room:set-private', {
+      'code': state.code,
+      'private': private,
+    });
+    if (!_reportFailure(response, 'Не удалось изменить доступ.')) return;
+    final token = response['invite']?.toString();
+    state = token == null
+        ? state.copyWith(isPrivate: private, clearInvite: true)
+        : state.copyWith(isPrivate: private, invite: token);
+  }
+
+  Future<void> setRole(String participantId, RoomRole role) async {
+    final response = await _request('room:set-role', {
+      'code': state.code,
+      'participantId': participantId,
+      'role': role.name,
+    });
+    _reportFailure(response, 'Не удалось изменить роль.');
+  }
+
+  /// Короткое сообщение в чат комнаты. Возвращает текст ошибки или `null`.
+  Future<String?> sendChat(String text) async {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return null;
+    if (trimmed.runes.length > roomChatMaxLength) {
+      return 'Не длиннее $roomChatMaxLength символов.';
+    }
+    final response = await _request('room:chat', {
+      'code': state.code,
+      'text': trimmed,
+    });
+    return response['ok'] == true
+        ? null
+        : response['error']?.toString() ?? 'Сообщение не отправлено.';
+  }
+
+  Future<void> react(String emoji) async {
+    if (!roomReactionEmojis.contains(emoji)) return;
+    await _request('room:react', {'code': state.code, 'emoji': emoji});
+  }
+
+  /// Сохраняет всё, что звучало в комнате, отдельным плейлистом.
+  Future<int> savePlayedToLibrary() async {
+    final tracks = state.played;
+    if (tracks.isEmpty) return 0;
+    final library = _ref.read(libraryControllerProvider.notifier);
+    final now = DateTime.now();
+    final day = now.day.toString().padLeft(2, '0');
+    final month = now.month.toString().padLeft(2, '0');
+    final id = await library.createPlaylist(
+      'Комната ${state.code ?? ''} · $day.$month',
+    );
+    for (final track in tracks) {
+      await library.addToPlaylist(id, track);
+    }
+    return tracks.length;
+  }
+
+  /// Прошлые сессии комнат, где был пользователь.
+  Future<List<RoomSessionSummary>> history() async {
+    if (!_socket.connected) {
+      unawaited(_connectAuthorized());
+      return const [];
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    _socket.emitWithAck(
+      'room:history',
+      const <String, dynamic>{},
+      ack: (raw) {
+        if (!completer.isCompleted) completer.complete(_stringMap(raw));
+      },
+    );
+    final response = await completer.future.timeout(
+      const Duration(seconds: 8),
+      onTimeout: () => const {'ok': false},
+    );
+    return parseRoomHistory(response['sessions']);
+  }
+
+  /// «Переслушать»: ставит треки прошлой сессии в локальную очередь.
+  Future<void> replay(RoomSessionSummary session) async {
+    if (session.tracks.isEmpty) return;
+    final PlaybackService service =
+        _playbackService ?? await _ref.read(playbackServiceProvider.future);
+    await service.setQueue(session.tracks, autoplay: true);
   }
 
   void leave() {
     _socket.emitWithAck('room:leave', const {}, ack: (_) {});
     _appliedVersion = -1;
     _participantName = 'Слушатель';
+    _pendingInvite = null;
     state = state.copyWith(clearRoom: true, clearError: true, busy: false);
   }
 
@@ -294,9 +529,9 @@ class RoomController extends StateNotifier<ListeningRoomState> {
     _reportFailure(response, 'Не удалось убрать трек.');
   }
 
-  /// Ведущий включает трек, набравший больше всего голосов.
+  /// Ведущий или диджей включает трек, набравший больше всего голосов.
   Future<void> playNextFromQueue() async {
-    if (!isHost) return;
+    if (!state.canControl) return;
     final snapshot = state.queue;
     final response = await _request('room:queue-next', {'code': state.code});
     if (!_reportFailure(response, 'Очередь зала пуста.')) return;
@@ -367,7 +602,8 @@ class RoomController extends StateNotifier<ListeningRoomState> {
           return;
         }
         _applyRoom(response['room']);
-        state = state.copyWith(busy: false, clearError: true);
+        final invite = response['invite']?.toString();
+        state = state.copyWith(busy: false, clearError: true, invite: invite);
         final playback = _playbackService?.state;
         if (playback != null && isHost) _publishPlayback(playback, force: true);
       },
@@ -382,6 +618,7 @@ class RoomController extends StateNotifier<ListeningRoomState> {
           (item) => RoomParticipant(
             id: item['id']?.toString() ?? '',
             name: item['name']?.toString() ?? 'Слушатель',
+            role: RoomRole.parse(item['role']),
           ),
         )
         .where((item) => item.id.isNotEmpty)
@@ -392,13 +629,22 @@ class RoomController extends StateNotifier<ListeningRoomState> {
       selfId: _socket.id,
       participants: participants,
       queue: parseRoomQueue(room['queue']),
+      isPrivate: room['private'] == true,
+      played: parseRoomPlayed(room['played']),
+      chat: parseRoomChat(room['chat']),
       busy: false,
       clearError: true,
     );
 
     final playback = _stringMap(room['playback']);
     final version = (playback['version'] as num?)?.toInt() ?? -1;
-    if (isHost || version <= _appliedVersion) return;
+    if (version <= _appliedVersion) return;
+    // Ведущий применяет только чужие изменения — например, «дальше» от диджея.
+    if (isHost && playback['by'] == _socket.id) {
+      _appliedVersion = version;
+      return;
+    }
+    if (isHost && playback['by'] == null) return;
     _appliedVersion = version;
     unawaited(_applyPlayback(playback));
   }
@@ -513,12 +759,65 @@ class RoomController extends StateNotifier<ListeningRoomState> {
     }
   }
 
+  void _applyChat(dynamic raw) {
+    final message = RoomChatMessage.fromJson(_stringMap(raw));
+    if (message == null || state.chat.any((item) => item.id == message.id)) {
+      return;
+    }
+    final chat = [...state.chat, message];
+    state = state.copyWith(
+      chat: chat.length > 50 ? chat.sublist(chat.length - 50) : chat,
+    );
+  }
+
+  void _applyReaction(dynamic raw) {
+    final json = _stringMap(raw);
+    final emoji = json['emoji']?.toString() ?? '';
+    if (!roomReactionEmojis.contains(emoji)) return;
+    final reaction = RoomReaction(
+      id: json['id']?.toString() ?? '${DateTime.now().microsecondsSinceEpoch}',
+      emoji: emoji,
+      fromName: _stringMap(json['from'])['name']?.toString() ?? '',
+      at: DateTime.now(),
+    );
+    final recent = [...state.reactions, reaction];
+    state = state.copyWith(
+      reactions: recent.length > 24
+          ? recent.sublist(recent.length - 24)
+          : recent,
+    );
+    try {
+      _ref.read(obsOverlayControllerProvider.notifier).pushReaction(emoji);
+    } on Object {
+      // OBS-оверлей необязателен.
+    }
+    _reactionSweep ??= Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _sweepReactions(),
+    );
+  }
+
+  void _sweepReactions() {
+    final cutoff = DateTime.now().subtract(roomReactionLifetime);
+    final alive = state.reactions
+        .where((item) => item.at.isAfter(cutoff))
+        .toList(growable: false);
+    if (alive.length != state.reactions.length) {
+      state = state.copyWith(reactions: alive);
+    }
+    if (alive.isEmpty) {
+      _reactionSweep?.cancel();
+      _reactionSweep = null;
+    }
+  }
+
   Map<String, dynamic> _stringMap(dynamic value) => _asStringMap(value);
 
   @override
   void dispose() {
     _disposed = true;
     _reconnectTimer?.cancel();
+    _reactionSweep?.cancel();
     unawaited(_playbackSubscription?.cancel());
     _socket.dispose();
     super.dispose();
@@ -558,4 +857,73 @@ List<RoomQueueEntry> parseRoomQueue(dynamic raw) {
     }
   }
   return List.unmodifiable(queue);
+}
+
+const roomReactionLifetime = Duration(seconds: 4);
+
+/// Схема ссылок-приглашений: `resonance://rooms?code=A1B2C3&invite=…`.
+String roomInviteLink(String code, {String? invite}) => Uri(
+  scheme: 'resonance',
+  host: 'rooms',
+  queryParameters: {'code': code, 'invite': ?invite},
+).toString();
+
+final _roomCodePattern = RegExp(r'^[0-9a-fA-F]{6}$');
+
+/// Разбирает ссылку-приглашение или голый код комнаты.
+({String code, String? invite})? parseRoomInvite(String raw) {
+  final text = raw.trim();
+  if (_roomCodePattern.hasMatch(text)) {
+    return (code: text.toUpperCase(), invite: null);
+  }
+  final uri = Uri.tryParse(text);
+  final code = uri?.queryParameters['code']?.trim() ?? '';
+  if (!_roomCodePattern.hasMatch(code)) return null;
+  final invite = uri?.queryParameters['invite']?.trim();
+  return (
+    code: code.toUpperCase(),
+    invite: invite == null || invite.isEmpty ? null : invite,
+  );
+}
+
+List<RoomChatMessage> parseRoomChat(dynamic raw) => List.unmodifiable([
+  for (final value in raw is List ? raw : const [])
+    ?RoomChatMessage.fromJson(_asStringMap(value)),
+]);
+
+List<UnifiedTrack> parseRoomPlayed(dynamic raw) {
+  final tracks = <UnifiedTrack>[];
+  final seen = <String>{};
+  for (final value in raw is List ? raw : const []) {
+    try {
+      final track = UnifiedTrack.fromJson(
+        _asStringMap(_asStringMap(value)['track']),
+      );
+      if (seen.add(track.id)) tracks.add(track);
+    } on Object {
+      continue;
+    }
+  }
+  return List.unmodifiable(tracks);
+}
+
+List<RoomSessionSummary> parseRoomHistory(dynamic raw) {
+  final sessions = <RoomSessionSummary>[];
+  for (final value in raw is List ? raw : const []) {
+    final item = _asStringMap(value);
+    final id = item['id']?.toString() ?? '';
+    final tracks = parseRoomPlayed(item['tracks']);
+    if (id.isEmpty || tracks.isEmpty) continue;
+    sessions.add(
+      RoomSessionSummary(
+        id: id,
+        code: item['code']?.toString() ?? '',
+        startedAt: DateTime.fromMillisecondsSinceEpoch(
+          (item['startedAt'] as num?)?.toInt() ?? 0,
+        ),
+        tracks: tracks,
+      ),
+    );
+  }
+  return List.unmodifiable(sessions);
 }

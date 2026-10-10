@@ -1,14 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
+import 'package:resonance/features/rooms/room_live_widgets.dart';
 import 'package:resonance/features/rooms/room_queue_panel.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 
 class RoomsScreen extends ConsumerStatefulWidget {
-  const RoomsScreen({super.key});
+  const RoomsScreen({this.initialLink, super.key});
+
+  /// Код или ссылка-приглашение из маршрута `/rooms?code=…&invite=…`.
+  final String? initialLink;
 
   @override
   ConsumerState<RoomsScreen> createState() => _RoomsScreenState();
@@ -16,7 +22,8 @@ class RoomsScreen extends ConsumerStatefulWidget {
 
 class _RoomsScreenState extends ConsumerState<RoomsScreen> {
   final _name = TextEditingController();
-  final _code = TextEditingController();
+  late final _code = TextEditingController(text: widget.initialLink ?? '');
+  bool _private = false;
 
   @override
   void dispose() {
@@ -74,18 +81,40 @@ class _RoomsScreenState extends ConsumerState<RoomsScreen> {
             child: room.inRoom
                 ? _RoomLayout(
                     wide: !compact && MediaQuery.sizeOf(context).width >= 1100,
-                    room: _ActiveRoom(
-                      room: room,
-                      isHost: controller.isHost,
-                      onLeave: controller.leave,
+                    room: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _ActiveRoom(
+                          room: room,
+                          isHost: controller.isHost,
+                          onLeave: controller.leave,
+                        ),
+                        const SizedBox(height: 18),
+                        const RoomReactionBar(),
+                        const SizedBox(height: 18),
+                        const RoomChatPanel(),
+                        const SizedBox(height: 18),
+                        const RoomPlayedPanel(),
+                      ],
                     ),
                   )
-                : _JoinPanel(
-                    name: _name,
-                    code: _code,
-                    busy: room.busy,
-                    onCreate: () => controller.create(_name.text),
-                    onJoin: () => controller.join(_code.text, _name.text),
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _JoinPanel(
+                        name: _name,
+                        code: _code,
+                        busy: room.busy,
+                        private: _private,
+                        onPrivateChanged: (value) =>
+                            setState(() => _private = value),
+                        onCreate: () =>
+                            controller.create(_name.text, private: _private),
+                        onJoin: () => controller.join(_code.text, _name.text),
+                      ),
+                      const SizedBox(height: 18),
+                      const RoomHistoryPanel(),
+                    ],
                   ),
           ),
         ),
@@ -132,12 +161,16 @@ class _JoinPanel extends StatelessWidget {
     required this.name,
     required this.code,
     required this.busy,
+    required this.private,
+    required this.onPrivateChanged,
     required this.onCreate,
     required this.onJoin,
   });
   final TextEditingController name;
   final TextEditingController code;
   final bool busy;
+  final bool private;
+  final ValueChanged<bool> onPrivateChanged;
   final VoidCallback onCreate;
   final VoidCallback onJoin;
 
@@ -162,7 +195,15 @@ class _JoinPanel extends StatelessWidget {
             counterText: '',
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 8),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: private,
+          onChanged: onPrivateChanged,
+          title: const Text('Приватная комната'),
+          subtitle: const Text('Войти можно только по ссылке-приглашению'),
+        ),
+        const SizedBox(height: 8),
         FilledButton.icon(
           onPressed: busy ? null : onCreate,
           icon: const Icon(Icons.add_rounded),
@@ -189,13 +230,10 @@ class _JoinPanel extends StatelessWidget {
             Expanded(
               child: TextField(
                 controller: code,
-                maxLength: 6,
+                maxLength: 256,
                 textCapitalization: TextCapitalization.characters,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp('[a-fA-F0-9]')),
-                ],
                 decoration: const InputDecoration(
-                  labelText: 'Код комнаты',
+                  labelText: 'Код комнаты или ссылка-приглашение',
                   hintText: 'A1B2C3',
                   counterText: '',
                 ),
@@ -213,7 +251,7 @@ class _JoinPanel extends StatelessWidget {
   );
 }
 
-class _ActiveRoom extends StatelessWidget {
+class _ActiveRoom extends ConsumerWidget {
   const _ActiveRoom({
     required this.room,
     required this.isHost,
@@ -223,8 +261,18 @@ class _ActiveRoom extends StatelessWidget {
   final bool isHost;
   final VoidCallback onLeave;
 
+  Future<void> _copyInvite(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final link = await ref.read(roomControllerProvider.notifier).inviteLink();
+    if (link == null) return;
+    await Clipboard.setData(ClipboardData(text: link));
+    messenger?.showSnackBar(
+      const SnackBar(content: Text('Ссылка-приглашение скопирована')),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context, WidgetRef ref) => Container(
     constraints: const BoxConstraints(maxWidth: 680),
     padding: const EdgeInsets.all(24),
     decoration: BoxDecoration(
@@ -246,6 +294,14 @@ class _ActiveRoom extends StatelessWidget {
               'КОМНАТА ${room.code}',
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
             ),
+            if (room.isPrivate) ...[
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.lock_rounded,
+                size: 16,
+                color: ResonanceColors.muted,
+              ),
+            ],
             const Spacer(),
             IconButton(
               tooltip: 'Скопировать код',
@@ -253,6 +309,12 @@ class _ActiveRoom extends StatelessWidget {
                   Clipboard.setData(ClipboardData(text: room.code!)),
               icon: const Icon(Icons.copy_rounded),
             ),
+            if (room.canControl)
+              IconButton(
+                tooltip: 'Скопировать ссылку-приглашение',
+                onPressed: () => unawaited(_copyInvite(context, ref)),
+                icon: const Icon(Icons.link_rounded),
+              ),
             TextButton(onPressed: onLeave, child: const Text('Выйти')),
           ],
         ),
@@ -260,9 +322,21 @@ class _ActiveRoom extends StatelessWidget {
         Text(
           isHost
               ? 'Вы ведущий — ваши трек, пауза и перемотка синхронизируются.'
+              : room.selfRole == RoomRole.dj
+              ? 'Вы диджей — можете включать следующий трек и чистить очередь.'
               : 'Управляет ведущий. Позиция автоматически выравнивается.',
           style: const TextStyle(color: ResonanceColors.muted),
         ),
+        if (isHost)
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: room.isPrivate,
+            onChanged: (value) => unawaited(
+              ref.read(roomControllerProvider.notifier).setPrivate(value),
+            ),
+            title: const Text('Только по приглашению'),
+            subtitle: const Text('Новая ссылка отменяет старые'),
+          ),
         const SizedBox(height: 16),
         FilledButton.icon(
           onPressed: () => context.push('/stage'),
@@ -288,9 +362,30 @@ class _ActiveRoom extends StatelessWidget {
               child: Text(participant.name.characters.first.toUpperCase()),
             ),
             title: Text(participant.name),
-            trailing: participant.id == room.hostId
-                ? const Chip(label: Text('Ведущий'))
-                : null,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (participant.role != RoomRole.listener)
+                  Chip(label: Text(participant.role.label)),
+                if (isHost && participant.role != RoomRole.host)
+                  PopupMenuButton<RoomRole>(
+                    tooltip: 'Роль участника',
+                    onSelected: (role) => unawaited(
+                      ref
+                          .read(roomControllerProvider.notifier)
+                          .setRole(participant.id, role),
+                    ),
+                    itemBuilder: (context) => [
+                      for (final role in const [RoomRole.dj, RoomRole.listener])
+                        CheckedPopupMenuItem(
+                          value: role,
+                          checked: participant.role == role,
+                          child: Text(role.label),
+                        ),
+                    ],
+                  ),
+              ],
+            ),
           ),
       ],
     ),

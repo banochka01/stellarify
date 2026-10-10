@@ -8,6 +8,7 @@ import 'package:resonance/features/music_graph/music_graph_screen.dart';
 import 'package:resonance/features/player/now_playing_screen.dart';
 import 'package:resonance/features/player/visual_stage_screen.dart';
 import 'package:resonance/features/recap/recap_screen.dart';
+import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/features/rooms/rooms_screen.dart';
 import 'package:resonance/features/search/search_screen.dart';
 import 'package:resonance/features/settings/settings_screen.dart';
@@ -84,7 +85,18 @@ final resonanceRouter = GoRouter(
             GoRoute(
               path: '/rooms',
               name: 'rooms',
-              builder: (context, state) => const RoomsScreen(),
+              builder: (context, state) {
+                final code = state.uri.queryParameters['code'];
+                final invite = state.uri.queryParameters['invite'];
+                return RoomsScreen(
+                  key: ValueKey('rooms-$code-$invite'),
+                  initialLink: code == null
+                      ? null
+                      : invite == null
+                      ? code
+                      : roomInviteLink(code, invite: invite),
+                );
+              },
             ),
           ],
         ),

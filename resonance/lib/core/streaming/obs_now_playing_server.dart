@@ -132,6 +132,15 @@ final class ObsNowPlayingServer {
     }
   }
 
+  /// Живая реакция комнаты: оверлей пускает эмодзи вверх над плашкой.
+  /// Параметр `?reactions=0` отключает их на стороне OBS.
+  void pushReaction(String emoji) {
+    if (!obsReactionEmojis.contains(emoji)) return;
+    _broadcastRaw(
+      'event: reaction\ndata: ${jsonEncode({'emoji': emoji})}\n\n',
+    );
+  }
+
   /// Синхронизированные строки текущего трека для режима `?lyrics=1`.
   void updateLyrics(String trackId, List<ObsLyricLine> lines) {
     if (trackId != _trackId) return;
@@ -315,6 +324,9 @@ final class ObsNowPlayingServer {
   }
 }
 
+/// Только эти эмодзи доходят до оверлея (совпадает с сервером комнат).
+const obsReactionEmojis = {'🔥', '❤️', '👏', '😂', '😮', '🎉', '💃', '🙌'};
+
 const _overlayHtml = r'''<!doctype html>
 <html lang="ru">
 <head>
@@ -367,6 +379,9 @@ const _overlayHtml = r'''<!doctype html>
     body.clean #card{background:transparent;border-color:transparent;box-shadow:none;backdrop-filter:none}
     body.clean #glow{display:none}body.clean .copy{text-shadow:0 2px 12px rgba(0,0,0,.8)}
     body.light{--live:#4f6b00;--accent:#6b4fd8;--glass:rgba(250,247,252,.86);--text:#17121f;--muted:#5d5268;--line:rgba(0,0,0,.08)}
+    #reactions{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+    .rx{position:absolute;bottom:120px;font-size:34px;filter:drop-shadow(0 4px 12px rgba(0,0,0,.45));animation:rise 3.2s cubic-bezier(.2,.7,.3,1) forwards}
+    @keyframes rise{0%{opacity:0;transform:translateY(20px) scale(.6)}12%{opacity:1;transform:translateY(0) scale(1.1)}100%{opacity:0;transform:translate(var(--dx),-260px) scale(.9)}}
     @media(max-width:420px){body{padding:12px}}
     @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
   </style>
@@ -383,6 +398,7 @@ const _overlayHtml = r'''<!doctype html>
     </section>
     <div id="lyric"></div>
   </main>
+  <div id="reactions" aria-hidden="true"></div>
   <script>
     const q=new URLSearchParams(location.search),$=id=>document.getElementById(id);
     const card=$('card'),title=$('title'),vp=$('vp'),artist=$('artist'),fill=$('fill'),pos=$('pos'),dur=$('dur'),kick=$('kick'),lyric=$('lyric'),ph=$('ph'),glow=$('glow');
@@ -409,7 +425,9 @@ const _overlayHtml = r'''<!doctype html>
       if(lines.length){let i=-1;for(let k=0;k<lines.length&&lines[k].t<=p+150;k++)i=k;if(i!==lineIdx){lineIdx=i;lyric.classList.add('swap');setTimeout(()=>{lyric.textContent=i>=0?lines[i].x:'';lyric.classList.remove('swap')},140)}}
       requestAnimationFrame(frame)}
     async function poll(){try{const r=await fetch('/state.json',{cache:'no-store'});if(r.ok)apply(await r.json())}catch(_){}}
-    function connect(){if(!window.EventSource){setInterval(poll,1000);return}const es=new EventSource('/events');es.addEventListener('state',e=>{try{apply(JSON.parse(e.data))}catch(_){}});es.onerror=()=>{poll()}}
+    function connect(){if(!window.EventSource){setInterval(poll,1000);return}const es=new EventSource('/events');es.addEventListener('state',e=>{try{apply(JSON.parse(e.data))}catch(_){}});es.addEventListener('reaction',e=>{try{react(JSON.parse(e.data).emoji)}catch(_){}});es.onerror=()=>{poll()}}
+    const rxBox=$('reactions'),rxOn=q.get('reactions')!=='0';
+    function react(emoji){if(!rxOn||typeof emoji!=='string'||rxBox.childElementCount>30)return;const el=document.createElement('span');el.className='rx';el.textContent=emoji;const r=card.getBoundingClientRect();el.style.left=(r.left+24+Math.random()*Math.max(40,r.width-80))+'px';el.style.bottom=(innerHeight-r.top+8)+'px';el.style.setProperty('--dx',(Math.random()*80-40)+'px');el.addEventListener('animationend',()=>el.remove());rxBox.appendChild(el)}
     poll();connect();setInterval(poll,10000);requestAnimationFrame(frame);addEventListener('resize',fitTitle);
   </script>
 </body>

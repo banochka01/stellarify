@@ -20,6 +20,7 @@ import 'package:resonance/features/lyrics/lyrics_follow.dart';
 import 'package:resonance/features/player/clip_service.dart';
 import 'package:resonance/features/player/stage_clip_video.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
+import 'package:resonance/features/rooms/room_live_widgets.dart';
 import 'package:resonance/features/rooms/room_queue_panel.dart';
 import 'package:resonance/shared/widgets/ambient.dart';
 import 'package:resonance/shared/widgets/playback_position.dart';
@@ -261,6 +262,7 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
                       ),
                     ),
                   ),
+                  if (inRoom) const RoomReactionsOverlay(),
                   SafeArea(
                     child: Column(
                       children: [

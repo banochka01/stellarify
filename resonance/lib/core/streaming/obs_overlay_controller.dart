@@ -91,6 +91,12 @@ final class ObsOverlayController extends StateNotifier<ObsOverlayState> {
     );
   }
 
+  /// Пробрасывает живую реакцию комнаты в OBS-оверлей.
+  void pushReaction(String emoji) {
+    if (!state.enabled || _disposed) return;
+    _server.pushReaction(emoji);
+  }
+
   Future<void> setEnabled(bool enabled) async {
     if (!state.supported || state.starting || _disposed) return;
     state = state.copyWith(starting: true, clearError: true);

@@ -25,7 +25,8 @@ import { ClipOffsetStore } from "./clip-embed.js";
 import { installProviderProxy } from "./outbound-proxy.js";
 import { ProviderGateway, ProviderGatewayError, type ProviderAccess } from "./provider-gateway.js";
 import { providerCapabilities } from "./providers.js";
-import { registerRoomHandlers, roomWaveUserIds } from "./rooms.js";
+import { configureRoomStore, registerRoomHandlers, roomWaveUserIds } from "./rooms.js";
+import { RoomStore } from "./room-store.js";
 import { SoundCloudAdapter } from "./soundcloud.js";
 import {
   isSoundCloudRelayTicket,
@@ -100,6 +101,14 @@ const wavePersonalizer = new WavePersonalizer(accountStore, {
 const wave = new WaveService(gateway, yandex, wavePersonalizer);
 const accessControl = new AccessControl(accountStore);
 
+// Rooms survive restarts via SQLite; a broken store falls back to memory.
+try {
+  configureRoomStore(new RoomStore(
+    process.env.ROOMS_DB_PATH || join(dirname(process.env.AUTH_DB_PATH || "./data/resonance.sqlite"), "rooms.sqlite")
+  ));
+} catch (error) {
+  console.error("Room persistence disabled", error);
+}
 app.disable("x-powered-by");
 app.use(cors({ origin: webOrigin }));
 app.use("/api/v1/auth/spotify", createSpotifyOAuthRouter(spotifyOAuth));
