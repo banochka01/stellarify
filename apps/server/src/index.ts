@@ -25,7 +25,9 @@ import { ClipOffsetStore } from "./clip-embed.js";
 import { installProviderProxy } from "./outbound-proxy.js";
 import { ProviderGateway, ProviderGatewayError, type ProviderAccess } from "./provider-gateway.js";
 import { providerCapabilities } from "./providers.js";
-import { registerRoomHandlers, roomWaveUserIds } from "./rooms.js";
+import { registerRoomHandlers, roomStats, roomWaveUserIds } from "./rooms.js";
+import { ServiceHealthMonitor, type HealthProbe } from "./service-health.js";
+import { ClientReportStore, createClientReportRouter } from "./client-reports.js";
 import { SoundCloudAdapter } from "./soundcloud.js";
 import {
   isSoundCloudRelayTicket,
@@ -148,6 +150,47 @@ app.get("/api/client-version", (_request, response) => {
     }
   });
 });
+
+const providerLabels: Record<string, string> = {
+  soundcloud: "SoundCloud",
+  yandex: "Яндекс Музыка",
+  youtube: "YouTube",
+  spotify: "Spotify",
+  vk: "VK Музыка"
+};
+const serviceHealth = new ServiceHealthMonitor([
+  ...gateway.listProviders().map((provider): HealthProbe => ({
+    id: provider.name,
+    label: providerLabels[provider.name] ?? provider.name,
+    // User-token providers cannot be probed without a server credential.
+    configured: provider.authentication === "user_token" ? provider.serverCredentialConfigured : provider.configured,
+    check: () => gateway.search(provider.name, "music", 1)
+  })),
+  {
+    id: "lyrics",
+    label: "Тексты песен",
+    configured: true,
+    check: async (signal) => {
+      const result = await fetch("https://lrclib.net/api/search?q=hello", { signal });
+      if (!result.ok) throw new Error(`HTTP ${result.status}`);
+    }
+  }
+]);
+
+app.get("/api/v1/status", async (_request, response) => {
+  response.setHeader("cache-control", "public, max-age=30");
+  response.json(await serviceHealth.snapshot());
+});
+
+app.get("/api/v1/rooms/stats", (_request, response) => {
+  response.json(roomStats());
+});
+
+app.use("/api/v1/client-reports", createClientReportRouter(
+  new ClientReportStore(
+    process.env.CLIENT_REPORTS_PATH || join(dirname(process.env.AUTH_DB_PATH || "./data/resonance.sqlite"), "client-reports.jsonl")
+  )
+));
 
 app.get("/api/providers", (_request, response) => {
   response.json({ providers: providerCapabilities });

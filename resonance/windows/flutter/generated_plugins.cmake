@@ -5,9 +5,11 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   flutter_inappwebview_windows
   flutter_secure_storage_windows
+  hotkey_manager_windows
   media_kit_libs_windows_video
   media_kit_video
   screen_retriever_windows
+  tray_manager
   url_launcher_windows
   window_manager
 )

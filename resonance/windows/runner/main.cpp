@@ -2,6 +2,7 @@
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>
 
+#include "desktop_integration.h"
 #include "flutter_window.h"
 #include "utils.h"
 
@@ -21,6 +22,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
+
+  // A second launch (e.g. from a jump-list task) hands its action to the
+  // running window instead of starting another player.
+  if (ForwardToRunningInstance(
+          FindQuickActionArgument(command_line_arguments))) {
+    ::CoUninitialize();
+    return EXIT_SUCCESS;
+  }
+  RegisterJumpListTasks();
 
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 

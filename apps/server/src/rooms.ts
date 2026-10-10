@@ -369,6 +369,13 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
   });
 }
 
+/** Aggregate counts only: room codes are private invitations and never listed. */
+export function roomStats() {
+  let participants = 0;
+  for (const room of rooms.values()) participants += room.participants.size;
+  return { rooms: rooms.size, participants };
+}
+
 export function roomWaveUserIds(code: string, hostUserId: string) {
   const room = rooms.get(code.trim().toUpperCase());
   const host = room?.participants.get(room.hostId);

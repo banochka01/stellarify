@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:resonance/core/database/app_database.dart';
+import 'package:resonance/core/diagnostics/client_error_reporter.dart';
 import 'package:resonance/core/integrations/discord_presence_controller.dart';
 import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/core/networking/resonance_http_client.dart';
@@ -37,6 +38,7 @@ import 'package:resonance/features/auth/account_api.dart';
 import 'package:resonance/features/auth/account_session_repository.dart';
 import 'package:resonance/features/auth/client_identity_service.dart';
 import 'package:resonance/features/auth/library_sync_service.dart';
+import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/library/playlist_import_service.dart';
 import 'package:resonance/features/lyrics/lyrics_service.dart';
 import 'package:resonance/features/settings/spotify_oauth_client.dart';
@@ -321,17 +323,45 @@ final playbackServiceProvider = FutureProvider<PlaybackService>((ref) async {
     focusCoordinator = AudioFocusCoordinator(service);
     await focusCoordinator.initialize();
     await AudioService.init(
-      builder: () => audioHandler = ResonanceAudioHandler(service),
+      builder: () => audioHandler = ResonanceAudioHandler(
+        service,
+        onLike: () async {
+          final track = service.state.currentTrack;
+          if (track != null) {
+            await ref
+                .read(libraryControllerProvider.notifier)
+                .toggleFavorite(track);
+          }
+        },
+      ),
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'app.resonance.playback',
         androidNotificationChannelName: 'Воспроизведение Resonance',
         androidNotificationOngoing: false,
         androidStopForegroundOnPause: false,
+        androidNotificationIcon: 'mipmap/ic_launcher',
+        androidShowNotificationBadge: false,
+        preloadArtwork: true,
+        fastForwardInterval: Duration(seconds: 10),
+        rewindInterval: Duration(seconds: 10),
       ),
     );
   } else if (Platform.isWindows) {
     windowsMediaControls = WindowsMediaControls.tryCreate(service);
   }
+  String? lastReportedError;
+  final errorReports = service.states.listen((state) {
+    final message = state.errorMessage;
+    if (message == null || message == lastReportedError) return;
+    lastReportedError = message;
+    unawaited(
+      ClientErrorReporter.instance.report(
+        ClientReportKind.playback,
+        message,
+        provider: state.activeTrackSource?.provider.name,
+      ),
+    );
+  });
   ref.onDispose(() {
     final coordinator = focusCoordinator;
     final handler = audioHandler;
@@ -339,6 +369,7 @@ final playbackServiceProvider = FutureProvider<PlaybackService>((ref) async {
     if (coordinator != null) unawaited(coordinator.dispose());
     if (handler != null) unawaited(handler.close());
     if (windowsControls != null) unawaited(windowsControls.dispose());
+    unawaited(errorReports.cancel());
     unawaited(service.dispose());
   });
   return service;
