@@ -13,6 +13,7 @@ import 'package:resonance/features/library/library_transfer_dialog.dart';
 import 'package:resonance/features/library/playlist_import_progress_dialog.dart';
 import 'package:resonance/features/offline/offline_controller.dart';
 import 'package:resonance/features/offline/offline_widgets.dart';
+import 'package:resonance/features/migration/migration_screen.dart';
 import 'package:resonance/features/player/track_action.dart';
 import 'package:resonance/features/wave/wave_track_actions.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
@@ -64,6 +65,13 @@ class LibraryScreen extends ConsumerWidget {
           style: FilledButton.styleFrom(shape: const StadiumBorder()),
           icon: const Icon(Icons.auto_awesome_rounded),
           label: Text(compact ? 'Перенести' : 'Перенести медиатеку'),
+        ),
+        TextButton.icon(
+          key: const ValueKey('library-migration'),
+          onPressed: () => openMigrationScreen(context),
+          style: quiet,
+          icon: const Icon(Icons.local_shipping_rounded, size: 18),
+          label: const Text('Переезд'),
         ),
         TextButton.icon(
           onPressed: () => context.go('/graph'),

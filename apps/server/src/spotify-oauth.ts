@@ -49,7 +49,7 @@ export class SpotifyOAuthService {
       response_type: "code",
       redirect_uri: this.redirectUri,
       state,
-      scope: "user-library-read playlist-read-private playlist-read-collaborative",
+      scope: "user-library-read user-follow-read playlist-read-private playlist-read-collaborative",
       code_challenge_method: "S256",
       code_challenge: challenge,
       show_dialog: "true"

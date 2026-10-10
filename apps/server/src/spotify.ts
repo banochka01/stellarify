@@ -1,6 +1,8 @@
 import {
   type AudioQuality,
+  type ImportedProviderArtist,
   type ImportedProviderLibrary,
+  type ImportedProviderPlaylist,
   type MusicProviderAdapter,
   type ProviderAccess,
   type ProviderTrack,
@@ -199,13 +201,60 @@ export class SpotifyAdapter implements MusicProviderAdapter {
       );
       playlists.push(...imported.filter((item): item is NonNullable<typeof item> => item !== undefined));
     }
+    const albums = await this.importSavedAlbums(token).catch(() => []);
+    const artists = await this.importFollowedArtists(token).catch(() => []);
     return {
       provider: "spotify",
       title: string(profile.display_name) || "Моя музыка · Spotify",
       favorites: favorites.slice(0, 1_500),
       playlists,
+      albums,
+      artists,
       truncated: Boolean(favoritesUrl || playlistsUrl || summaries.length > selected.length || failedPlaylists)
     };
+  }
+
+  private async importSavedAlbums(token: string): Promise<ImportedProviderPlaylist[]> {
+    const albums: ImportedProviderPlaylist[] = [];
+    let url: string | undefined = `${apiBase}/me/albums?limit=50`;
+    while (url && albums.length < 50) {
+      const page = object(await this.requestJson(new URL(url), token));
+      for (const raw of array(page.items)) {
+        const album = object(object(raw).album);
+        const id = string(album.id);
+        const title = string(album.name);
+        if (!id || !title) continue;
+        const artworkUrl = pickImage(array(album.images));
+        const tracks = array(object(album.tracks).items)
+          .map((item) => mapSpotifyTrack({ ...object(item), album: { name: title, images: album.images } }))
+          .filter((track): track is ProviderTrack => track !== undefined);
+        albums.push({
+          externalId: `spotify:album:${id}`,
+          title,
+          artworkUrl,
+          artist: array(album.artists).map((entry) => string(object(entry).name)).filter(Boolean).join(", ") || undefined,
+          tracks
+        });
+      }
+      url = string(page.next);
+    }
+    return albums.slice(0, 50);
+  }
+
+  private async importFollowedArtists(token: string): Promise<ImportedProviderArtist[]> {
+    const artists: ImportedProviderArtist[] = [];
+    let url: string | undefined = `${apiBase}/me/following?type=artist&limit=50`;
+    while (url && artists.length < 500) {
+      const page = object(object(await this.requestJson(new URL(url), token)).artists);
+      for (const raw of array(page.items)) {
+        const artist = object(raw);
+        const id = string(artist.id);
+        const name = string(artist.name);
+        if (id && name) artists.push({ externalId: `spotify:artist:${id}`, name, artworkUrl: pickImage(array(artist.images)) });
+      }
+      url = string(page.next);
+    }
+    return artists;
   }
 
   async resolve(
@@ -412,9 +461,15 @@ export function mapSpotifyTrack(raw: Record<string, unknown>): ProviderTrack | u
     album: string(album.name),
     durationMs: Number.isFinite(Number(raw.duration_ms)) ? Number(raw.duration_ms) : undefined,
     artworkUrl: pickImage(array(album.images)),
-    externalUrl
+    externalUrl,
+    ...(isrcOf(raw) ? { isrc: isrcOf(raw) } : {})
   };
 }
+
+const isrcOf = (raw: Record<string, unknown>) => {
+  const value = string(object(raw.external_ids).isrc)?.trim().toUpperCase();
+  return value && /^[A-Z0-9]{12}$/.test(value) ? value : undefined;
+};
 
 export function normalizeSpotifyTrackId(value: string) {
   const match = /^spotify:track:([A-Za-z0-9]+)$/.exec(value.trim());
