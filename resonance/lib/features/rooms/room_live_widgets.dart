@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
+import 'package:resonance/shared/russian_plural.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 
 /// Эмодзи-реакции комнаты, всплывающие поверх Visual Stage, и вертикальная
@@ -26,7 +27,10 @@ class RoomReactionsOverlay extends ConsumerWidget {
             fit: StackFit.expand,
             children: [
               for (final reaction in reactions)
-                _FloatingReaction(key: ValueKey(reaction.id), reaction: reaction),
+                _FloatingReaction(
+                  key: ValueKey(reaction.id),
+                  reaction: reaction,
+                ),
             ],
           ),
         ),
@@ -61,7 +65,8 @@ class _FloatingReactionState extends State<_FloatingReaction>
 
   // Горизонталь зависит от id, чтобы реакции не складывались в столбик.
   late final double _x = (widget.reaction.id.hashCode % 1000) / 1000 * .5 + .4;
-  late final double _drift = ((widget.reaction.id.hashCode >> 4) % 100 - 50) / 900;
+  late final double _drift =
+      ((widget.reaction.id.hashCode >> 4) % 100 - 50) / 900;
 
   @override
   void dispose() {
@@ -263,7 +268,9 @@ class _RoomPlayedPanelState extends ConsumerState<RoomPlayedPanel> {
           .read(roomControllerProvider.notifier)
           .savePlayedToLibrary();
       messenger?.showSnackBar(
-        SnackBar(content: Text('Плейлист комнаты сохранён: $count треков')),
+        SnackBar(
+          content: Text('Плейлист комнаты сохранён: ${tracksLabel(count)}'),
+        ),
       );
     } on Object {
       messenger?.showSnackBar(
@@ -337,6 +344,17 @@ class _RoomHistoryPanelState extends ConsumerState<RoomHistoryPanel> {
     });
   }
 
+  Future<void> _replay(RoomSessionSummary session) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      await ref.read(roomControllerProvider.notifier).replay(session);
+    } on Object {
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('Не удалось включить треки сессии')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final connected = ref.watch(
@@ -361,6 +379,12 @@ class _RoomHistoryPanelState extends ConsumerState<RoomHistoryPanel> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const LinearProgressIndicator();
           }
+          if (snapshot.hasError) {
+            return const Text(
+              'Не удалось загрузить историю. Нажмите «Обновить».',
+              style: TextStyle(color: ResonanceColors.muted),
+            );
+          }
           if (sessions.isEmpty) {
             return const Text(
               'Здесь появятся комнаты, где вы слушали музыку вместе.',
@@ -376,12 +400,10 @@ class _RoomHistoryPanelState extends ConsumerState<RoomHistoryPanel> {
                   title: Text('Комната ${session.code}'),
                   subtitle: Text(
                     '${_formatDate(session.startedAt)} · '
-                    '${session.tracks.length} тр.',
+                    '${tracksLabel(session.tracks.length)}',
                   ),
                   trailing: TextButton(
-                    onPressed: () => unawaited(
-                      ref.read(roomControllerProvider.notifier).replay(session),
-                    ),
+                    onPressed: () => unawaited(_replay(session)),
                     child: const Text('Переслушать'),
                   ),
                 ),

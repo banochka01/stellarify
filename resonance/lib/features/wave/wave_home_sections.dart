@@ -8,6 +8,7 @@ import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/wave/daily_mixes.dart';
 import 'package:resonance/features/wave/new_releases.dart';
 import 'package:resonance/features/wave/wave_blocks.dart';
+import 'package:resonance/shared/russian_plural.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 
@@ -78,13 +79,17 @@ class _SectionTitle extends StatelessWidget {
         ],
         if (subtitle != null) ...[
           const SizedBox(width: 10),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 3),
-            child: Text(
-              subtitle!,
-              style: const TextStyle(
-                color: ResonanceColors.muted,
-                fontSize: 12,
+          Flexible(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child: Text(
+                subtitle!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: ResonanceColors.muted,
+                  fontSize: 12,
+                ),
               ),
             ),
           ),
@@ -119,7 +124,7 @@ class WaveDaySection extends ConsumerWidget {
           gutter: gutter,
         ),
         SizedBox(
-          height: size + 64,
+          height: size + MediaQuery.textScalerOf(context).scale(64),
           child: ListView.separated(
             padding: EdgeInsets.symmetric(horizontal: gutter, vertical: 6),
             scrollDirection: Axis.horizontal,
@@ -245,7 +250,7 @@ class NewReleasesSection extends ConsumerWidget {
           badge: badge,
         ),
         SizedBox(
-          height: size + 66,
+          height: size + MediaQuery.textScalerOf(context).scale(66),
           child: ListView.separated(
             padding: EdgeInsets.symmetric(horizontal: gutter, vertical: 6),
             scrollDirection: Axis.horizontal,
@@ -309,7 +314,7 @@ class _FreshWeekCard extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '${fresh.tracks.length} треков · по пятницам',
+            '${tracksLabel(fresh.tracks.length)} · по пятницам',
             maxLines: 2,
             style: const TextStyle(color: ResonanceColors.muted, fontSize: 12),
           ),

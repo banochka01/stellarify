@@ -8,6 +8,7 @@ import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/features/auth/account_controller.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/migration/migration_api.dart';
+import 'package:resonance/shared/russian_plural.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 
@@ -87,17 +88,26 @@ class _MigrationScreenState extends ConsumerState<MigrationScreen> {
   Future<void> _follow(MigrationJob job) async {
     _poll?.cancel();
     if (job.isActive) {
-      _poll = Timer.periodic(const Duration(milliseconds: 1500), (_) async {
+      var inFlight = false;
+      _poll = Timer.periodic(const Duration(milliseconds: 1500), (timer) async {
+        // Медленный сервер не должен копить параллельные запросы.
+        if (inFlight) return;
+        inFlight = true;
         try {
           final next = await _api.job(job.id);
-          if (!mounted) return;
-          setState(() => _job = next);
+          if (!mounted || !timer.isActive) return;
+          setState(() {
+            _job = next;
+            _error = null;
+          });
           if (!next.isActive) {
-            _poll?.cancel();
+            timer.cancel();
             await _follow(next);
           }
         } on MigrationException catch (error) {
           if (mounted) setState(() => _error = error.message);
+        } finally {
+          inFlight = false;
         }
       });
       return;
@@ -111,6 +121,23 @@ class _MigrationScreenState extends ConsumerState<MigrationScreen> {
   Future<void> _loadReport(String jobId) async {
     final report = await _api.report(jobId);
     if (mounted) setState(() => _report = report);
+  }
+
+  /// Повторная загрузка отчёта, если она сорвалась после завершения переноса.
+  Future<void> _retryReport() async {
+    final job = _job;
+    if (job == null) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await _follow(job);
+    } on MigrationException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _syncLibrary() async {
@@ -174,10 +201,22 @@ class _MigrationScreenState extends ConsumerState<MigrationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(accountControllerProvider).valueOrNull;
+    ref.listen(accountControllerProvider, (previous, next) {
+      // Вошли после открытия экрана — список переездов нужно перечитать.
+      final wasSignedOut =
+          previous != null && previous.hasValue && previous.value == null;
+      if (wasSignedOut && next.valueOrNull != null) {
+        unawaited(_load());
+      }
+    });
+    final account = ref.watch(accountControllerProvider);
+    final user = account.valueOrNull;
     final compact = MediaQuery.sizeOf(context).width < 720;
     final Widget body;
-    if (user == null) {
+    if (user == null && account.isLoading) {
+      // Аккаунт ещё читается — не мигаем приглашением войти.
+      body = const Center(child: CircularProgressIndicator());
+    } else if (user == null) {
       body = _SignInPrompt(
         onSignIn: () {
           Navigator.of(context).pop();
@@ -217,6 +256,7 @@ class _MigrationScreenState extends ConsumerState<MigrationScreen> {
         job: _job!,
         busy: _busy,
         onResume: () => _run(() => _api.resume(_job!)),
+        onShowReport: _retryReport,
         onNew: () => setState(() => _setup = true),
       );
     }
@@ -244,7 +284,7 @@ class _MigrationScreenState extends ConsumerState<MigrationScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (_error != null)
+                  if (_error != null && user != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _Notice(
@@ -271,36 +311,39 @@ class _SignInPrompt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: _Card(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.luggage_rounded,
-              size: 40,
-              color: ResonanceColors.primary,
-            ),
-            const SizedBox(height: 14),
-            Text(
-              'Переезд работает через Resonance ID',
-              style: Theme.of(context).textTheme.titleMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Медиатека переносится на сервере и сохраняется в аккаунте — '
-              'её увидят все ваши устройства.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: ResonanceColors.muted),
-            ),
-            const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: onSignIn,
-              style: FilledButton.styleFrom(shape: const StadiumBorder()),
-              icon: const Icon(Icons.login_rounded),
-              label: const Text('Войти'),
-            ),
-          ],
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: _Card(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.luggage_rounded,
+                size: 40,
+                color: ResonanceColors.primary,
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Переезд работает через Resonance ID',
+                style: Theme.of(context).textTheme.titleMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Медиатека переносится на сервере и сохраняется в аккаунте — '
+                'её увидят все ваши устройства.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: ResonanceColors.muted),
+              ),
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: onSignIn,
+                style: FilledButton.styleFrom(shape: const StadiumBorder()),
+                icon: const Icon(Icons.login_rounded),
+                label: const Text('Войти'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -426,12 +469,14 @@ class _ProgressView extends StatelessWidget {
     required this.job,
     required this.busy,
     required this.onResume,
+    required this.onShowReport,
     required this.onNew,
   });
 
   final MigrationJob job;
   final bool busy;
   final VoidCallback onResume;
+  final VoidCallback onShowReport;
   final VoidCallback onNew;
 
   @override
@@ -444,6 +489,7 @@ class _ProgressView extends StatelessWidget {
       'saving' => 'Сохраняем в Resonance ID',
       'paused' => 'Перенос на паузе',
       'failed' => 'Перенос остановился',
+      'completed' => 'Перенос завершён',
       _ => 'Перенос',
     };
     return ListView(
@@ -497,6 +543,24 @@ class _ProgressView extends StatelessWidget {
                 icon: const Icon(Icons.play_arrow_rounded),
                 label: const Text('Продолжить'),
               ),
+              TextButton(onPressed: onNew, child: const Text('Новый переезд')),
+            ],
+          ),
+        ] else if (!job.isActive) ...[
+          // Завершён, но отчёт не загрузился, или неизвестный статус:
+          // экран не должен становиться тупиком.
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              if (job.isCompleted)
+                FilledButton.icon(
+                  onPressed: busy ? null : onShowReport,
+                  style: FilledButton.styleFrom(shape: const StadiumBorder()),
+                  icon: const Icon(Icons.fact_check_rounded),
+                  label: const Text('Показать отчёт'),
+                ),
               TextButton(onPressed: onNew, child: const Text('Новый переезд')),
             ],
           ),
@@ -554,7 +618,8 @@ class _ReportView extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Перенесено ${report.migrated} из ${report.total} треков'
+                      'Перенесено ${report.migrated} из ${report.total} '
+                      '${ruPlural(report.total, 'трека', 'треков', 'треков')}'
                       '${report.collections > 0 ? ' · ${report.collections} плейлистов и альбомов' : ''}',
                       style: const TextStyle(color: ResonanceColors.muted),
                     ),
@@ -832,12 +897,14 @@ class _ManualSearchSheetState extends State<_ManualSearchSheet> {
               ),
             Expanded(
               child: _results.isEmpty && !_loading
-                  ? const Center(
-                      child: Text(
-                        'Ничего не нашлось — попробуйте другой запрос.',
-                        style: TextStyle(color: ResonanceColors.muted),
-                      ),
-                    )
+                  ? _error != null
+                        ? const SizedBox.shrink()
+                        : const Center(
+                            child: Text(
+                              'Ничего не нашлось — попробуйте другой запрос.',
+                              style: TextStyle(color: ResonanceColors.muted),
+                            ),
+                          )
                   : ListView.builder(
                       itemCount: _results.length,
                       itemBuilder: (context, index) {

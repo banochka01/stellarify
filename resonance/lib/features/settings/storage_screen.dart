@@ -12,6 +12,7 @@ import 'package:resonance/core/playback/offline_downloads.dart';
 import 'package:resonance/core/preferences/offline_preferences.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/features/offline/offline_controller.dart';
+import 'package:resonance/shared/russian_plural.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 
 /// Кэш обложек cached_network_image (flutter_cache_manager по умолчанию).
@@ -53,7 +54,8 @@ String _qualityName(AudioQuality quality) => switch (quality) {
   AudioQuality.lossless => 'Лучшее доступное',
 };
 
-final _storageUsageProvider =
+/// Занятое место; отдельный провайдер, чтобы экран можно было обновить.
+final storageUsageProvider =
     FutureProvider.autoDispose<({OfflineUsage offline, int covers})>((
       ref,
     ) async {
@@ -81,7 +83,7 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 650;
-    final usage = ref.watch(_storageUsageProvider);
+    final usage = ref.watch(storageUsageProvider);
     final settings = ref.watch(offlineSettingsProvider);
     final network =
         ref.watch(networkKindProvider).valueOrNull ?? NetworkKind.wifi;
@@ -127,7 +129,9 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          data == null
+          usage.hasError && data == null
+              ? 'Не удалось посчитать занятое место'
+              : data == null
               ? 'Считаем занятое место…'
               : 'Resonance занимает ${formatBytes(total)}'
                     '${network == NetworkKind.offline ? ' · сейчас без сети' : ''}',
@@ -143,7 +147,7 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
                 title: 'Загрузки',
                 subtitle: data == null
                     ? '…'
-                    : '${data.offline.downloadsCount} треков · '
+                    : '${tracksLabel(data.offline.downloadsCount)} · '
                           '${formatBytes(data.offline.downloadsBytes)} · '
                           'не удаляются автоматически',
                 onClear: () => _confirmClear(
@@ -158,7 +162,7 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
                 title: 'Автокэш',
                 subtitle: data == null
                     ? '…'
-                    : '${data.offline.autoCacheCount} треков · '
+                    : '${tracksLabel(data.offline.autoCacheCount)} · '
                           '${formatBytes(data.offline.autoCacheBytes)}',
                 onClear: () => _confirmClear(
                   'Очистить автокэш?',
@@ -172,7 +176,8 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
                 title: 'Тексты песен',
                 subtitle: data == null
                     ? '…'
-                    : '${data.offline.lyricsCount} · '
+                    : '${data.offline.lyricsCount} '
+                          '${ruPlural(data.offline.lyricsCount, 'текст', 'текста', 'текстов')} · '
                           '${formatBytes(data.offline.lyricsBytes)}',
                 onClear: () => _confirmClear(
                   'Удалить сохранённые тексты?',
@@ -239,7 +244,7 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
                       ),
                     ),
                     SizedBox(
-                      width: 64,
+                      width: MediaQuery.textScalerOf(context).scale(64),
                       child: Text(
                         _limitLabel(steps[sliderValue.round()]),
                         textAlign: TextAlign.end,
@@ -306,7 +311,9 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
       ref
           .read(offlineSettingsProvider.notifier)
           .update(value)
-          .then((_) => ref.invalidate(_storageUsageProvider))
+          .then((_) {
+            if (mounted) ref.invalidate(storageUsageProvider);
+          })
           .catchError((Object _) {}),
     );
   }
@@ -355,14 +362,16 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
     if (confirmed != true) return;
     try {
       await action();
-    } on Object catch (error) {
+    } on Object {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Не удалось очистить: $error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Не удалось очистить. Попробуйте ещё раз.'),
+          ),
+        );
       }
     }
-    ref.invalidate(_storageUsageProvider);
+    if (mounted) ref.invalidate(storageUsageProvider);
   }
 }
 

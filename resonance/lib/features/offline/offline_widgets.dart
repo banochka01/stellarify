@@ -89,23 +89,31 @@ class OfflineAvailableList extends ConsumerWidget {
               size: 18,
               color: ResonanceColors.muted,
             ),
-            onTap: () => unawaited(_play(ref, all, entry)),
+            onTap: () => unawaited(_play(context, ref, all, entry)),
           ),
       ],
     );
   }
 
   Future<void> _play(
+    BuildContext context,
     WidgetRef ref,
     List<OfflineEntry> all,
     OfflineEntry entry,
   ) async {
-    final service = await ref.read(playbackServiceProvider.future);
-    final tracks = [for (final item in all) item.track];
-    await service.setQueue(
-      tracks,
-      startIndex: tracks.indexWhere((t) => t.id == entry.track.id),
-      autoplay: true,
-    );
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      final service = await ref.read(playbackServiceProvider.future);
+      final tracks = [for (final item in all) item.track];
+      await service.setQueue(
+        tracks,
+        startIndex: tracks.indexWhere((t) => t.id == entry.track.id),
+        autoplay: true,
+      );
+    } on Object {
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('Не удалось включить трек')),
+      );
+    }
   }
 }
