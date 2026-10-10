@@ -112,6 +112,13 @@ const roleOf = (room: Room, participant: Participant | undefined): RoomRole => {
   return (participant.userId && room.roles.get(participant.userId)) || "listener";
 };
 
+/** Privacy and roles are durable: once a room has an owner account, only it may change them. */
+const canAdminister = (room: Room, socketId: string) => {
+  const participant = room.participants.get(socketId);
+  if (room.ownerUserId) return Boolean(participant?.userId && participant.userId === room.ownerUserId);
+  return roleOf(room, participant) === "host";
+};
+
 const canControl = (room: Room, socketId: string) => {
   const role = roleOf(room, room.participants.get(socketId));
   return role === "host" || role === "dj";
@@ -393,7 +400,7 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
   socket.on("room:set-private", (payload, acknowledge) => {
     const room = findRoomForParticipant(socket, roomCode(payload));
     if (!room) { acknowledge?.({ ok: false, error: "Комната не найдена" }); return; }
-    if (roleOf(room, room.participants.get(socket.id)) !== "host") {
+    if (!canAdminister(room, socket.id)) {
       acknowledge?.({ ok: false, error: "Только ведущий меняет доступ" });
       return;
     }
@@ -408,7 +415,7 @@ export function registerRoomHandlers(io: Server, socket: Socket, authorize?: (cr
   socket.on("room:set-role", (payload, acknowledge) => {
     const room = findRoomForParticipant(socket, roomCode(payload));
     if (!room) { acknowledge?.({ ok: false, error: "Комната не найдена" }); return; }
-    if (roleOf(room, room.participants.get(socket.id)) !== "host") {
+    if (!canAdminister(room, socket.id)) {
       acknowledge?.({ ok: false, error: "Роли назначает только ведущий" });
       return;
     }

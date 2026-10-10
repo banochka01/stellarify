@@ -264,3 +264,23 @@ test("rooms survive a restart and keep session history", async () => {
   const session = history.sessions.find((item: any) => item.code === code);
   assert.deepEqual(session.tracks.map((item: any) => item.track.id), ["vk:70", "vk:71"]);
 });
+
+test("a stand-in host cannot change privacy or roles of an owned room", async () => {
+  const owner = await connect("owner-9");
+  const created = await emitAck<any>(owner, "room:create", { name: "Owner", private: true });
+  const code = created.room.code as string;
+  const friend = await connect("friend-9");
+  await emitAck<any>(friend, "room:join", { code, name: "Friend", invite: created.invite });
+  const other = await connect("other-9");
+  const otherJoin = await emitAck<any>(other, "room:join", { code, name: "Other", invite: created.invite });
+  const left = nextEvent<any>(friend, "room:state");
+  owner.disconnect();
+  const state = await left;
+  assert.equal(state.participants.find((p: any) => p.name === "Friend").role, "host");
+
+  const opened = await emitAck<any>(friend, "room:set-private", { code, private: false });
+  assert.equal(opened.ok, false);
+  const otherId = otherJoin.room.participants.find((p: any) => p.name === "Other").id;
+  const promoted = await emitAck<any>(friend, "room:set-role", { code, participantId: otherId, role: "dj" });
+  assert.equal(promoted.ok, false);
+});

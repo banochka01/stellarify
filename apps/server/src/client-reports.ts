@@ -18,6 +18,33 @@ export const clientReportSchema = z.object({
 
 export type ClientReport = z.infer<typeof clientReportSchema>;
 
+/**
+ * Reports come from untrusted clients and may carry stream URLs, provider
+ * tokens or e-mails inside exception text. Strip them before storing.
+ */
+export function scrubReportText(value: string): string {
+  return value
+    .replace(/[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/giu, "[url]")
+    .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/gu, "[email]")
+    .replace(/\b(bearer|oauth|token|access_token|api_key|key|password|secret)(\s*[:=]\s*|\s+)[^\s,;&"']+/giu, "$1$2[redacted]")
+    .replace(/\b[A-Za-z0-9_\-]{32,}\b/gu, "[redacted]")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, "");
+}
+
+export function scrubReport(report: ClientReport): ClientReport {
+  return {
+    ...report,
+    message: scrubReportText(report.message),
+    ...(report.stack !== undefined ? { stack: scrubReportText(report.stack) } : {}),
+    ...(report.context
+      ? {
+          context: Object.fromEntries(Object.entries(report.context).map(([key, value]) =>
+            [scrubReportText(key), typeof value === "string" ? scrubReportText(value) : value]))
+        }
+      : {})
+  };
+}
+
 export class FixedWindowRateLimiter {
   private readonly hits = new Map<string, { start: number; count: number }>();
 
@@ -95,7 +122,7 @@ export function createClientReportRouter(
       response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Invalid report" } });
       return;
     }
-    void store.add(input.data);
+    void store.add(scrubReport(input.data));
     response.status(202).json({ accepted: true });
   });
   return router;
