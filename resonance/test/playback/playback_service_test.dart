@@ -295,6 +295,82 @@ void main() {
     await service.dispose();
   });
 
+  test('automatic Flow transition respects shuffle', () async {
+    final resolver = _FakeResolver(MusicProvider.soundcloud);
+    final service = PlaybackService(
+      engine: engine,
+      providers: ProviderRegistry(resolvers: [resolver]),
+      sourceSelectionPolicy: SourceSelectionPolicy(),
+      persistence: persistence,
+      random: _FixedRandom(3),
+      flowSettings: const PlaybackFlowSettings(
+        transitionMs: 300,
+        smartTransitions: false,
+      ),
+    );
+    final tracks = [
+      for (var i = 0; i < 5; i++)
+        _track('shuffle-$i', [MusicProvider.soundcloud]),
+    ];
+    await service.setQueue(tracks, autoplay: true);
+    await service.setShuffle(true);
+    engine.emitDuration(const Duration(minutes: 3));
+    await Future<void>.delayed(Duration.zero);
+    await service.seek(
+      const Duration(minutes: 2, seconds: 59, milliseconds: 900),
+    );
+    for (var i = 0; i < 100 && service.state.currentIndex == 0; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    expect(service.state.currentIndex, 3);
+    await service.dispose();
+  });
+
+  test('failed Flow transition does not leave the engine muted', () async {
+    final resolver = _FakeResolver(MusicProvider.soundcloud);
+    final service = PlaybackService(
+      engine: engine,
+      providers: ProviderRegistry(resolvers: [resolver]),
+      sourceSelectionPolicy: SourceSelectionPolicy(),
+      persistence: persistence,
+      flowSettings: const PlaybackFlowSettings(
+        transitionMs: 300,
+        smartTransitions: false,
+      ),
+    );
+    await service.setQueue([
+      _track('ok', [MusicProvider.soundcloud]),
+      _track('broken', [MusicProvider.youtube]),
+    ], autoplay: true);
+    await service.setVolume(64);
+    await expectLater(
+      service.next(),
+      throwsA(isA<PlaybackFailedException>()),
+    );
+    expect(engine.currentVolume, 64);
+    expect(service.state.volume, 64);
+    await service.dispose();
+  });
+
+  test('removeUpcomingWhere drops only tracks after the current one', () async {
+    final resolver = _FakeResolver(MusicProvider.soundcloud);
+    final service = _createService(engine, persistence, [resolver]);
+    final tracks = [
+      _track('a', [MusicProvider.soundcloud]),
+      _track('blocked-1', [MusicProvider.soundcloud]),
+      _track('b', [MusicProvider.soundcloud]),
+      _track('blocked-2', [MusicProvider.soundcloud]),
+    ];
+    await service.setQueue(tracks, startIndex: 1);
+    final removed = await service.removeUpcomingWhere(
+      (track) => track.id.startsWith('blocked'),
+    );
+    expect(removed, 1);
+    expect(service.state.queue.map((t) => t.id), ['a', 'blocked-1', 'b']);
+    expect(service.state.currentIndex, 1);
+    await service.dispose();
+  });
+
   test('prefetches the next source before the transition window', () async {
     final resolver = _FakeResolver(MusicProvider.soundcloud);
     final service = _createService(engine, persistence, [resolver]);
@@ -398,6 +474,17 @@ UnifiedTrack _track(
       ),
   ],
 );
+
+final class _FixedRandom implements Random {
+  _FixedRandom(this.value);
+  final int value;
+  @override
+  int nextInt(int max) => value % max;
+  @override
+  double nextDouble() => 0;
+  @override
+  bool nextBool() => false;
+}
 
 Future<void> _waitFor(bool Function() condition) async {
   for (var attempt = 0; attempt < 30; attempt++) {

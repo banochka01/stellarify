@@ -111,6 +111,14 @@ final class OfflineDownloads extends ChangeNotifier {
 
   int get autoCacheLimitBytes => _autoCacheLimitBytes;
 
+  String? _activeTrackId;
+
+  /// Трек, который сейчас открыт в плеере. Его файл не вытесняется, пока он
+  /// играет: на Windows удалить открытый файл нельзя (запись пропала бы из
+  /// манифеста, а файл остался бы на диске), а на Android/iOS плеер потерял
+  /// бы данные посреди воспроизведения.
+  void setActiveTrackId(String? trackId) => _activeTrackId = trackId;
+
   Future<void> setAutoCacheLimitBytes(int bytes) async {
     _autoCacheLimitBytes = bytes < 0 ? 0 : bytes;
     await initialize();
@@ -360,11 +368,16 @@ final class OfflineDownloads extends ChangeNotifier {
         _entries.values.where((e) => e.kind == OfflineKind.preload).toList()
           ..sort((a, b) => b.lastUsedAt.compareTo(a.lastUsedAt));
     for (final entry in preloaded.skip(maxPreloaded)) {
-      if (entry.track.id != keep) victims.add(entry.track.id);
+      if (entry.track.id != keep && entry.track.id != _activeTrackId) {
+        victims.add(entry.track.id);
+      }
     }
     final auto = _entries.values
         .where(
-          (e) => e.kind == OfflineKind.auto && !victims.contains(e.track.id),
+          (e) =>
+              e.kind == OfflineKind.auto &&
+              e.track.id != _activeTrackId &&
+              !victims.contains(e.track.id),
         )
         .toList();
     var total = auto.fold<int>(0, (sum, e) => sum + e.sizeBytes);

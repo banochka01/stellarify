@@ -141,6 +141,45 @@ void main() {
     expect(downloads.contains('track-1'), isTrue);
   });
 
+  test('eviction never deletes the file that is playing right now', () async {
+    var clock = DateTime.utc(2026, 10, 1);
+    final downloads = build(_AudioAdapter(), now: () => clock);
+    await downloads.setAutoCacheLimitBytes(4);
+    expect(await downloads.cacheAutomatically(_track(id: 'playing')), isTrue);
+    final local = await downloads.localSource(_track(id: 'playing'));
+    downloads.setActiveTrackId('playing');
+    clock = clock.add(const Duration(minutes: 1));
+    expect(await downloads.cacheAutomatically(_track(id: 'newer')), isTrue);
+    await downloads.setAutoCacheLimitBytes(0);
+
+    expect(downloads.contains('playing'), isTrue);
+    expect(await File.fromUri(local!.streamUrl).exists(), isTrue);
+    expect(downloads.contains('newer'), isFalse);
+
+    downloads.setActiveTrackId(null);
+    await downloads.setAutoCacheLimitBytes(0);
+    expect(downloads.contains('playing'), isFalse);
+  });
+
+  test('playback marks the opened track as protected from eviction', () async {
+    final downloads = build(_AudioAdapter());
+    await downloads.cacheAutomatically(_track(id: 'one'));
+    final playback = PlaybackService(
+      engine: FakePlaybackEngine(),
+      providers: ProviderRegistry(resolvers: [_Resolver()]),
+      sourceSelectionPolicy: SourceSelectionPolicy(),
+      offlineDownloads: downloads,
+    );
+    await playback.playTrack(_track(id: 'one'));
+    await downloads.setAutoCacheLimitBytes(0);
+    expect(downloads.contains('one'), isTrue);
+    await playback.dispose();
+    // После остановки плеера защита снимается; заодно дожидаемся записи
+    // манифеста, чтобы tearDown не упёрся в занятый файл.
+    await downloads.setAutoCacheLimitBytes(0);
+    expect(downloads.contains('one'), isFalse);
+  });
+
   test('preload keeps only a few recent files', () async {
     var clock = DateTime.utc(2026, 10, 1);
     final downloads = build(_AudioAdapter(), now: () => clock);

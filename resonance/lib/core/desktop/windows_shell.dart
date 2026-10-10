@@ -65,6 +65,7 @@ final class WindowsShell with TrayListener {
   bool? _menuPlaying;
   Rect? _restoreBounds;
   Size? _restoreMinimum;
+  bool _disposed = false;
 
   QuickActions get _actions => _ref.read(quickActionsProvider);
 
@@ -81,6 +82,7 @@ final class WindowsShell with TrayListener {
     await _guard('tray', _startTray);
     await _guard('hotkeys', _registerHotkeys);
     final service = await _ref.read(playbackServiceProvider.future);
+    if (_disposed) return;
     _subscriptions.add(service.states.listen(_updateTray));
     _updateTray(service.state);
     for (final action in List.of(pendingLaunchActions)) {
@@ -239,6 +241,7 @@ final class WindowsShell with TrayListener {
   void onTrayIconRightMouseDown() => unawaited(trayManager.popUpContextMenu());
 
   Future<void> dispose() async {
+    _disposed = true;
     desktopActionsChannel.setMethodCallHandler(null);
     _compactSubscription?.close();
     for (final subscription in _subscriptions) {

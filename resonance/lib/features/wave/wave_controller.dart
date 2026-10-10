@@ -133,6 +133,7 @@ class WaveController extends StateNotifier<WaveState> {
   Duration _currentPosition = Duration.zero;
   Duration _currentDuration = Duration.zero;
   bool _fetching = false;
+  DateTime _nextRetryAt = DateTime.fromMillisecondsSinceEpoch(0);
   DateTime _lastCheckpointAt = DateTime.fromMillisecondsSinceEpoch(0);
   final Map<String, _WaveMeta> _metadata = {};
 
@@ -232,6 +233,8 @@ class WaveController extends StateNotifier<WaveState> {
       await blocks.blockTrack(track);
     }
     if (state.active) {
+      // Уже подобранные треки этого исполнителя/трека не должны доиграть.
+      await service.removeUpcomingWhere(blocks.isBlocked);
       await _feedback(track.id, 'disliked', service.state.position);
       await service.next();
     }
@@ -387,6 +390,9 @@ class WaveController extends StateNotifier<WaveState> {
   Future<void> _next() async {
     final id = state.sessionId;
     if (id == null || _fetching) return;
+    // _onPlayback зовётся на каждый тик позиции: без паузы после неудачного
+    // или пустого (всё заблокировано/дубликаты) ответа запросы шли бы потоком.
+    if (_now().isBefore(_nextRetryAt)) return;
     _fetching = true;
     try {
       final response = await _dio.postUri<Map<String, dynamic>>(
@@ -394,8 +400,14 @@ class WaveController extends StateNotifier<WaveState> {
         options: await _options(),
       );
       final batch = _parseBatch(response.data);
-      await (await _serviceFuture).appendToQueue(batch.tracks);
+      final service = await _serviceFuture;
+      final before = service.state.queue.length;
+      await service.appendToQueue(batch.tracks);
+      if (service.state.queue.length == before) {
+        _nextRetryAt = _now().add(const Duration(seconds: 30));
+      }
     } on Object catch (error) {
+      _nextRetryAt = _now().add(const Duration(seconds: 30));
       state = state.copyWith(error: _message(error));
     } finally {
       _fetching = false;
