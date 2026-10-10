@@ -118,3 +118,14 @@ test("normalization strips noise but keeps meaningful fragments", () => {
   assert.equal(normalizeTitle("Кукушка"), normalizeTitle("Kukushka"));
   assert.equal(searchQueryFor(t("Eminem, Rihanna", "Love The Way You Lie (feat. Rihanna)")), "Eminem love the way you lie");
 });
+
+test("numbers are not folded like doubled letters", () => {
+  assert.notEqual(normalizeTitle("Song 2"), normalizeTitle("Song 22"));
+  assert.notEqual(normalizeTitle("Part 1"), normalizeTitle("Part 11"));
+  assert.equal(normalizeTitle("Hello"), normalizeTitle("Helo"));
+  const result = scoreTrackPair(
+    { title: "Symphony No. 1", artist: "Orchestra", durationMs: 200_000 },
+    { title: "Symphony No. 11", artist: "Orchestra", durationMs: 200_000 }
+  );
+  assert.notEqual(result.confidence, "exact");
+});

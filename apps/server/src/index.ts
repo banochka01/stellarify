@@ -31,7 +31,8 @@ import { providerCapabilities } from "./providers.js";
 import { configureRoomStore, registerRoomHandlers, roomStats, roomWaveUserIds } from "./rooms.js";
 import { RoomStore } from "./room-store.js";
 import { ServiceHealthMonitor, type HealthProbe } from "./service-health.js";
-import { ClientReportStore, createClientReportRouter } from "./client-reports.js";
+import { ClientReportStore, FixedWindowRateLimiter, createClientReportRouter } from "./client-reports.js";
+import { jsonErrorHandler } from "./error-handler.js";
 import { SoundCloudAdapter } from "./soundcloud.js";
 import {
   isSoundCloudRelayTicket,
@@ -257,9 +258,15 @@ const lyricsTranslateSchema = z.object({
   target: z.string().trim().regex(/^[a-z]{2}(?:-[A-Za-z]{2})?$/).default("ru")
 });
 
+// Translation is anonymous and spends the operator's translation quota.
+const translateLimiter = new FixedWindowRateLimiter(40, 10 * 60_000);
 app.post("/api/v1/lyrics/translate", async (request, response) => {
   if (!lyricsTranslator.available) {
     response.status(503).json({ error: { code: "TRANSLATION_UNAVAILABLE", message: "Перевод недоступен" } });
+    return;
+  }
+  if (!translateLimiter.allow(request.ip || "unknown")) {
+    response.status(429).json({ error: { code: "RATE_LIMITED", message: "Слишком много переводов, попробуйте позже" } });
     return;
   }
   const input = lyricsTranslateSchema.safeParse(request.body);
@@ -701,6 +708,8 @@ app.post("/api/import/preview", (request, response) => {
     }, {})
   });
 });
+
+app.use(jsonErrorHandler);
 
 function roomAccess(socket: import("socket.io").Socket) {
   let userId = typeof socket.data.userId === "string" ? socket.data.userId : undefined;

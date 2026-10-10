@@ -284,3 +284,30 @@ test("a stand-in host cannot change privacy or roles of an owned room", async ()
   const promoted = await emitAck<any>(friend, "room:set-role", { code, participantId: otherId, role: "dj" });
   assert.equal(promoted.ok, false);
 });
+
+test("a non-function ack or junk payload cannot crash the server", async () => {
+  const client = await connect("junk-user");
+  // socket.io passes extra client arguments through as-is.
+  (client as any).emit("room:leave", {}, 123);
+  (client as any).emit("room:join", null, "not-a-function");
+  (client as any).emit("room:create", { name: { nested: true } }, 5);
+  const created = await emitAck<any>(client, "room:create", { name: "Ok" });
+  assert.equal(created.ok, true);
+  (client as any).emit("playback:update", { code: created.room.code, track: { id: 1, sources: "x" } }, 7);
+  const state = await emitAck<any>(client, "room:join", { code: created.room.code });
+  assert.equal(state.ok, true);
+  assert.equal(client.connected, true);
+});
+
+test("re-joining your own room keeps its session recording history", async () => {
+  const host = await connect("solo-9");
+  const code = (await emitAck<any>(host, "room:create", { name: "Solo" })).room.code as string;
+  const again = await emitAck<any>(host, "room:join", { code, name: "Solo" });
+  assert.equal(again.ok, true);
+  assert.equal(again.room.participants.length, 1);
+  await emitAck<any>(host, "playback:update", { code, paused: false, positionMs: 0, track: roomTrack("vk:90") });
+  const history = await emitAck<any>(host, "room:history", {});
+  const session = history.sessions.find((item: any) => item.code === code);
+  assert.equal(session?.endedAt, null);
+  assert.deepEqual(session.tracks.map((item: any) => item.track.id), ["vk:90"]);
+});
