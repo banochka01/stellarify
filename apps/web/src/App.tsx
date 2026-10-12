@@ -1,5 +1,6 @@
 import {
   Bell,
+  Download,
   ChevronRight,
   CirclePlus,
   Clock3,
@@ -22,6 +23,7 @@ import {
   SkipBack,
   SkipForward,
   Sparkles,
+  Waves,
   Users,
   Volume2,
   X
@@ -31,6 +33,7 @@ import { io, type Socket } from "socket.io-client";
 import { mixes, tracks } from "./data";
 import { ImportModal } from "./ImportModal";
 import { RoomPanel } from "./RoomPanel";
+import { useInstallPrompt } from "./pwa";
 import type { ImportedSource, ProviderId, RoomState, Track } from "./types";
 
 const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
@@ -65,6 +68,7 @@ const libraryItems = [
 ];
 
 export function App() {
+  const { canInstall, install } = useInstallPrompt();
   const [provider, setProvider] = useState<ProviderId>("all");
   const [query, setQuery] = useState("");
   const [currentTrack, setCurrentTrack] = useState<Track>(tracks[0]!);
@@ -192,8 +196,8 @@ export function App() {
     <div className="app-shell">
       <aside className={`sidebar ${mobileNav ? "mobile-open" : ""}`}>
         <div className="brand">
-          <span className="brand-mark"><Sparkles size={20} fill="currentColor" /></span>
-          <span>stellarify</span>
+          <span className="brand-mark"><Waves size={20} /></span>
+          <span>resonance</span>
         </div>
 
         <nav>
@@ -224,7 +228,7 @@ export function App() {
 
         <button className="user-card">
           <span className="avatar avatar-main">ST</span>
-          <span><strong>Stellar</strong><small>Free plan</small></span>
+          <span><strong>Resonance</strong><small>Бесплатно · 5.0</small></span>
           <MoreHorizontal size={18} />
         </button>
       </aside>
@@ -246,6 +250,11 @@ export function App() {
             <kbd>⌘ K</kbd>
           </label>
           <div className="top-actions">
+            {canInstall && (
+              <button className="install-button" onClick={() => void install()}>
+                <Download size={17} /> <span>Установить</span>
+              </button>
+            )}
             <button className="icon-button" aria-label="Уведомления"><Bell size={19} /></button>
             <button className="icon-button" aria-label="Настройки"><Settings size={19} /></button>
             <button className="room-button" onClick={() => setRoomOpen(true)}>
@@ -261,8 +270,8 @@ export function App() {
             <div className="hero-orbit orbit-one" />
             <div className="hero-orbit orbit-two" />
             <div className="hero-copy">
-              <p className="eyebrow"><Sparkles size={14} /> Stellar selection</p>
-              <h1>Вся музыка.<br /><span>Одно пространство.</span></h1>
+              <p className="eyebrow"><Sparkles size={14} /> Resonance 5.0 · Graph</p>
+              <h1>Музыка —<br /><span>это связи.</span></h1>
               <p>Соберите любимые треки со всех площадок и слушайте вместе — без переключений.</p>
               <div className="hero-actions">
                 <button className="primary-button" onClick={() => selectTrack(tracks[0]!)}>
@@ -275,7 +284,7 @@ export function App() {
             </div>
             <div className="hero-visual" aria-hidden="true">
               <div className="planet-disc">
-                <div className="planet-label"><Sparkles size={24} /><span>stellarify</span></div>
+                <div className="planet-label"><Sparkles size={24} /><span>resonance</span></div>
               </div>
               <div className="floating-note note-one">♪</div>
               <div className="floating-note note-two">♫</div>

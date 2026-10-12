@@ -1,0 +1,141 @@
+/* Resonance 5.0 «Graph» — tokens, themes and new sections. Loaded after styles.css. */
+:root {
+  --bg: #070706;
+  --bg-alt: #0c0b0a;
+  --surface: rgba(255, 255, 255, .025);
+  --text: #eee9de;
+  --text-2: #b3aea5;
+  --accent: #f05a49;
+  --accent-ink: #ff7a6b;
+  --graph-line: rgba(238, 233, 222, .22);
+  --graph-text: #d9d4ca;
+  --graph-track: #f05a49;
+  --graph-artist: #a795ff;
+  --graph-friend: #3effa2;
+  --graph-genre: #ffd234;
+  --focus: #ffd234;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --ink: #f6f3ec;
+  --paper: #15130f;
+  --muted: #5f5a52;
+  --line: rgba(21, 19, 15, .14);
+  --coral: #c8372a;
+  --bg: #f6f3ec;
+  --bg-alt: #ede8de;
+  --surface: rgba(255, 255, 255, .7);
+  --text: #15130f;
+  --text-2: #4f4a43;
+  --accent: #c8372a;
+  --accent-ink: #b02c20;
+  --graph-line: rgba(21, 19, 15, .2);
+  --graph-text: #2a2722;
+  --graph-track: #d83b2d;
+  --graph-artist: #6650e0;
+  --graph-friend: #138a55;
+  --graph-genre: #b07d00;
+  --focus: #1d4ed8;
+  color: var(--text);
+  background: var(--bg);
+}
+
+/* Accessible focus ring everywhere */
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
+.skip-link { position: absolute; left: 16px; top: -60px; z-index: 50; padding: 10px 16px; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; }
+.skip-link:focus { top: 12px; }
+
+/* Header */
+.header-actions { justify-self: end; display: inline-flex; align-items: center; gap: 10px; }
+.theme-toggle { width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--text); cursor: pointer; transition: border-color .2s ease, transform .2s ease; }
+.theme-toggle:hover { border-color: var(--text-2); transform: rotate(-12deg); }
+.site-header nav { color: var(--text-2); }
+.site-header nav a:hover { color: var(--text); }
+.eyebrow { display: inline-flex; align-items: center; gap: 7px; }
+
+/* Hero */
+.hero-graph { grid-template-columns: minmax(340px, .85fr) minmax(0, 1.15fr); gap: 40px; }
+.hero-graph h1 { font-size: clamp(64px, 7.4vw, 124px); }
+.hero-graph .hero-lead { max-width: 440px; color: var(--text-2); }
+.hero-graph .release-note { color: var(--text-2); }
+.graph-hero { position: relative; margin: 0; aspect-ratio: 1.08; width: 100%; border: 1px solid var(--line); border-radius: 32px; overflow: hidden; background:
+  radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--graph-track) 16%, transparent), transparent 55%),
+  radial-gradient(circle at 85% 15%, color-mix(in srgb, var(--graph-artist) 14%, transparent), transparent 40%),
+  var(--surface); }
+.graph-hero-canvas { display: block; width: 100%; height: 100%; touch-action: pan-y; }
+.graph-legend { position: absolute; left: 18px; right: 18px; bottom: 16px; display: flex; flex-wrap: wrap; gap: 8px 16px; color: var(--text-2); font-size: 12px; }
+.graph-legend span { display: inline-flex; align-items: center; gap: 7px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.dot-track { background: var(--graph-track); }
+.dot-artist { background: var(--graph-artist); }
+.dot-friend { background: var(--graph-friend); }
+.dot-genre { background: var(--graph-genre); }
+.scroll-cue { color: var(--text); }
+
+/* What's new */
+.new-section, .download-section { padding: 140px max(40px, calc((100vw - 1420px) / 2)); border-top: 1px solid var(--line); background: var(--bg-alt); }
+.new-section .section-heading, .download-section .section-heading { margin-bottom: 64px; }
+.section-heading > p { color: var(--text-2); }
+.new-grid { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.new-card { scroll-margin-top: 90px; padding: 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); transition: border-color .25s ease, transform .25s ease; }
+.new-card:hover { border-color: color-mix(in srgb, var(--accent) 55%, transparent); transform: translateY(-3px); }
+.new-card:first-child { grid-column: span 2; background: radial-gradient(circle at 90% 0, color-mix(in srgb, var(--accent) 18%, transparent), transparent 60%), var(--surface); }
+.new-icon { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 13px; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.new-card h3 { margin: 26px 0 10px; font-size: 19px; font-weight: 620; letter-spacing: -.015em; color: var(--text); }
+.new-card p { margin: 0; color: var(--text-2); font-size: 14px; line-height: 1.65; }
+.devices-strip { margin: 40px 0 0; padding: 24px 0 0; list-style: none; display: flex; flex-wrap: wrap; gap: 10px; border-top: 1px solid var(--line); }
+.devices-strip li { display: inline-flex; align-items: center; gap: 8px; padding: 9px 15px; border: 1px solid var(--line); border-radius: 999px; color: var(--text-2); font-size: 13px; }
+
+/* Downloads */
+.download-section { background: var(--bg); }
+.platform-grid { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.platform-card { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 18px; padding: 22px 24px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--text); }
+.platform-card > svg { color: var(--accent); }
+.platform-card h3 { margin: 0 0 4px; font-size: 16px; }
+.platform-card p { margin: 0; color: var(--text-2); font-size: 13px; }
+.platform-card .button { min-height: 44px; padding: 0 16px; font-size: 13px; white-space: nowrap; }
+.platform-soon > svg { color: var(--text-2); }
+.soon-badge { padding: 8px 14px; border: 1px dashed var(--line); border-radius: 999px; color: var(--text-2); font-size: 12px; font-weight: 600; }
+.button-primary { background: var(--accent); }
+.header-download { background: var(--accent); }
+
+/* Light theme adjustments for shared sections */
+:root[data-theme="light"] .site-shell { background: var(--bg); color: var(--text); }
+:root[data-theme="light"] body,
+:root[data-theme="light"] html { background: var(--bg); }
+:root[data-theme="light"] :is(.free-section, .steps-section, .faq-section, .privacy-section, .search-section, .rooms-section, .demo-section) { background: var(--bg-alt); color: var(--text); }
+:root[data-theme="light"] :is(.free-card p, .free-note, .free-heading > p, .privacy-copy p, .steps-grid p, .faq-list details p, .feature-row p, .demo-heading > p, .provider-chip, .rooms-note, .cinema-caption, footer, .footer-nav a) { color: var(--text-2); }
+:root[data-theme="light"] .button-secondary { color: var(--text); background: var(--surface); }
+:root[data-theme="light"] .free-card, :root[data-theme="light"] .demo-pane { background: var(--surface); }
+:root[data-theme="light"] footer, :root[data-theme="light"] .final-cta { background: var(--bg); color: var(--text); }
+:root[data-theme="light"] .brand-mark { background: #15130f; }
+/* Cinema/knowledge blocks stay dark as "stage" panels in light theme */
+:root[data-theme="light"] :is(.cinema-section, .library-section, .knowledge-section) { color: #eee9de; --paper: #eee9de; --line: rgba(238,233,222,.14); --coral: #f05a49; --muted: #938f87; }
+:root[data-theme="light"] .demo-section .demo-input { color: var(--text); }
+
+@media (max-width: 1050px) {
+  .hero-graph { grid-template-columns: 1fr; }
+  .hero-graph .hero-visual { max-width: 640px; }
+}
+
+@media (max-width: 760px) {
+  .hero-graph { padding: 120px 16px 90px; }
+  .hero-graph h1 { font-size: clamp(52px, 15vw, 84px); }
+  .hero-graph .hero-visual { margin-top: 44px; }
+  .graph-hero { aspect-ratio: .95; border-radius: 22px; }
+  .graph-legend { font-size: 11px; left: 14px; bottom: 12px; }
+  .new-section, .download-section { padding: 90px 16px; }
+  .new-section h2, .download-section h2 { font-size: clamp(44px, 13vw, 64px); }
+  .new-grid { grid-template-columns: 1fr; }
+  .new-card:first-child { grid-column: auto; }
+  .platform-grid { grid-template-columns: 1fr; }
+  .platform-card { grid-template-columns: auto 1fr; }
+  .platform-card .button, .platform-card .soon-badge { grid-column: 1 / -1; justify-self: stretch; text-align: center; }
+  .theme-toggle { width: 40px; height: 40px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .new-card, .theme-toggle { transition: none; }
+  .new-card:hover { transform: none; }
+}

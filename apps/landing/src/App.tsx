@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
@@ -6,7 +6,22 @@ import {
   ArrowRight,
   Apple,
   BookOpen,
+  Car,
+  Cast,
   Combine,
+  Disc3,
+  FlaskConical,
+  Laptop,
+  Moon,
+  Mic2,
+  Monitor,
+  Sparkles,
+  Sun,
+  Trash2,
+  Tv,
+  UserPlus,
+  Watch,
+  Waves,
   Download,
   FileText,
   Heart,
@@ -24,7 +39,7 @@ import {
   Volume2
 } from "lucide-react";
 import { DemoSandbox } from "./components/DemoSandbox";
-import { HeroStage } from "./components/HeroStage";
+import { GraphHero } from "./components/GraphHero";
 import { LyricsCinema } from "./components/LyricsCinema";
 import { LibraryCinema } from "./components/LibraryCinema";
 import { QueueCinema } from "./components/QueueCinema";
@@ -39,8 +54,59 @@ const downloads = {
   ios: "/downloads/ios"
 };
 
+type Theme = "dark" | "light";
+
+function readTheme(): Theme {
+  try {
+    const saved = localStorage.getItem("resonance-theme");
+    if (saved === "light" || saved === "dark") return saved;
+  } catch {
+    /* storage unavailable */
+  }
+  return window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
+function useTheme() {
+  const [theme, setTheme] = useState<Theme>(readTheme);
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#f6f3ec" : "#070706");
+    window.dispatchEvent(new Event("resonance-theme"));
+  }, [theme]);
+  const toggle = () => {
+    const next: Theme = theme === "dark" ? "light" : "dark";
+    try { localStorage.setItem("resonance-theme", next); } catch { /* ignore */ }
+    setTheme(next);
+  };
+  return { theme, toggle };
+}
+
+const features5 = [
+  { id: "graph", icon: Network, title: "Music Graph", text: "Каждый трек — узел графа: источники, артисты, альбомы, похожие записи и связи между ними. Переходи по музыке, как по карте." },
+  { id: "friends", icon: UserPlus, title: "Друзья и совместимость", text: "Добавляй друзей и смотри процент музыкального совпадения: общие артисты, жанры и треки, которые стоит послушать вместе." },
+  { id: "blend", icon: Combine, title: "Blend", text: "Общий плейлист для двоих или компании, который собирается из вкусов всех участников и обновляется сам." },
+  { id: "dj", icon: Disc3, title: "DJ-комнаты", text: "Ведущий управляет очередью, слушатели предлагают треки и голосуют. Синхронное воспроизведение у всех." },
+  { id: "sound", icon: Waves, title: "Чистый звук", text: "Нормализация громкости, gapless-переходы без пауз и lossless там, где источник его отдаёт." },
+  { id: "cast", icon: Cast, title: "ТВ и колонки", text: "Трансляция на телевизоры и умные колонки в локальной сети — очередь остаётся в телефоне." },
+  { id: "car", icon: Car, title: "Авто, часы и ТВ", text: "Android Auto, CarPlay, Wear OS и Android TV: управление и обложки там, где ты сейчас." },
+  { id: "desktop", icon: Laptop, title: "macOS и Linux", text: "Нативные сборки для macOS и Linux рядом с Windows — один аккаунт и одна медиатека на всех устройствах." },
+  { id: "artists", icon: Mic2, title: "Артисты и сет-листы", text: "Обновлённые страницы артистов: дискография, связи в графе и сет-листы концертов." },
+  { id: "cleanup", icon: Trash2, title: "Чистка библиотеки", text: "Поиск дублей, недоступных треков и пустых плейлистов. Всё показывается заранее, ничего не удаляется без подтверждения." },
+  { id: "beta", icon: FlaskConical, title: "Бета-канал", text: "Получай новые возможности раньше всех и помогай найти ошибки. Переключение в настройках, вернуться можно в любой момент." }
+];
+
+const platforms = [
+  { icon: Monitor, name: "Windows", note: "Setup EXE · x64", href: downloads.windows, cta: "Скачать EXE" },
+  { icon: Monitor, name: "Windows Portable", note: "ZIP без установки", href: downloads.windowsPortable, cta: "Скачать ZIP" },
+  { icon: Smartphone, name: "Android", note: "APK · Android Auto, Wear OS, TV", href: downloads.android, cta: "Скачать APK" },
+  { icon: Apple, name: "iOS", note: "Unsigned IPA · нужна своя подпись", href: downloads.ios, cta: "Скачать IPA" },
+  { icon: Laptop, name: "macOS", note: "Сборка готовится", href: null, cta: "Скоро" },
+  { icon: Laptop, name: "Linux", note: "Сборка готовится", href: null, cta: "Скоро" }
+];
+
 function App() {
   const root = useRef<HTMLDivElement>(null);
+  const { theme, toggle } = useTheme();
 
   useLayoutEffect(() => {
     const context = gsap.context(() => {
@@ -68,14 +134,14 @@ function App() {
             stagger: 0.09,
             ease: "power3.out"
           });
-          gsap.from(".stage-card", {
+          gsap.from(".graph-hero", {
             autoAlpha: 0,
-            y: 56,
+            scale: 0.96,
             duration: 1.15,
-            delay: 0.25,
+            delay: 0.2,
             ease: "power3.out"
           });
-          gsap.to(".stage-card", {
+          gsap.to(".graph-hero", {
             yPercent: -5,
             ease: "none",
             scrollTrigger: {
@@ -114,35 +180,43 @@ function App() {
 
   return (
     <div ref={root} className="site-shell">
+      <a className="skip-link" href="#main">К содержимому</a>
       <header className="site-header">
         <a className="brand" href="#top" aria-label="Resonance — наверх">
           <span className="brand-mark"><img src="/assets/resonance-mark.png" alt="" width={24} height={24} /></span>
           <span>Resonance</span>
         </a>
         <nav aria-label="Основная навигация">
-          <a href="#features">Возможности</a>
-          <a href="#graph">Music Graph</a>
+          <a href="#new">Что нового</a>
+          <a href="#features">Поиск</a>
           <a href="#rooms">Комнаты</a>
-          <a href="#demo">Демо</a>
-          <a href="#free">Бесплатно</a>
-          <a href="#privacy">Приватность</a>
-          <a href="#knowledge">База знаний</a>
+          <a href="#download">Скачать</a>
           <a href="#faq">FAQ</a>
         </nav>
-        <a className="header-download" href={downloads.windows}>
-          <Download size={16} /> Скачать
-        </a>
+        <div className="header-actions">
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={toggle}
+            aria-label={theme === "dark" ? "Включить светлую тему" : "Включить тёмную тему"}
+          >
+            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          <a className="header-download" href="#download">
+            <Download size={16} /> Скачать
+          </a>
+        </div>
       </header>
 
-      <main>
-        <section className="hero" id="top">
+      <main id="main">
+        <section className="hero hero-graph" id="top">
           <div className="hero-copy">
-            <p className="eyebrow">Музыка без переключений</p>
-            <h1>Музыка<br /><em>живёт</em><br />здесь.</h1>
+            <p className="eyebrow"><Sparkles size={13} aria-hidden /> Resonance 5.0 · Graph</p>
+            <h1>Музыка —<br />это <em>связи</em>.</h1>
             <p className="hero-lead">
-              Один трек, все его источники и связи. Music Graph очищает
-              медиатеку от дублей, а Wave 2.0 продолжает путь по музыке.
-              Все возможности Resonance доступны бесплатно.
+              Resonance 5.0 превращает медиатеку в живой граф: треки, артисты,
+              друзья и общие вкусы. Слушай вместе в DJ-комнатах, собирай Blend
+              и включай музыку на ТВ, в машине и на часах. Бесплатно.
             </p>
             <div className="provider-chips">
               <span className="provider-chip"><img src="/assets/logos/yandex-music.svg" alt="" width={16} height={16} />Яндекс Музыка</span>
@@ -153,38 +227,52 @@ function App() {
             </div>
             <div className="hero-actions">
               <a className="button button-primary" href={downloads.windows}>
-                <Download size={18} /> Windows Setup EXE
+                <Download size={18} /> Скачать для Windows
               </a>
-              <a className="button button-secondary" href={downloads.windowsPortable}>
-                <Download size={18} /> Portable ZIP
-              </a>
-              <a className="button button-secondary" href={downloads.android}>
-                <Smartphone size={18} /> Версия для Android
-              </a>
-              <a className="button button-secondary" href={downloads.ios}>
-                <Apple size={18} /> Unsigned IPA
+              <a className="button button-secondary" href="#download">
+                Все платформы <ArrowRight size={17} />
               </a>
             </div>
-            <p className="release-note">Resonance 3.13.2 · Таймер сна · Итоги недели · Волна от артиста · Повтор строки текста · Новый OBS-виджет · Новая главная с живым фоном · Страницы исполнителей · Техподдержка и донат в настройках · Плавные вкладки и быстрая медиатека · Клипы прямо на Stage синхронно с треком · Кинорежим · Эфир-визуал · Очередь зала с голосованием прямо на Stage · Офлайн-прослушивание · SourceShift без пауз</p>
+            <p className="release-note">Windows · Android · iOS сейчас, macOS и Linux — скоро.</p>
           </div>
           <div className="hero-visual">
-            <HeroStage />
+            <GraphHero />
           </div>
-          <div className="stage-marquee" aria-hidden>
-            <div className="stage-marquee-track">
-              {[0, 1].map((copy) => (
-                <span className="stage-marquee-run" key={copy}>
-                  <b>Alpha House</b><i>Knucks &amp; Venna</i>
-                  <b>Большие бабки</b><i>OG Buda &amp; Scally Milano</i>
-                  <b>Подруга Подруг</b><i>SLIME &amp; FACE</i>
-                  <b>Выходной</b><i>MONATIK</i>
-                </span>
-              ))}
-            </div>
-          </div>
-          <a className="scroll-cue" href="#features" aria-label="К возможностям">
+          <a className="scroll-cue" href="#new" aria-label="К новым возможностям">
             <ArrowDown size={26} />
           </a>
+        </section>
+
+        <section className="new-section" id="new" aria-labelledby="new-title">
+          <div className="section-heading" data-reveal>
+            <div>
+              <p className="eyebrow">Что нового в 5.0</p>
+              <h2 id="new-title">Всё вокруг<br /><em>одного графа.</em></h2>
+            </div>
+            <p>
+              Пятая версия связывает твою музыку, друзей и устройства. Каждая
+              возможность ниже доступна бесплатно с аккаунтом Resonance.
+            </p>
+          </div>
+          <ul className="new-grid">
+            {features5.map(({ id, icon: Icon, title, text }) => (
+              <li key={id} id={id} className="new-card" data-reveal>
+                <span className="new-icon"><Icon size={22} aria-hidden /></span>
+                <h3>{title}</h3>
+                <p>{text}</p>
+              </li>
+            ))}
+          </ul>
+          <ul className="devices-strip" data-reveal aria-label="Поддерживаемые устройства">
+            <li><Monitor size={18} aria-hidden />Windows</li>
+            <li><Laptop size={18} aria-hidden />macOS</li>
+            <li><Laptop size={18} aria-hidden />Linux</li>
+            <li><Smartphone size={18} aria-hidden />Android</li>
+            <li><Apple size={18} aria-hidden />iOS</li>
+            <li><Car size={18} aria-hidden />Android Auto · CarPlay</li>
+            <li><Watch size={18} aria-hidden />Wear OS</li>
+            <li><Tv size={18} aria-hidden />Android TV</li>
+          </ul>
         </section>
 
         <section className="search-section" id="features">
@@ -222,37 +310,6 @@ function App() {
         </section>
 
         <LibraryCinema />
-
-        <section className="graph-section" id="graph">
-          <div className="section-heading" data-reveal>
-            <div>
-              <p className="eyebrow">Resonance 3.0</p>
-              <h2>Один трек.<br /><em>Все</em> его связи.</h2>
-            </div>
-            <p>
-              Music Graph узнаёт одну композицию в разных сервисах, сохраняет
-              все доступные источники и связывает музыку по артисту и альбому.
-            </p>
-          </div>
-          <div className="graph-showcase" data-reveal>
-            <div className="graph-orbit" aria-label="Пример музыкального графа">
-              <span className="graph-line graph-line-a" />
-              <span className="graph-line graph-line-b" />
-              <span className="graph-line graph-line-c" />
-              <button className="graph-node graph-node-main" type="button">
-                <Network size={28} /><b>Nightcall</b><small>2 источника</small>
-              </button>
-              <button className="graph-node graph-node-a" type="button"><span>Kavinsky</span></button>
-              <button className="graph-node graph-node-b" type="button"><span>OutRun</span></button>
-              <button className="graph-node graph-node-c" type="button"><span>Odd Look</span></button>
-            </div>
-            <div className="graph-copy">
-              <article><Combine size={22} /><div><h3>Без дублей</h3><p>Яндекс, Spotify и VK становятся источниками одной записи, а не тремя одинаковыми треками.</p></div></article>
-              <article><Network size={22} /><div><h3>Живое окружение</h3><p>Переходи от композиции к альбому и другим работам артиста прямо на карте.</p></div></article>
-              <article><ShieldCheck size={22} /><div><h3>Безопасное объединение</h3><p>Совпадение требует одинаковых названия, артиста и близкой длительности. Live и remix остаются отдельно.</p></div></article>
-            </div>
-          </div>
-        </section>
 
         <LyricsCinema />
 
@@ -483,31 +540,51 @@ function App() {
           </div>
         </section>
 
-        <section className="final-cta" data-reveal>
-          <Layers3 size={32} />
-          <h2>Твои сервисы.<br /><em>Один Resonance.</em></h2>
-          <div className="hero-actions">
-            <a className="button button-primary" href={downloads.windows}>Скачать Setup EXE</a>
-            <a className="button button-secondary" href={downloads.windowsPortable}>Скачать Portable ZIP</a>
-            <a className="button button-secondary" href={downloads.android}>Скачать APK</a>
-            <a className="button button-secondary" href={downloads.ios}>Скачать unsigned IPA</a>
+        <section className="download-section" id="download" aria-labelledby="download-title">
+          <div className="section-heading" data-reveal>
+            <div>
+              <p className="eyebrow">Загрузки</p>
+              <h2 id="download-title">Твои сервисы.<br /><em>Один Resonance.</em></h2>
+            </div>
+            <p>
+              Ссылки всегда ведут на актуальный релиз. iOS-сборка не подписана —
+              её нужно подписать своим сертификатом.
+            </p>
           </div>
+          <ul className="platform-grid">
+            {platforms.map(({ icon: Icon, name, note, href, cta }) => (
+              <li key={name} className={href ? "platform-card" : "platform-card platform-soon"} data-reveal>
+                <Icon size={24} aria-hidden />
+                <div>
+                  <h3>{name}</h3>
+                  <p>{note}</p>
+                </div>
+                {href ? (
+                  <a className="button button-primary" href={href}><Download size={16} aria-hidden /> {cta}</a>
+                ) : (
+                  <span className="soon-badge">{cta}</span>
+                )}
+              </li>
+            ))}
+          </ul>
         </section>
       </main>
 
       <footer>
-        <a className="brand" href="#top"><span className="brand-mark"><img src="/assets/resonance-mark.png" alt="" width={22} height={22} /></span>Resonance</a>
+        <a className="brand" href="#top" aria-label="Resonance — наверх"><span className="brand-mark"><img src="/assets/resonance-mark.png" alt="" width={22} height={22} /></span>Resonance</a>
         <nav className="footer-nav" aria-label="Разделы лендинга">
-          <a href="#features">Возможности</a>
+          <a href="#new">Что нового</a>
+          <a href="#features">Поиск</a>
           <a href="#rooms">Комнаты</a>
           <a href="#demo">Демо</a>
+          <a href="#download">Скачать</a>
           <a href="#free">Бесплатно</a>
           <a href="#privacy">Приватность</a>
           <a href="#knowledge">База знаний</a>
           <a href="#faq">FAQ</a>
         </nav>
         <span>© 2026 WebCord</span>
-        <span>Windows · Android · iOS</span>
+        <span>Windows · Android · iOS · macOS и Linux скоро</span>
       </footer>
     </div>
   );
