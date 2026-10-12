@@ -16,6 +16,8 @@ import 'package:resonance/core/preferences/playback_flow_preferences.dart';
 import 'package:resonance/core/update/app_update_service.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/features/auth/account_controller.dart';
+import 'package:resonance/features/changelog/changelog.dart';
+import 'package:resonance/features/platform/feature_flags.dart';
 import 'package:resonance/features/settings/equalizer_card.dart';
 import 'package:resonance/features/settings/service_status_screen.dart';
 import 'package:resonance/features/wave/wave_controller.dart';
@@ -1010,6 +1012,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     _supportTelegramUrl,
                     mode: LaunchMode.externalApplication,
                   ),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: UpdateChannelSelector(),
+              ),
+              FeatureGate(
+                flag: FeatureFlag.changelog,
+                child: ListTile(
+                  leading: const Icon(Icons.new_releases_outlined),
+                  title: const Text('Что нового'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.push('/changelog'),
                 ),
               ),
               const Divider(height: 1),
