@@ -394,6 +394,30 @@ export class AccountStore {
     return this.getLibrary(userId);
   }
 
+  /**
+   * Anonymous per-account artist sets for the Music Graph: no user ids leave
+   * this method, only "these artists were listened to by the same person".
+   */
+  listeningArtistSets(maxUsers = 5_000, perUser = 60): string[][] {
+    const rows = this.#database.prepare(`
+      SELECT user_id, artist, COUNT(*) AS plays FROM account_wave_feedback
+      WHERE type IN ('started', 'finished', 'liked')
+      GROUP BY user_id, artist
+      ORDER BY user_id, plays DESC
+    `).all() as Array<{ user_id: string; artist: string; plays: number }>;
+    const byUser = new Map<string, string[]>();
+    for (const row of rows) {
+      let list = byUser.get(row.user_id);
+      if (!list) {
+        if (byUser.size >= maxUsers) continue;
+        list = [];
+        byUser.set(row.user_id, list);
+      }
+      if (list.length < perUser) list.push(row.artist);
+    }
+    return [...byUser.values()];
+  }
+
   prune() {
     const now = Date.now();
     this.#database.prepare("DELETE FROM account_sessions WHERE refresh_expires_at <= ?").run(now);
