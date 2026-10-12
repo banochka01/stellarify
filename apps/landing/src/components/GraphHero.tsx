@@ -70,6 +70,7 @@ export function GraphHero() {
       return {
         line: read("--graph-line"),
         text: read("--graph-text"),
+        labelBg: read("--graph-label-bg"),
         track: read(COLORS.track),
         artist: read(COLORS.artist),
         friend: read(COLORS.friend),
@@ -161,12 +162,23 @@ export function GraphHero() {
         ctx.beginPath();
         ctx.arc(px, py, n.r * pulse, 0, Math.PI * 2);
         ctx.fill();
-        if (width >= 360 || n.r >= 7) {
-          ctx.fillStyle = colors.text;
-          const right = px < width * 0.72;
-          ctx.textAlign = right ? "left" : "right";
-          ctx.fillText(n.label, px + (right ? n.r + 7 : -(n.r + 7)), py);
-        }
+      });
+
+      // Labels in a separate pass on an opaque pill so edges never cross the text.
+      ctx.textAlign = "left";
+      nodes.forEach((n) => {
+        if (width < 360 && n.r < 7) return;
+        const { px, py } = project(n);
+        const right = px < width * 0.72;
+        const textWidth = ctx.measureText(n.label).width;
+        const x = right ? px + n.r + 6 : px - n.r - 6 - textWidth - 12;
+        const h = fontSize + 10;
+        ctx.fillStyle = colors.labelBg;
+        ctx.beginPath();
+        ctx.roundRect(x, py - h / 2, textWidth + 12, h, h / 2);
+        ctx.fill();
+        ctx.fillStyle = colors.text;
+        ctx.fillText(n.label, x + 6, py);
       });
     };
 

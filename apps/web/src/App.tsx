@@ -33,7 +33,7 @@ import { io, type Socket } from "socket.io-client";
 import { mixes, tracks } from "./data";
 import { ImportModal } from "./ImportModal";
 import { RoomPanel } from "./RoomPanel";
-import { useInstallPrompt } from "./pwa";
+import { useInstallPrompt, useServiceWorkerUpdate } from "./pwa";
 import type { ImportedSource, ProviderId, RoomState, Track } from "./types";
 
 const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8787";
@@ -69,6 +69,7 @@ const libraryItems = [
 
 export function App() {
   const { canInstall, install } = useInstallPrompt();
+  const { updateReady, applyUpdate } = useServiceWorkerUpdate();
   const [provider, setProvider] = useState<ProviderId>("all");
   const [query, setQuery] = useState("");
   const [currentTrack, setCurrentTrack] = useState<Track>(tracks[0]!);
@@ -419,6 +420,12 @@ export function App() {
         />
       )}
       {notice && <div className="toast">{notice}</div>}
+      {updateReady && (
+        <div className="update-banner" role="status">
+          <span>Доступно обновление</span>
+          <button type="button" onClick={applyUpdate}>Обновить</button>
+        </div>
+      )}
     </div>
   );
 }

@@ -453,3 +453,12 @@ button.track-row:hover, button.track-row.current { background: rgba(255,255,255,
 .install-button:hover { background: #ff6b59; }
 @media (max-width: 560px) { .install-button span { display: none; } }
 
+.update-banner {
+  position: fixed; z-index: 60; left: 50%; bottom: calc(var(--player) + 16px); transform: translateX(-50%);
+  display: flex; align-items: center; gap: 14px; padding: 10px 10px 10px 18px; max-width: calc(100% - 32px);
+  border: 1px solid var(--line); border-radius: 12px; background: #171513; color: #eee9de; font-size: 13px;
+  box-shadow: 0 16px 40px rgba(0,0,0,.45);
+}
+.update-banner button { min-height: 36px; padding: 0 14px; border: 0; border-radius: 9px; background: var(--purple); color: #fff; font-weight: 600; cursor: pointer; }
+@media (max-width: 600px) { .hero .hero-visual { display: none; } }
+

@@ -9,6 +9,7 @@
   --accent-ink: #ff7a6b;
   --graph-line: rgba(238, 233, 222, .22);
   --graph-text: #d9d4ca;
+  --graph-label-bg: rgba(16, 14, 12, .88);
   --graph-track: #f05a49;
   --graph-artist: #a795ff;
   --graph-friend: #3effa2;
@@ -32,6 +33,7 @@
   --accent-ink: #b02c20;
   --graph-line: rgba(21, 19, 15, .2);
   --graph-text: #2a2722;
+  --graph-label-bg: rgba(250, 248, 243, .92);
   --graph-track: #d83b2d;
   --graph-artist: #6650e0;
   --graph-friend: #138a55;
@@ -72,6 +74,9 @@
 .dot-friend { background: var(--graph-friend); }
 .dot-genre { background: var(--graph-genre); }
 .scroll-cue { color: var(--text); }
+/* Keep the cue in the hero's bottom padding, below the graph card. */
+.hero-graph .scroll-cue { bottom: 14px; }
+@media (max-width: 1050px) { .hero-graph .scroll-cue { display: none; } }
 
 /* What's new */
 .new-section, .download-section { padding: 140px max(40px, calc((100vw - 1420px) / 2)); border-top: 1px solid var(--line); background: var(--bg-alt); }

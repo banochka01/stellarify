@@ -1,21 +1,27 @@
 /* Resonance web service worker.
- * Caches the app shell (HTML, JS, CSS, fonts, icons) and cover images.
+ * Caches the app shell (HTML, hashed /assets/*, icons) and cover images.
  * Never caches audio/video streams, API responses or sockets: the product
- * does not store third-party audio (see docs/ARCHITECTURE.md). */
-const VERSION = "resonance-5.0.0";
+ * does not store third-party audio (see docs/ARCHITECTURE.md).
+ * __BUILD_ID__ is replaced with the build hash by the vite plugin in vite.config.ts. */
+const VERSION = "resonance-__BUILD_ID__";
 const SHELL_CACHE = `${VERSION}-shell`;
-const COVER_CACHE = `${VERSION}-covers`;
+const ASSET_CACHE = `${VERSION}-assets`;
+const COVER_CACHE = "resonance-covers";
+const OPAQUE_CACHE = "resonance-covers-opaque";
 const COVER_LIMIT = 200;
-const SHELL_URLS = ["/", "/index.html", "/offline.html", "/manifest.webmanifest", "/resonance.svg", "/icons/icon-192.png", "/icons/icon-512.png"];
+const OPAQUE_LIMIT = 25;
+const SHELL_URLS = ["/", "/offline.html", "/manifest.webmanifest", "/resonance.svg", "/icons/icon-192.png", "/icons/icon-512.png"];
+const KEEP = [SHELL_CACHE, ASSET_CACHE, COVER_CACHE, OPAQUE_CACHE];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.addAll(SHELL_URLS)).then(() => self.skipWaiting()));
+  // No skipWaiting here: the page asks the user and sends "skip-waiting".
+  event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.addAll(SHELL_URLS)));
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => !key.startsWith(VERSION)).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => !KEEP.includes(key)).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
@@ -34,10 +40,44 @@ function isBypassed(url) {
   return url.pathname.startsWith("/api/") || url.pathname.startsWith("/socket.io/") || url.pathname.startsWith("/downloads/");
 }
 
+function isHtml(response) {
+  return (response.headers.get("content-type") || "").includes("text/html");
+}
+
+/** SPA route: same origin, no file extension in the last path segment. */
+function isSpaRoute(url) {
+  return url.origin === self.location.origin && !/\.[a-z0-9]+$/i.test(url.pathname);
+}
+
 async function trimCache(name, limit) {
   const cache = await caches.open(name);
   const keys = await cache.keys();
   for (let i = 0; i < keys.length - limit; i += 1) await cache.delete(keys[i]);
+}
+
+async function cacheFirst(cacheName, request) {
+  const cache = await caches.open(cacheName);
+  const cached = await cache.match(request);
+  if (cached) return cached;
+  const response = await fetch(request);
+  if (response.ok) cache.put(request, response.clone());
+  return response;
+}
+
+async function coverFirst(request) {
+  const cached = (await caches.match(request, { cacheName: COVER_CACHE })) || (await caches.match(request, { cacheName: OPAQUE_CACHE }));
+  if (cached) return cached;
+  const response = await fetch(request);
+  // ok/cors responses have a real size; opaque ones are padded by the browser
+  // (several MB of quota each), so keep only a handful of them.
+  if (response.ok && (response.type === "basic" || response.type === "cors")) {
+    const cache = await caches.open(COVER_CACHE);
+    cache.put(request, response.clone()).then(() => trimCache(COVER_CACHE, COVER_LIMIT));
+  } else if (response.type === "opaque") {
+    const cache = await caches.open(OPAQUE_CACHE);
+    cache.put(request, response.clone()).then(() => trimCache(OPAQUE_CACHE, OPAQUE_LIMIT));
+  }
+  return response;
 }
 
 self.addEventListener("fetch", (event) => {
@@ -47,55 +87,33 @@ self.addEventListener("fetch", (event) => {
   if (url.protocol !== "http:" && url.protocol !== "https:") return;
   if (isMedia(request, url) || isBypassed(url)) return;
 
-  // Navigations: network first, fall back to cached shell, then offline page.
+  // Navigations: network first; only SPA HTML responses refresh the cached shell.
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          if (response.ok && url.origin === self.location.origin) {
+          if (response.ok && isSpaRoute(url) && isHtml(response)) {
             const copy = response.clone();
-            caches.open(SHELL_CACHE).then((cache) => cache.put("/index.html", copy));
+            caches.open(SHELL_CACHE).then((cache) => cache.put("/", copy));
           }
           return response;
         })
-        .catch(async () => (await caches.match("/index.html")) || (await caches.match("/offline.html")) || Response.error())
+        .catch(async () =>
+          (isSpaRoute(url) && (await caches.match("/", { cacheName: SHELL_CACHE }))) ||
+          (await caches.match("/offline.html")) ||
+          Response.error()
+        )
     );
     return;
   }
 
-  // Cover art: cache first, any origin (opaque responses allowed), bounded.
+  // Hashed build assets never change: cache first.
+  if (url.origin === self.location.origin && url.pathname.startsWith("/assets/")) {
+    event.respondWith(cacheFirst(ASSET_CACHE, request));
+    return;
+  }
+
   if (request.destination === "image") {
-    event.respondWith(
-      caches.open(COVER_CACHE).then(async (cache) => {
-        const cached = await cache.match(request);
-        if (cached) return cached;
-        try {
-          const response = await fetch(request);
-          if (response.ok || response.type === "opaque") {
-            cache.put(request, response.clone()).then(() => trimCache(COVER_CACHE, COVER_LIMIT));
-          }
-          return response;
-        } catch {
-          return cached || Response.error();
-        }
-      })
-    );
-    return;
-  }
-
-  // Same-origin static shell assets: stale-while-revalidate.
-  if (url.origin === self.location.origin && ["script", "style", "font", "manifest"].includes(request.destination)) {
-    event.respondWith(
-      caches.open(SHELL_CACHE).then(async (cache) => {
-        const cached = await cache.match(request);
-        const network = fetch(request)
-          .then((response) => {
-            if (response.ok) cache.put(request, response.clone());
-            return response;
-          })
-          .catch(() => cached);
-        return cached || network;
-      })
-    );
+    event.respondWith(coverFirst(request).catch(() => Response.error()));
   }
 });
