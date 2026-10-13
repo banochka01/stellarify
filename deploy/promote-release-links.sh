@@ -36,6 +36,9 @@ if [[ -f "${downloads_dir}/${arm64}" ]]; then
   temporary=".Resonance-android-arm64-current.apk.tmp.$$"
   ln -s "${arm64}" "${downloads_dir}/${temporary}"
   mv -Tf "${downloads_dir}/${temporary}" "${downloads_dir}/Resonance-android-arm64-current.apk"
+else
+  # Never leave the arm64 link pointing at an older release.
+  rm -f "${downloads_dir}/Resonance-android-arm64-current.apk"
 fi
 
 echo "Promoted Resonance ${version} download links in ${downloads_dir}"
