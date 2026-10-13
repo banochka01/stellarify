@@ -60,6 +60,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Midnight Signal'), findsWidgets);
+    // 5.0: на пустом профиле над «Настроением волны» есть пустое состояние
+    // «Для вас», поэтому прокручиваем до командного центра.
+    await tester.scrollUntilVisible(
+      find.text('Какую музыку включить?'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.byKey(const ValueKey('home-for-you-empty')), findsOneWidget);
     expect(find.text('Какую музыку включить?'), findsOneWidget);
     resonanceRouter.go('/');
   });
