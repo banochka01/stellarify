@@ -133,23 +133,37 @@ String _normalize(String value) => value
 UnifiedTrack? bestCatalogMatch(
   RecognizedTrack recognized,
   Iterable<UnifiedTrack> candidates,
+) => catalogMatch(recognized, candidates)?.track;
+
+/// Совпадение в каталогах и его надёжность: `exact` — то же название и
+/// исполнитель (такое добавляем в медиатеку сами); иначе только по тапу.
+({UnifiedTrack track, bool exact})? catalogMatch(
+  RecognizedTrack recognized,
+  Iterable<UnifiedTrack> candidates,
 ) {
-  final rawTitle = recognized.title.trim().toLowerCase();
   final title = _normalize(recognized.title);
   final artist = _normalize(recognized.artist);
+  // Пустые после нормализации строки (например, только символы) ни с чем
+  // не сравниваем: `contains('')` совпал бы с любым треком.
+  if (title.isEmpty || artist.isEmpty) return null;
+  final rawTitle = recognized.title.trim().toLowerCase();
   UnifiedTrack? normalized;
   UnifiedTrack? loose;
   for (final track in candidates) {
     if (track.sources.isEmpty) continue;
     final candidateArtist = _normalize(track.artist);
+    final candidateTitle = _normalize(track.title);
     if (candidateArtist.isEmpty ||
+        candidateTitle.isEmpty ||
         !(candidateArtist.contains(artist) ||
             artist.contains(candidateArtist))) {
       continue;
     }
     // Точное название важнее версий вроде «(Remix)» или «(Live)».
-    if (track.title.trim().toLowerCase() == rawTitle) return track;
-    final candidateTitle = _normalize(track.title);
+    if (track.title.trim().toLowerCase() == rawTitle &&
+        candidateArtist == artist) {
+      return (track: track, exact: true);
+    }
     if (candidateTitle == title) {
       normalized ??= track;
     } else if (candidateTitle.startsWith(title) ||
@@ -157,5 +171,6 @@ UnifiedTrack? bestCatalogMatch(
       loose ??= track;
     }
   }
-  return normalized ?? loose;
+  final fallback = normalized ?? loose;
+  return fallback == null ? null : (track: fallback, exact: false);
 }
