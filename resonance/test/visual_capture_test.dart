@@ -375,6 +375,75 @@ void main() {
     resonanceRouter.go('/');
   });
 
+  testWidgets('mobile player visual', (tester) async {
+    _setViewport(tester, const Size(390, 844));
+    resonanceRouter.go('/player');
+    final track = _makeTrack(
+      provider: MusicProvider.yandex,
+      index: 0,
+      title: 'Star Shopping',
+      artist: 'Lil Peep',
+    );
+    await tester.pumpWidget(
+      _testApp(
+        database: database,
+        lyrics: _sampleLyrics(),
+        playbackState: ResonancePlaybackState(
+          queue: [track],
+          currentIndex: 0,
+          playing: true,
+          position: const Duration(seconds: 40),
+          duration: const Duration(minutes: 2, seconds: 21),
+          activeTrackSource: track.sources.first,
+        ),
+      ),
+    );
+    await tester.runAsync(
+      () => precacheImage(
+        const AssetImage('assets/images/resonance_fallback_cover.png'),
+        tester.element(find.byType(MaterialApp)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/resonance-player-mobile.png'),
+    );
+    resonanceRouter.go('/');
+  });
+
+  // 5.0: smallest supported phone width must never overflow.
+  for (final route in const ['/', '/library', '/search', '/player']) {
+    testWidgets('no overflow at 360px on $route', (tester) async {
+      _setViewport(tester, const Size(360, 740));
+      resonanceRouter.go(route);
+      final track = _makeTrack(
+        provider: MusicProvider.soundcloud,
+        index: 0,
+        title: 'A Very Long Track Title That Should Ellipsize Nicely',
+        artist: 'Somebody With A Long Artist Name, Featuring Another',
+      );
+      await tester.pumpWidget(
+        _testApp(
+          database: database,
+          lyrics: _sampleLyrics(),
+          playbackState: ResonancePlaybackState(
+            queue: [track],
+            currentIndex: 0,
+            playing: true,
+            position: const Duration(seconds: 40),
+            duration: const Duration(minutes: 3),
+            activeTrackSource: track.sources.first,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      resonanceRouter.go('/');
+    });
+  }
+
   for (final viewport in const [Size(390, 844), Size(844, 390)]) {
     testWidgets('player stays usable at ${viewport.width}x${viewport.height}', (
       tester,

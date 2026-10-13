@@ -6,6 +6,7 @@ import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/playback_position.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
+import 'package:resonance/shared/widgets/resonance_states.dart';
 
 class QueuePanel extends ConsumerWidget {
   const QueuePanel({super.key});
@@ -42,10 +43,13 @@ class QueuePanel extends ConsumerWidget {
           if (state.queue.isEmpty)
             const Expanded(
               child: Center(
-                child: Text(
-                  'Очередь пуста.\nЗапустите тестовый трек.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: ResonanceColors.muted, height: 1.5),
+                child: SingleChildScrollView(
+                  child: ResonanceEmptyState(
+                    icon: Icons.queue_music_rounded,
+                    title: 'Очередь пуста',
+                    message: 'Запустите трек — следующие появятся здесь.',
+                    compact: true,
+                  ),
                 ),
               ),
             )

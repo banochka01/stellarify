@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:resonance/core/preferences/appearance_preferences.dart';
+import 'package:resonance/shared/theme/resonance_tokens.dart';
+
+export 'package:resonance/shared/theme/resonance_tokens.dart';
 
 abstract final class ResonanceColors {
   // «Эфир»: баклажанная ночь, сиреневый — действие, лайм — то, что live.
@@ -71,8 +74,22 @@ abstract final class ResonanceTheme {
           outline: palette.border,
         );
 
+    final tokens = ResonanceTokens(
+      background: palette.background,
+      surface: palette.surface,
+      surfaceRaised: palette.raised,
+      border: palette.border,
+      accent: palette.primary,
+      text: ResonanceColors.text,
+      textMuted: ResonanceColors.muted,
+      textSubtle: Color.lerp(ResonanceColors.muted, palette.raised, .25)!,
+      skeletonBase: Color.lerp(palette.surface, palette.raised, .55)!,
+      skeletonHighlight: Color.lerp(palette.raised, palette.secondary, .07)!,
+    );
+
     return ThemeData(
       useMaterial3: true,
+      extensions: [tokens],
       brightness: Brightness.dark,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: Colors.transparent,

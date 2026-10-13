@@ -25,6 +25,7 @@ import 'package:resonance/shared/widgets/aurora_backdrop.dart';
 import 'package:resonance/shared/widgets/playback_position.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
+import 'package:resonance/shared/widgets/resonance_states.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -48,7 +49,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(playbackFrameProvider);
     final track = state.currentTrack ?? demoTrack;
-    final library = ref.watch(libraryControllerProvider).valueOrNull;
+    final libraryAsync = ref.watch(libraryControllerProvider);
+    final library = libraryAsync.valueOrNull;
+    final libraryLoading = libraryAsync.isLoading && library == null;
     final offline = ref.watch(isOfflineProvider);
     final favorites = library?.favorites ?? const <UnifiedTrack>[];
     final forYou = <String, UnifiedTrack>{
@@ -142,6 +145,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       size: compact ? 136 : 160,
                     ),
                   ),
+                ),
+              ),
+            ],
+            if (forYou.isEmpty) ...[
+              _HomeSectionTitle(title: 'Для вас', gutter: gutter),
+              SliverPadding(
+                padding: EdgeInsets.symmetric(horizontal: gutter),
+                sliver: SliverToBoxAdapter(
+                  child: libraryLoading
+                      ? const ResonanceTrackListSkeleton(count: 3)
+                      : const ResonanceEmptyState(
+                          key: ValueKey('home-for-you-empty'),
+                          icon: Icons.auto_awesome_rounded,
+                          title: 'Подборка пока пуста',
+                          message:
+                              'Послушайте пару треков или добавьте их в '
+                              'избранное — здесь появятся рекомендации.',
+                          compact: true,
+                        ),
                 ),
               ),
             ],
@@ -1450,7 +1472,7 @@ class _WaveMixCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: ResonanceColors.muted,
-                        fontSize: 9,
+                        fontSize: 10.5,
                         height: 1.25,
                       ),
                     ),
