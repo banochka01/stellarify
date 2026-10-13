@@ -86,6 +86,14 @@ double? albumLoudness(Iterable<double> trackLufs) {
   return 10 * math.log(energy) / math.ln10;
 }
 
+/// Сколько измеренных треков альбома нужно для альбомного гейна.
+const minAlbumTracks = 3;
+
+bool albumLoudnessReliable(List<LoudnessStats> known) =>
+    known.isNotEmpty &&
+    (known.every((stats) => stats.origin == LoudnessOrigin.provider) ||
+        known.length >= minAlbumTracks);
+
 /// Гейн в дБ, который нужно применить к треку, или `null`, если оценки нет
 /// (тогда плеер играет как есть или включает динамический фильтр).
 double? normalizationGainDb({
@@ -103,9 +111,14 @@ double? normalizationGainDb({
     loudnessMaxCutDb,
     loudnessMaxBoostDb,
   );
-  final peak = track?.truePeakDb;
-  if (peak != null && peak.isFinite && gain > 0) {
-    gain = math.min(gain, math.max(0, loudnessPeakCeilingDb - peak));
+  if (gain > 0) {
+    // Без лимитера поднимать можно только при известном истинном пике,
+    // и только так, чтобы он остался ниже потолка. Пик неизвестен — не
+    // усиливаем вовсе: иначе громкий мастеринг клиппирует.
+    final peak = track?.truePeakDb;
+    gain = peak != null && peak.isFinite
+        ? math.min(gain, math.max(0, loudnessPeakCeilingDb - peak))
+        : 0;
   }
   return double.parse(gain.toStringAsFixed(2));
 }
@@ -247,8 +260,12 @@ final class LoudnessNormalizer {
           albumKey != null &&
           store != null) {
         final known = await store.readAlbum(albumKey);
-        // Текущий трек уже записан выше, если громкость была известна.
-        album = albumLoudness(known.map((value) => value.integratedLufs));
+        // Альбомный гейн — только по надёжным данным: громкость альбома от
+        // провайдера или измерения хотя бы [minAlbumTracks] треков. Иначе
+        // средняя по 1–2 трекам врёт сильнее трекового гейна.
+        if (albumLoudnessReliable(known)) {
+          album = albumLoudness(known.map((value) => value.integratedLufs));
+        }
       }
       return normalizationGainDb(mode: mode, track: stats, albumLufs: album);
     } on Object {

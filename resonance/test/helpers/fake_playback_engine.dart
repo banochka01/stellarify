@@ -18,6 +18,9 @@ final class FakePlaybackEngine implements PlaybackEngine {
   final _videoAvailable = StreamController<bool>.broadcast();
 
   final openedSources = <ResolvedAudioSource>[];
+
+  /// Порядок вызовов движка (`gain`, `open`).
+  final events = <String>[];
   final openedPositions = <Duration>[];
   var currentPosition = Duration.zero;
   var currentVolume = 70.0;
@@ -78,6 +81,7 @@ final class FakePlaybackEngine implements PlaybackEngine {
     bool play = true,
     Duration start = Duration.zero,
   }) async {
+    events.add('open');
     openedSources.add(source);
     openedPositions.add(start);
     currentPosition = start;
@@ -145,10 +149,12 @@ final class FakePlaybackEngine implements PlaybackEngine {
   final replayGains = <double?>[];
   double? measuredLufs;
   final queuedNext = <ResolvedAudioSource?>[];
-  final _advanced = StreamController<void>.broadcast();
+  final _advanced = StreamController<double?>.broadcast();
+  bool queueSucceeds = true;
 
   @override
   Future<void> setReplayGain(double? gainDb) async {
+    events.add('gain');
     replayGains.add(gainDb);
   }
 
@@ -156,15 +162,23 @@ final class FakePlaybackEngine implements PlaybackEngine {
   Future<double?> measuredLoudnessLufs() async => measuredLufs;
 
   @override
-  Future<void> setQueuedNext(ResolvedAudioSource? source) async {
+  Future<bool> setQueuedNext(
+    ResolvedAudioSource? source, {
+    double? gainDb,
+  }) async {
+    if (source != null && !queueSucceeds) return false;
     queuedNext.add(source);
+    queuedGains.add(gainDb);
+    return true;
   }
 
+  final queuedGains = <double?>[];
+
   @override
-  Stream<void> get advancedToQueued => _advanced.stream;
+  Stream<double?> get advancedToQueued => _advanced.stream;
 
   /// Плеер сам перешёл на поставленный следом источник (gapless).
-  void emitAdvancedToQueued() => _advanced.add(null);
+  void emitAdvancedToQueued([double? lufs]) => _advanced.add(lufs);
 
   void emitDuration(Duration value) => _duration.add(value);
 
