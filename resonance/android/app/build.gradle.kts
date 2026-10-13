@@ -43,3 +43,10 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // MediaBrowserCompat/MediaControllerCompat for the Wear OS remote bridge.
+    implementation("androidx.media:media:1.7.0")
+    // Wearable Data Layer (MessageClient) for the Wear OS remote.
+    implementation("com.google.android.gms:play-services-wearable:19.0.0")
+}

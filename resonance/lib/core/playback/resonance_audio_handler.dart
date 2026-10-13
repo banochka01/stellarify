@@ -1,12 +1,13 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart' as audio_service;
+import 'package:resonance/core/playback/media_browse_catalog.dart';
 import 'package:resonance/core/playback/playback_service.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 
 final class ResonanceAudioHandler extends audio_service.BaseAudioHandler
     with audio_service.QueueHandler, audio_service.SeekHandler {
-  ResonanceAudioHandler(this._service, {this.onLike}) {
+  ResonanceAudioHandler(this._service, {this.onLike, this._catalog}) {
     _subscription = _service.states.listen(_publish);
     _publish(_service.state);
   }
@@ -22,6 +23,7 @@ final class ResonanceAudioHandler extends audio_service.BaseAudioHandler
     label: 'Нравится',
     name: likeActionName,
   );
+  final MediaBrowseCatalog? _catalog;
   late final StreamSubscription<ResonancePlaybackState> _subscription;
 
   void _publish(ResonancePlaybackState state) {
@@ -112,6 +114,24 @@ final class ResonanceAudioHandler extends audio_service.BaseAudioHandler
       _service.seek(_service.state.position - const Duration(seconds: 10));
 
   @override
+  Future<List<audio_service.MediaItem>> getChildren(
+    String parentMediaId, [
+    Map<String, dynamic>? options,
+  ]) async {
+    final catalog = _catalog;
+    if (catalog == null) return const [];
+    return catalog.children(parentMediaId);
+  }
+
+  @override
+  Future<void> playFromMediaId(
+    String mediaId, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    await _catalog?.playFromMediaId(mediaId);
+  }
+
+  @override
   Future<void> skipToQueueItem(int index) => _service.skipToIndex(index);
 
   @override
@@ -132,12 +152,21 @@ final class ResonanceAudioHandler extends audio_service.BaseAudioHandler
     }
   }
 
+  /// Wear OS remote / external controllers: `setVolume` with {'volume': 0..100}.
   @override
   Future<dynamic> customAction(
     String name, [
     Map<String, dynamic>? extras,
   ]) async {
     if (name == likeActionName) await onLike?.call();
+    if (name == 'setVolume') {
+      final raw = extras?['volume'];
+      if (raw is num) {
+        await _service.setVolume(raw.toDouble());
+      }
+      return null;
+    }
+    return null;
   }
 
   Future<void> close() => _subscription.cancel();

@@ -214,6 +214,28 @@ class _VisualStageScreenState extends ConsumerState<VisualStageScreen> {
                 (service) => state.playing ? service.pause() : service.play(),
               ),
         ),
+        // Android TV remote / D-pad media keys.
+        const SingleActivator(LogicalKeyboardKey.mediaPlayPause): () =>
+            unawaited(
+              ref
+                  .read(playbackServiceProvider.future)
+                  .then(
+                    (service) =>
+                        state.playing ? service.pause() : service.play(),
+                  ),
+            ),
+        const SingleActivator(LogicalKeyboardKey.mediaTrackNext): () =>
+            unawaited(
+              ref
+                  .read(playbackServiceProvider.future)
+                  .then((service) => service.next()),
+            ),
+        const SingleActivator(LogicalKeyboardKey.mediaTrackPrevious): () =>
+            unawaited(
+              ref
+                  .read(playbackServiceProvider.future)
+                  .then((service) => service.previous()),
+            ),
       },
       child: Focus(
         autofocus: true,

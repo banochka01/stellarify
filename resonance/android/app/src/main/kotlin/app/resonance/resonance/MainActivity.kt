@@ -1,6 +1,8 @@
 package app.resonance.resonance
 
+import android.app.UiModeManager
 import android.content.Intent
+import android.content.res.Configuration
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -33,6 +35,13 @@ class MainActivity : AudioServiceActivity() {
                 }
             }
         }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.resonance/device")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "isTelevision" -> result.success(isTelevision())
+                    else -> result.notImplemented()
+                }
+            }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -47,4 +56,10 @@ class MainActivity : AudioServiceActivity() {
         } else {
             null
         }
+
+    private fun isTelevision(): Boolean {
+        val uiMode = getSystemService(UI_MODE_SERVICE) as? UiModeManager
+        return uiMode?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
+            packageManager.hasSystemFeature("android.software.leanback")
+    }
 }

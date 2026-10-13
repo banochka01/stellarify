@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:resonance/core/platform/device_form.dart';
 import 'package:resonance/features/artist/artist_screen.dart';
 import 'package:resonance/features/auth/account_screen.dart';
 import 'package:resonance/features/home/home_screen.dart';
@@ -125,6 +126,10 @@ final resonanceRouter = GoRouter(
     GoRoute(
       path: '/player',
       name: 'player',
+      // Android TV: full-screen Visual Stage with karaoke lyrics is the
+      // default "now playing" screen.
+      redirect: (context, state) =>
+          DeviceForm.isTelevision ? '/stage?mode=lyrics' : null,
       pageBuilder: (context, state) => CustomTransitionPage<void>(
         key: state.pageKey,
         transitionDuration: ResonanceMotion.entrance,

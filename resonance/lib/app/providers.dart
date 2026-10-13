@@ -11,10 +11,13 @@ import 'package:resonance/core/integrations/discord_presence_controller.dart';
 import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/core/networking/resonance_http_client.dart';
 import 'package:resonance/core/networking/soundcloud_proxy_preference.dart';
+import 'package:resonance/core/playback/app_media_browse_source.dart';
 import 'package:resonance/core/playback/audio_effects.dart';
 import 'package:resonance/core/playback/audio_focus_coordinator.dart';
 import 'package:resonance/core/playback/audio_output_controller.dart';
+import 'package:resonance/core/playback/carplay_bridge.dart';
 import 'package:resonance/core/playback/demo_audio_source_resolver.dart';
+import 'package:resonance/core/playback/media_browse_catalog.dart';
 import 'package:resonance/core/playback/offline_downloads.dart';
 import 'package:resonance/core/playback/playback_engine.dart';
 import 'package:resonance/core/playback/playback_service.dart';
@@ -341,6 +344,10 @@ final playbackServiceProvider = FutureProvider<PlaybackService>((ref) async {
   if (Platform.isAndroid || Platform.isIOS) {
     focusCoordinator = AudioFocusCoordinator(service);
     await focusCoordinator.initialize();
+    final browseCatalog = MediaBrowseCatalog(
+      AppMediaBrowseSource(ref, service),
+    );
+    if (Platform.isIOS) CarPlayBridge.attach(browseCatalog);
     await AudioService.init(
       builder: () => audioHandler = ResonanceAudioHandler(
         service,
@@ -352,6 +359,7 @@ final playbackServiceProvider = FutureProvider<PlaybackService>((ref) async {
                 .toggleFavorite(track);
           }
         },
+        catalog: browseCatalog,
       ),
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'app.resonance.playback',
