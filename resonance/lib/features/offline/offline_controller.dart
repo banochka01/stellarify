@@ -63,10 +63,10 @@ final effectiveQualityProvider = Provider<AudioQuality>((ref) {
       AudioQuality.high;
   final network =
       ref.watch(networkKindProvider).valueOrNull ?? NetworkKind.wifi;
+  final flow = ref.watch(playbackFlowControllerProvider);
   return resolveStreamQuality(
-    mode: ref.watch(
-      playbackFlowControllerProvider.select((flow) => flow.qualityMode),
-    ),
+    mode: flow.qualityMode,
+    allowHighOnMobile: flow.highQualityOnMobile,
     network: network,
     wifiQuality: wifi,
     mobileQuality: ref.watch(offlineSettingsProvider).mobileQuality,
