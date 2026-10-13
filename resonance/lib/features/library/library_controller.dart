@@ -227,30 +227,65 @@ final class LibraryController extends AsyncNotifier<LibraryState> {
     return result;
   }
 
-  /// Smart cleanup: replaces tracks by id (favorites and playlists) with the
-  /// given track, deduplicating afterwards. Synced as one library replacement
-  /// through `/account/library/operations`. Returns the number of replaced
-  /// entries.
-  Future<int> replaceTracks(Map<String, UnifiedTrack> replacements) async {
-    if (replacements.isEmpty) return 0;
+  Future<LocalLibrarySnapshot> snapshot() =>
+      _database.loadLocalLibrarySnapshot();
+
+  /// How many distinct tracks from [ids] occur and in how many places
+  /// (favorites + each playlist entry) — for the cleanup confirmation.
+  Future<({int tracks, int places})> countOccurrences(Set<String> ids) async {
+    final snapshot = await _database.loadLocalLibrarySnapshot();
+    final found = <String>{};
+    var places = 0;
+    for (final track in [
+      ...snapshot.favorites,
+      ...snapshot.playlists.expand((playlist) => playlist.tracks),
+    ]) {
+      if (ids.contains(track.id)) {
+        found.add(track.id);
+        places++;
+      }
+    }
+    return (tracks: found.length, places: places);
+  }
+
+  /// Smart cleanup. Every entry whose id is in [replacements] is replaced in
+  /// place (same position); other entries are untouched. For ids in
+  /// [duplicateIds] the entry is dropped instead when its replacement is
+  /// already present in the same list. Returns the snapshot before the change
+  /// so the caller can offer "Отменить" via [restoreLibrary].
+  Future<LocalLibrarySnapshot> replaceTracks(
+    Map<String, UnifiedTrack> replacements, {
+    Set<String> duplicateIds = const {},
+  }) async {
     final sync = ref.read(librarySyncServiceProvider);
-    var replaced = 0;
+    late LocalLibrarySnapshot previous;
     await sync.runLocalMutation(() async {
       final before = await _database.loadLocalLibrarySnapshot();
-      List<UnifiedTrack> apply(List<UnifiedTrack> tracks) {
+      previous = before;
+      if (replacements.isEmpty) return;
+      List<UnifiedTrack> apply(
+        List<UnifiedTrack> tracks, {
+        bool unique = false,
+      }) {
+        final present = tracks.map((track) => track.id).toSet();
         final result = <UnifiedTrack>[];
         final seen = <String>{};
         for (final track in tracks) {
           final next = replacements[track.id];
-          if (next != null) replaced++;
-          final value = next ?? track;
-          if (seen.add(value.id)) result.add(value);
+          if (next == null) {
+            if (!unique || seen.add(track.id)) result.add(track);
+            continue;
+          }
+          if (duplicateIds.contains(track.id) && present.contains(next.id)) {
+            continue; // the kept recording is already in this list
+          }
+          if (!unique || seen.add(next.id)) result.add(next);
         }
         return result;
       }
 
       final after = LocalLibrarySnapshot(
-        favorites: apply(before.favorites),
+        favorites: apply(before.favorites, unique: true),
         playlists: [
           for (final playlist in before.playlists)
             LocalPlaylistSnapshot(
@@ -258,7 +293,8 @@ final class LibraryController extends AsyncNotifier<LibraryState> {
               name: playlist.name,
               createdAt: playlist.createdAt,
               updatedAt: playlist.updatedAt,
-              tracks: apply(playlist.tracks),
+              // The schema keeps one entry per track in a playlist.
+              tracks: apply(playlist.tracks, unique: true),
             ),
         ],
       );
@@ -266,7 +302,18 @@ final class LibraryController extends AsyncNotifier<LibraryState> {
       await sync.recordLibraryReplacement(before: before, after: after);
     });
     state = AsyncData(await _load());
-    return replaced;
+    return previous;
+  }
+
+  /// Undo for [replaceTracks]/cleanup: restores a previous snapshot.
+  Future<void> restoreLibrary(LocalLibrarySnapshot snapshot) async {
+    final sync = ref.read(librarySyncServiceProvider);
+    await sync.runLocalMutation(() async {
+      final before = await _database.loadLocalLibrarySnapshot();
+      await _database.replaceLocalLibrary(snapshot);
+      await sync.recordLibraryReplacement(before: before, after: snapshot);
+    });
+    state = AsyncData(await _load());
   }
 
   Future<LibraryState> _load() async {

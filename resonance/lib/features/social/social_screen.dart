@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:resonance/features/platform/feature_api.dart';
+import 'package:resonance/features/platform/feature_dialogs.dart';
 import 'package:resonance/features/platform/feature_flags.dart';
 import 'package:resonance/features/platform/feature_playback.dart';
 import 'package:resonance/features/platform/feature_views.dart';
@@ -289,7 +291,7 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
       ref.invalidate(socialFriendsProvider);
       if (done != null && mounted) showFeatureSnack(context, done);
     } on Object catch (error) {
-      if (mounted) showFeatureSnack(context, error.toString());
+      if (mounted) showFeatureSnack(context, featureErrorText(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -353,17 +355,42 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
             for (final user in _results!)
               _PersonTile(
                 person: user,
-                trailing: TextButton(
-                  onPressed: _busy
-                      ? null
-                      : () => unawaited(
-                          _run(
-                            () => api.requestFriend(userId: user.userId),
-                            'Заявка отправлена',
+                trailing: switch (user.relation) {
+                  SocialRelation.friends => const Text(
+                    'Друзья',
+                    style: TextStyle(color: ResonanceColors.muted),
+                  ),
+                  SocialRelation.outgoing => const Text(
+                    'Заявка отправлена',
+                    style: TextStyle(color: ResonanceColors.muted),
+                  ),
+                  SocialRelation.blocked => const Text(
+                    'Заблокирован',
+                    style: TextStyle(color: ResonanceColors.muted),
+                  ),
+                  SocialRelation.incoming => FilledButton.tonal(
+                    onPressed: _busy
+                        ? null
+                        : () => unawaited(
+                            _run(
+                              () => api.accept(user.userId),
+                              'Теперь вы друзья',
+                            ),
                           ),
-                        ),
-                  child: const Text('В друзья'),
-                ),
+                    child: const Text('Принять'),
+                  ),
+                  SocialRelation.none => TextButton(
+                    onPressed: _busy
+                        ? null
+                        : () => unawaited(
+                            _run(
+                              () => api.requestFriend(userId: user.userId),
+                              'Заявка отправлена',
+                            ),
+                          ),
+                    child: const Text('В друзья'),
+                  ),
+                },
               ),
         ],
         ...friends.when(
@@ -416,13 +443,16 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
                     children: [
                       _FriendActions(friend: person),
                       PopupMenuButton<String>(
-                        onSelected: (_) => unawaited(
-                          _run(() => api.removeFriend(person.userId)),
-                        ),
+                        onSelected: (value) =>
+                            unawaited(_friendMenu(person, value)),
                         itemBuilder: (_) => const [
                           PopupMenuItem(
                             value: 'remove',
                             child: Text('Удалить из друзей'),
+                          ),
+                          PopupMenuItem(
+                            value: 'block',
+                            child: Text('Заблокировать'),
                           ),
                         ],
                       ),
@@ -444,35 +474,59 @@ class _FriendsTabState extends ConsumerState<_FriendsTab> {
                   ),
                 ),
             ],
+            if (value.blocked.isNotEmpty) ...[
+              const FeatureSectionTitle('Заблокированные'),
+              for (final person in value.blocked)
+                _PersonTile(
+                  person: person,
+                  trailing: TextButton(
+                    onPressed: _busy
+                        ? null
+                        : () => unawaited(
+                            _run(
+                              () => api.unblock(person.userId),
+                              'Пользователь разблокирован',
+                            ),
+                          ),
+                    child: const Text('Разблокировать'),
+                  ),
+                ),
+            ],
           ],
         ),
       ],
     );
   }
 
-  Future<void> _inviteDialog() async {
-    final controller = TextEditingController();
-    final code = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Код приглашения'),
-        content: TextField(controller: controller, autofocus: true),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Отмена'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text),
-            child: const Text('Добавить'),
-          ),
-        ],
-      ),
+  Future<void> _friendMenu(PublicProfile person, String action) async {
+    final api = ref.read(socialApiProvider);
+    final block = action == 'block';
+    final confirmed = await showConfirm(
+      context,
+      title: block
+          ? 'Заблокировать ${person.displayName}?'
+          : 'Удалить ${person.displayName} из друзей?',
+      message: block
+          ? 'Дружба и заявки будут удалены, вы исчезнете из поиска друг друга.'
+          : null,
+      action: block ? 'Заблокировать' : 'Удалить',
     );
-    controller.dispose();
-    if (code == null || code.trim().isEmpty || !mounted) return;
+    if (!confirmed || !mounted) return;
     await _run(
-      () => ref.read(socialApiProvider).requestFriend(inviteCode: code.trim()),
+      () => block ? api.block(person.userId) : api.removeFriend(person.userId),
+      block ? 'Пользователь заблокирован' : 'Удалён из друзей',
+    );
+  }
+
+  Future<void> _inviteDialog() async {
+    final code = await showTextPrompt(
+      context,
+      title: 'Код приглашения',
+      action: 'Добавить',
+    );
+    if (code == null || code.isEmpty || !mounted) return;
+    await _run(
+      () => ref.read(socialApiProvider).requestFriend(inviteCode: code),
       'Заявка отправлена',
     );
   }
@@ -530,7 +584,10 @@ class _CompatibilitySheetState extends ConsumerState<CompatibilitySheet> {
   Future<void> _blend() async {
     setState(() => _blending = true);
     try {
-      final mix = await ref.read(socialApiProvider).blend(widget.friend.userId);
+      final providers = await ref.read(enabledProviderNamesProvider.future);
+      final mix = await ref
+          .read(socialApiProvider)
+          .blend(widget.friend.userId, enabledProviders: providers);
       final count = await playTrackList(ref, mix.tracks);
       if (!mounted) return;
       showFeatureSnack(
@@ -541,7 +598,7 @@ class _CompatibilitySheetState extends ConsumerState<CompatibilitySheet> {
       );
       unawaited(Navigator.of(context).maybePop());
     } on Object catch (error) {
-      if (mounted) showFeatureSnack(context, error.toString());
+      if (mounted) showFeatureSnack(context, featureErrorText(error));
     } finally {
       if (mounted) setState(() => _blending = false);
     }
@@ -632,10 +689,28 @@ class _ProfileTabState extends ConsumerState<_ProfileTab> {
       await action(ref.read(socialApiProvider));
       ref.invalidate(socialProfileProvider);
     } on Object catch (error) {
-      if (mounted) showFeatureSnack(context, error.toString());
+      if (mounted) showFeatureSnack(context, featureErrorText(error));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _editHandle(SocialProfile profile) async {
+    final handle = await showTextPrompt(
+      context,
+      title: 'Ник',
+      label: 'a–z, 0–9, _ и . — от 3 до 24 символов; пусто — убрать',
+      action: 'Сохранить',
+      initial: profile.handle ?? '',
+    );
+    if (handle == null || !mounted) return;
+    final normalized = handle.replaceFirst('@', '').toLowerCase();
+    if (normalized.isNotEmpty &&
+        !RegExp(r'^[a-z0-9_.]{3,24}$').hasMatch(normalized)) {
+      showFeatureSnack(context, 'Ник: 3–24 символа a–z, 0–9, _ и .');
+      return;
+    }
+    await _save((api) => api.updateProfile(handle: normalized));
   }
 
   @override
@@ -676,6 +751,13 @@ class _ProfileTabState extends ConsumerState<_ProfileTab> {
                       ),
                     ],
                   ),
+                ),
+                TextButton(
+                  key: const ValueKey('social-handle'),
+                  onPressed: _saving
+                      ? null
+                      : () => unawaited(_editHandle(value)),
+                  child: const Text('Сменить ник'),
                 ),
               ],
             ),

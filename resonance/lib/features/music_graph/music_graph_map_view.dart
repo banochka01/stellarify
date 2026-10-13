@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:resonance/features/music_graph/graph_map.dart';
 import 'package:resonance/features/music_graph/music_graph.dart';
+import 'package:resonance/features/platform/feature_api.dart';
 import 'package:resonance/features/platform/feature_flags.dart';
 import 'package:resonance/features/platform/feature_playback.dart';
 import 'package:resonance/features/platform/feature_views.dart';
@@ -56,10 +58,12 @@ class MusicGraphMapSection extends ConsumerWidget {
           nodeLimit: nodeLimit ?? defaultGraphNodeLimit(),
         ),
         const SizedBox(height: 16),
-        const FeatureGate(
-          flag: FeatureFlag.graphPathRadio,
-          child: GraphPathRadioPanel(),
-        ),
+        // Path radio needs a Resonance session (server-side search).
+        if (ref.watch(featureAccountIdProvider) != null)
+          const FeatureGate(
+            flag: FeatureFlag.graphPathRadio,
+            child: GraphPathRadioPanel(),
+          ),
         const FeatureGate(
           flag: FeatureFlag.graphExplore,
           child: BlindSpotsPanel(),
@@ -88,7 +92,10 @@ class _MusicGraphCanvasState extends ConsumerState<MusicGraphCanvas> {
   late GraphViewport _viewport;
   String? _selected;
   bool _personalLayer = true;
-  bool _serverAvailable = true;
+  bool _serverDisabled = false;
+  DateTime? _retryAt;
+  int _failures = 0;
+  bool _loading = false;
   int _revision = 0;
 
   @override
@@ -120,7 +127,16 @@ class _MusicGraphCanvasState extends ConsumerState<MusicGraphCanvas> {
 
   Future<void> _onTap(Offset local) async {
     final id = _viewport.hitTest(_toGraph(local));
-    if (id == null) return;
+    if (id != null) await selectNode(id);
+  }
+
+  bool get _serverReady =>
+      !_serverDisabled &&
+      (_retryAt == null || DateTime.now().isAfter(_retryAt!));
+
+  Future<void> selectNode(String id) async {
+    // A second tap while neighbors load would race the merge.
+    if (_loading) return;
     setState(() {
       _selected = id;
       _viewport.expand(id);
@@ -129,10 +145,11 @@ class _MusicGraphCanvasState extends ConsumerState<MusicGraphCanvas> {
     final node = _viewport.data.nodes[id];
     if (node == null ||
         node.kind != GraphNodeKind.artist ||
-        !_serverAvailable ||
+        !_serverReady ||
         !ref.read(featureEnabledProvider(FeatureFlag.graphExplore))) {
       return;
     }
+    setState(() => _loading = true);
     try {
       final json = await ref.read(graphApiProvider).artistNeighbors(node.label);
       if (!mounted) return;
@@ -141,9 +158,22 @@ class _MusicGraphCanvasState extends ConsumerState<MusicGraphCanvas> {
         _viewport.expand(id);
         _revision++;
       });
+      _failures = 0;
+      _retryAt = null;
+    } on FeatureUnavailableException catch (error) {
+      if (error.missing) {
+        _serverDisabled = true; // no server graph at all: local layer only
+      } else {
+        _failures++;
+        _retryAt = DateTime.now().add(
+          graphRetryDelay(_failures, retryAfter: error.retryAfter),
+        );
+      }
     } on Object {
-      // Server graph is optional: keep the local personal layer only.
-      _serverAvailable = false;
+      _failures++;
+      _retryAt = DateTime.now().add(graphRetryDelay(_failures));
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -215,6 +245,7 @@ class _MusicGraphCanvasState extends ConsumerState<MusicGraphCanvas> {
                           selected: _selected,
                           personalLayer: _personalLayer,
                           revision: _revision,
+                          onNodeTap: (id) => unawaited(selectNode(id)),
                         ),
                       ),
                     ),
@@ -301,12 +332,47 @@ class _GraphPainter extends CustomPainter {
     required this.selected,
     required this.personalLayer,
     required this.revision,
+    required this.onNodeTap,
   });
 
   final GraphViewport viewport;
   final String? selected;
   final bool personalLayer;
   final int revision;
+  final ValueChanged<String> onNodeTap;
+
+  /// Every visible node is a tappable semantics node for screen readers.
+  @override
+  SemanticsBuilderCallback get semanticsBuilder => (size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    return [
+      for (final id in viewport.visible)
+        if (viewport.data.nodes[id] case final node?)
+          CustomPainterSemantics(
+            key: ValueKey('graph-node-$id'),
+            rect: Rect.fromCircle(
+              center: center + viewport.positions[id]!,
+              radius: 16,
+            ),
+            properties: SemanticsProperties(
+              label: [
+                node.label,
+                if (node.kind == GraphNodeKind.track) 'трек' else 'артист',
+                if (node.personal) 'в вашей медиатеке',
+                'связей: ${viewport.data.degreeOf(id)}',
+              ].join(', '),
+              button: true,
+              selected: id == selected,
+              textDirection: TextDirection.ltr,
+              onTap: () => onNodeTap(id),
+            ),
+          ),
+    ];
+  };
+
+  @override
+  bool shouldRebuildSemantics(_GraphPainter oldDelegate) =>
+      oldDelegate.revision != revision || oldDelegate.selected != selected;
 
   /// Text layout is the expensive part: label only the most important nodes.
   static const _maxLabels = 24;
@@ -416,14 +482,16 @@ class _GraphPathRadioPanelState extends ConsumerState<GraphPathRadioPanel> {
       setState(() => _via = result.via);
       showFeatureSnack(
         context,
-        !result.found
+        !result.found && count == 0
+            ? 'Путь не найден'
+            : !result.found
             ? 'Прямого пути нет — играем ближайшее'
             : count == 0
             ? 'По пути не нашлось доступных треков'
             : 'Радио по пути: $count треков',
       );
     } on Object catch (error) {
-      if (mounted) showFeatureSnack(context, error.toString());
+      if (mounted) showFeatureSnack(context, featureErrorText(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

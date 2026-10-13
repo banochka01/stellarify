@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/platform/feature_api.dart';
+import 'package:resonance/features/platform/feature_dialogs.dart';
 import 'package:resonance/features/platform/feature_flags.dart';
 import 'package:resonance/features/platform/feature_playback.dart';
 import 'package:resonance/features/platform/feature_views.dart';
@@ -205,6 +206,21 @@ final class CollaborativePlaylistApi {
   Future<void> removeMember(String id, String userId) =>
       _transport.request('DELETE', CollabPaths.member(id, userId));
 
+  Future<void> rename(String id, String name) => _transport.request(
+    'PATCH',
+    CollabPaths.playlist(id),
+    body: {'name': name.trim()},
+  );
+
+  Future<void> delete(String id) =>
+      _transport.request('DELETE', CollabPaths.playlist(id));
+
+  Future<void> addTrack(String id, UnifiedTrack track) => _transport.request(
+    'POST',
+    CollabPaths.tracks(id),
+    body: {'track': track.toJson()},
+  );
+
   Future<void> removeTrack(String id, String entryId) => _transport.request(
     'DELETE',
     '${CollabPaths.tracks(id)}/${Uri.encodeComponent(entryId)}',
@@ -245,26 +261,13 @@ class CollaborativePlaylistsScreen extends ConsumerWidget {
   const CollaborativePlaylistsScreen({super.key});
 
   Future<void> _create(BuildContext context, WidgetRef ref) async {
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Новый совместный плейлист'),
-        content: TextField(controller: controller, autofocus: true),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Отмена'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text),
-            child: const Text('Создать'),
-          ),
-        ],
-      ),
+    final name = await showTextPrompt(
+      context,
+      title: 'Новый совместный плейлист',
+      label: 'Название',
+      action: 'Создать',
     );
-    controller.dispose();
-    if (name == null || name.trim().isEmpty) return;
+    if (name == null || name.isEmpty) return;
     try {
       final playlist = await ref
           .read(collaborativePlaylistApiProvider)
@@ -272,7 +275,7 @@ class CollaborativePlaylistsScreen extends ConsumerWidget {
       ref.invalidate(collabPlaylistsProvider);
       if (context.mounted) unawaited(context.push('/collab/${playlist.id}'));
     } on Object catch (error) {
-      if (context.mounted) showFeatureSnack(context, error.toString());
+      if (context.mounted) showFeatureSnack(context, featureErrorText(error));
     }
   }
 
@@ -354,7 +357,7 @@ class _CollaborativePlaylistScreenState
         ..invalidate(playlistHistoryProvider(widget.playlistId));
       if (mounted) showFeatureSnack(context, done);
     } on Object catch (error) {
-      if (mounted) showFeatureSnack(context, error.toString());
+      if (mounted) showFeatureSnack(context, featureErrorText(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -365,7 +368,7 @@ class _CollaborativePlaylistScreenState
     try {
       friends = await ref.read(socialApiProvider).friends();
     } on Object catch (error) {
-      if (mounted) showFeatureSnack(context, error.toString());
+      if (mounted) showFeatureSnack(context, featureErrorText(error));
       return;
     }
     final members = playlist.members.map((member) => member.userId).toSet();
@@ -404,6 +407,64 @@ class _CollaborativePlaylistScreenState
         CollaboratorRole.editor,
       ),
       '${chosen.displayName} теперь редактор',
+    );
+  }
+
+  Future<void> _playlistMenu(CollabPlaylist playlist, String action) async {
+    switch (action) {
+      case 'rename':
+        final name = await showTextPrompt(
+          context,
+          title: 'Название плейлиста',
+          action: 'Сохранить',
+          initial: playlist.name,
+        );
+        if (name == null || name.isEmpty || !mounted) return;
+        await _run(() => _api.rename(playlist.id, name), 'Переименовано');
+      case 'delete' || 'leave':
+        final delete = action == 'delete';
+        final confirmed = await showConfirm(
+          context,
+          title: delete ? 'Удалить «${playlist.name}»?' : 'Выйти из плейлиста?',
+          message: delete
+              ? 'Плейлист пропадёт у всех участников.'
+              : 'Вернуться можно только по новому приглашению.',
+          action: delete ? 'Удалить' : 'Выйти',
+        );
+        if (!confirmed || !mounted) return;
+        final me = ref.read(featureAccountIdProvider);
+        try {
+          if (delete) {
+            await _api.delete(playlist.id);
+          } else if (me != null) {
+            await _api.removeMember(playlist.id, me);
+          }
+          ref.invalidate(collabPlaylistsProvider);
+          if (mounted) context.pop();
+        } on Object catch (error) {
+          if (mounted) showFeatureSnack(context, featureErrorText(error));
+        }
+    }
+  }
+
+  Future<void> _memberMenu(PlaylistMember member, String action) async {
+    if (action == 'remove') {
+      final confirmed = await showConfirm(
+        context,
+        title: 'Убрать ${member.displayName}?',
+        action: 'Убрать',
+      );
+      if (!confirmed || !mounted) return;
+      await _run(
+        () => _api.removeMember(widget.playlistId, member.userId),
+        'Участник удалён',
+      );
+      return;
+    }
+    final role = CollaboratorRole.parse(action);
+    await _run(
+      () => _api.setMember(widget.playlistId, member.userId, role),
+      '${member.displayName}: ${role.label.toLowerCase()}',
     );
   }
 
@@ -474,6 +535,28 @@ class _CollaborativePlaylistScreenState
                 ),
                 icon: const Icon(Icons.play_circle_rounded),
               ),
+            PopupMenuButton<String>(
+              key: const ValueKey('collab-menu'),
+              enabled: !_busy,
+              onSelected: (action) => unawaited(_playlistMenu(value, action)),
+              itemBuilder: (_) => [
+                if (value.canEdit)
+                  const PopupMenuItem(
+                    value: 'rename',
+                    child: Text('Переименовать'),
+                  ),
+                if (value.isOwner)
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Text('Удалить плейлист'),
+                  )
+                else
+                  const PopupMenuItem(
+                    value: 'leave',
+                    child: Text('Выйти из плейлиста'),
+                  ),
+              ],
+            ),
           ],
           children: [
             Row(
@@ -494,20 +577,26 @@ class _CollaborativePlaylistScreenState
                 title: Text(member.displayName),
                 subtitle: Text(member.role.label),
                 trailing: value.isOwner && member.role != CollaboratorRole.owner
-                    ? IconButton(
-                        tooltip: 'Убрать участника',
-                        onPressed: _busy
-                            ? null
-                            : () => unawaited(
-                                _run(
-                                  () => _api.removeMember(
-                                    widget.playlistId,
-                                    member.userId,
-                                  ),
-                                  'Участник удалён',
-                                ),
-                              ),
-                        icon: const Icon(Icons.person_remove_rounded),
+                    ? PopupMenuButton<String>(
+                        tooltip: 'Роль и доступ',
+                        enabled: !_busy,
+                        onSelected: (action) =>
+                            unawaited(_memberMenu(member, action)),
+                        itemBuilder: (_) => [
+                          for (final role in const [
+                            CollaboratorRole.editor,
+                            CollaboratorRole.viewer,
+                          ])
+                            CheckedPopupMenuItem(
+                              value: role.name,
+                              checked: member.role == role,
+                              child: Text(role.label),
+                            ),
+                          const PopupMenuItem(
+                            value: 'remove',
+                            child: Text('Убрать из плейлиста'),
+                          ),
+                        ],
                       )
                     : null,
               ),
@@ -570,5 +659,20 @@ class _CollaborativePlaylistScreenState
         );
       },
     );
+  }
+}
+
+/// "Добавить в совместный плейлист" — playlists where the user may edit.
+Future<List<CollabPlaylistSummary>> editableCollabPlaylists(
+  WidgetRef ref,
+) async {
+  if (!ref.read(featureEnabledProvider(FeatureFlag.collaborativePlaylists))) {
+    return const [];
+  }
+  try {
+    final all = await ref.read(collaborativePlaylistApiProvider).list();
+    return all.where((item) => item.role != CollaboratorRole.viewer).toList();
+  } on Object {
+    return const [];
   }
 }

@@ -77,7 +77,9 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
         (duration) => _emit(_state.copyWith(duration: duration)),
       ),
       _engine.volume.listen((volume) {
-        if (!_transitioning && !_fading) _emit(_state.copyWith(volume: volume));
+        if (!_transitioning && !_fading && !_transientVolume) {
+          _emit(_state.copyWith(volume: volume));
+        }
       }),
       _engine.completed.listen(_onCompleted),
       _engine.errors.listen((message) {
@@ -405,6 +407,28 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
               ? _state.duration
               : position);
     return _engine.seek(clamped);
+  }
+
+  bool _transientVolume = false;
+
+  /// True while a sleep-timer fade owns the engine volume.
+  bool get isFading => _fading;
+
+  /// Engine-only volume for a DJ crossfade: neither persisted nor emitted as
+  /// the user's volume, so `state.volume` keeps the user's choice (including
+  /// changes made during the crossfade). Ignored while the service fades.
+  Future<bool> setTransientVolume(double volume) async {
+    if (_fading || _disposed) return false;
+    _transientVolume = true;
+    await _engine.setVolume(volume.clamp(0, 100).toDouble());
+    return true;
+  }
+
+  /// Ends a transient-volume session and restores the user's volume.
+  Future<void> endTransientVolume() async {
+    if (!_transientVolume) return;
+    _transientVolume = false;
+    if (!_fading && !_disposed) await _engine.setVolume(_state.volume);
   }
 
   Future<void> setVolume(double volume) async {

@@ -93,18 +93,39 @@ final class GraphMapData {
 
   Iterable<GraphMapEdge> get edges => _edges.values;
 
+  /// Bumped on every structural change (used for render caches).
+  int version = 0;
+
+  /// Server artist key -> node id, and normalized label -> artist node id.
+  /// Server keys may differ from local normalization (e.g. transliteration),
+  /// so both indexes are consulted before creating a new node.
+  final Map<String, String> _serverKeys = {};
+  final Map<String, String> _artistLabels = {};
+
   void addNode(GraphMapNode node) {
     final existing = nodes[node.id];
     nodes[node.id] = existing == null ? node : existing.merge(node);
+    if (node.kind == GraphNodeKind.artist) {
+      _artistLabels.putIfAbsent(graphArtistKey(node.label), () => node.id);
+    }
+    version++;
   }
 
   void addEdge(GraphMapEdge edge) {
     if (edge.from == edge.to) return;
     if (!nodes.containsKey(edge.from) || !nodes.containsKey(edge.to)) return;
-    if (_edges.putIfAbsent(edge.key, () => edge) != edge) return;
+    if (!identical(_edges.putIfAbsent(edge.key, () => edge), edge)) return;
     _adjacency.putIfAbsent(edge.from, () => {}).add(edge.to);
     _adjacency.putIfAbsent(edge.to, () => {}).add(edge.from);
+    version++;
   }
+
+  /// Node id for a server artist: known server key, then the same
+  /// normalized name, then a new id from the server key.
+  String resolveArtist(String serverKey, String name) =>
+      _serverKeys[serverKey] ??
+      _artistLabels[graphArtistKey(name)] ??
+      artistId(serverKey);
 
   void mergeJson(Map<String, dynamic> json) {
     for (final node in jsonList(json['nodes']).map(GraphMapNode.fromJson)) {
@@ -118,11 +139,14 @@ final class GraphMapData {
   /// Merges `GET /api/v1/graph/artist` (`{ key, neighbors: GraphNeighbor[] }`)
   /// around the tapped node [centerId].
   void mergeArtistNeighbors(String centerId, Map<String, dynamic> json) {
+    final centerKey = jsonOptString(json['key']);
+    if (centerKey != null) _serverKeys[centerKey] = centerId;
     for (final neighbor in jsonList(json['neighbors'])) {
       final key = jsonString(neighbor['key']);
       final name = jsonString(neighbor['artist']);
       if (key.isEmpty || name.isEmpty) continue;
-      final id = artistId(key);
+      final id = resolveArtist(key, name);
+      _serverKeys[key] = id;
       addNode(
         GraphMapNode(
           id: id,
@@ -153,7 +177,7 @@ final class GraphMapData {
   factory GraphMapData.fromLibrary(MusicGraphSnapshot snapshot) {
     final data = GraphMapData();
     for (final node in snapshot.nodes) {
-      final artistKey = node.track.normalizedArtist.trim();
+      final artistKey = graphArtistKey(node.track.artist);
       if (artistKey.isEmpty) continue;
       data
         ..addNode(
@@ -259,6 +283,7 @@ final class GraphViewport {
       if (!keep.contains(candidate) && !expanded.contains(candidate)) {
         _order.remove(candidate);
         positions.remove(candidate);
+        _version++;
         return true;
       }
     }
@@ -269,11 +294,22 @@ final class GraphViewport {
     if (positions.containsKey(id)) return;
     positions[id] = position;
     _order.add(id);
+    _version++;
   }
 
-  List<GraphMapEdge> visibleEdges() => data.edges
-      .where((edge) => isVisible(edge.from) && isVisible(edge.to))
-      .toList(growable: false);
+  int _version = 0;
+  (int, int)? _edgesKey;
+  List<GraphMapEdge> _edgesCache = const [];
+
+  /// Cached until either the visible set or the data changes.
+  List<GraphMapEdge> visibleEdges() {
+    final key = (_version, data.version);
+    if (_edgesKey == key) return _edgesCache;
+    _edgesKey = key;
+    return _edgesCache = data.edges
+        .where((edge) => isVisible(edge.from) && isVisible(edge.to))
+        .toList(growable: false);
+  }
 
   /// Small deterministic force layout; O(n²) per iteration with n ≤ maxNodes.
   void relax({int iterations = 60}) {
@@ -406,3 +442,19 @@ final graphApiProvider = Provider<GraphApi>(
 final blindSpotsProvider = FutureProvider.autoDispose<List<BlindSpot>>(
   (ref) => ref.watch(graphApiProvider).blindSpots(),
 );
+
+/// Artist normalization shared by the local layer and server merges.
+String graphArtistKey(String name) => name
+    .toLowerCase()
+    .replaceAll('ё', 'е')
+    .replaceAll(RegExp(r'[^\p{L}\p{N}]+', unicode: true), ' ')
+    .trim()
+    .replaceAll(RegExp(r'\s+'), ' ');
+
+/// Backoff for transient server-graph failures (errors other than a missing
+/// endpoint). Honors `retry-after`; capped at five minutes.
+Duration graphRetryDelay(int failures, {Duration? retryAfter}) {
+  if (retryAfter != null && retryAfter > Duration.zero) return retryAfter;
+  final seconds = 5 * (1 << (failures - 1).clamp(0, 6));
+  return Duration(seconds: seconds > 300 ? 300 : seconds);
+}
