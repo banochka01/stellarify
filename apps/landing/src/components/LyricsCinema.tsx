@@ -24,9 +24,9 @@ export function LyricsCinema() {
     const context = gsap.context(() => {
       const media = gsap.matchMedia();
       media.add(
-        { reduce: "(prefers-reduced-motion: reduce)", desktop: "(min-width: 900px)" },
+        { reduce: "(prefers-reduced-motion: reduce)" },
         ({ conditions }) => {
-          const { reduce, desktop } = conditions as { reduce: boolean; desktop: boolean };
+          const { reduce } = conditions as { reduce: boolean };
           const track = section.querySelector<HTMLElement>(".cinema-track");
           const stage = section.querySelector<HTMLElement>(".cinema-stage");
           if (!track || !stage) return;
@@ -44,22 +44,13 @@ export function LyricsCinema() {
             }
           });
           timeline.to({}, { duration: 0.6 });
-          if (desktop) {
-            ScrollTrigger.create({
-              trigger: track,
-              start: "top top",
-              end: "bottom bottom",
-              scrub: 0.6,
-              animation: timeline
-            });
-          } else {
-            ScrollTrigger.create({
+          // Embedded in a tab panel: play once when visible (no scroll pinning).
+          ScrollTrigger.create({
               trigger: stage,
               start: "top 74%",
               once: true,
               onEnter: () => timeline.play()
             });
-          }
         }
       );
       return () => media.revert();

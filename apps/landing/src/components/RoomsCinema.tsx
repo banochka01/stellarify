@@ -14,9 +14,9 @@ export function RoomsCinema() {
     const context = gsap.context(() => {
       const media = gsap.matchMedia();
       media.add(
-        { reduce: "(prefers-reduced-motion: reduce)", desktop: "(min-width: 900px)" },
+        { reduce: "(prefers-reduced-motion: reduce)" },
         ({ conditions }) => {
-          const { reduce, desktop } = conditions as { reduce: boolean; desktop: boolean };
+          const { reduce } = conditions as { reduce: boolean };
           const stage = container.querySelector<HTMLElement>(".cinema-stage");
           if (!stage) return;
           const avatars = Array.from(container.querySelectorAll<HTMLElement>(".room-mock-avatars span"));
@@ -44,22 +44,13 @@ export function RoomsCinema() {
           timeline.fromTo(trackB, { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 0.5 }, 1.85);
           timeline.fromTo(badge, { autoAlpha: 0, scale: 0.9 }, { autoAlpha: 1, scale: 1, duration: 0.45, ease: "back.out(1.8)" }, 2.6);
           timeline.to({}, { duration: 0.6 });
-          if (desktop) {
-            ScrollTrigger.create({
-              trigger: container,
-              start: "top top",
-              end: "bottom bottom",
-              scrub: 0.6,
-              animation: timeline
-            });
-          } else {
-            ScrollTrigger.create({
+          // Embedded in a tab panel: play once when visible (no scroll pinning).
+          ScrollTrigger.create({
               trigger: stage,
               start: "top 74%",
               once: true,
               onEnter: () => timeline.play()
             });
-          }
         }
       );
       return () => media.revert();
