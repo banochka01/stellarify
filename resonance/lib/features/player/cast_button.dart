@@ -112,6 +112,14 @@ class _CastSheetState extends ConsumerState<_CastSheet> {
                   const Icon(Icons.volume_up_rounded),
                 ],
               ),
+              if (cast.active!.protocol == CastProtocol.dlna)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'DLNA-приёмник не сообщает о конце трека: следующий трек очереди включится, когда вы переключите его в приложении.',
+                    style: TextStyle(color: muted, fontSize: 12),
+                  ),
+                ),
               TextButton.icon(
                 onPressed: () => unawaited(controller.disconnect()),
                 icon: const Icon(Icons.close_rounded),

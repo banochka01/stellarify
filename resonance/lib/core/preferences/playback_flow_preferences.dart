@@ -12,6 +12,7 @@ final class PlaybackFlowSettings {
     this.smartTransitions = true,
     this.gapless = true,
     this.qualityMode = StreamQualityMode.auto,
+    this.highQualityOnMobile = false,
   });
 
   final bool enabled;
@@ -27,6 +28,9 @@ final class PlaybackFlowSettings {
 
   /// Авто / Высокое / Lossless.
   final StreamQualityMode qualityMode;
+
+  /// Разрешить «Высокое»/«Lossless» выше мобильного потолка в сотовой сети.
+  final bool highQualityOnMobile;
   final bool visualizer;
 
   /// «Умный» переход: не режет концовки live/классики и не вставляет
@@ -44,6 +48,7 @@ final class PlaybackFlowSettings {
     bool? smartTransitions,
     bool? gapless,
     StreamQualityMode? qualityMode,
+    bool? highQualityOnMobile,
   }) => PlaybackFlowSettings(
     enabled: enabled ?? this.enabled,
     transitionMs: transitionMs ?? this.transitionMs,
@@ -61,6 +66,7 @@ final class PlaybackFlowSettings {
     smartTransitions: smartTransitions ?? this.smartTransitions,
     gapless: gapless ?? this.gapless,
     qualityMode: qualityMode ?? this.qualityMode,
+    highQualityOnMobile: highQualityOnMobile ?? this.highQualityOnMobile,
   );
 }
 
@@ -75,6 +81,7 @@ final class PlaybackFlowPreferences {
   static const _normalizeModeKey = 'resonance.flow.normalize_mode';
   static const _gaplessKey = 'resonance.flow.gapless';
   static const _qualityModeKey = 'resonance.playback.quality_mode';
+  static const _highOnMobileKey = 'resonance.playback.high_on_mobile';
   static const allowedTransitionMs = [
     0,
     800,
@@ -97,6 +104,7 @@ final class PlaybackFlowPreferences {
       _store.read(_normalizeModeKey),
       _store.read(_gaplessKey),
       _store.read(_qualityModeKey),
+      _store.read(_highOnMobileKey),
     ]);
     final parsedTransition = int.tryParse(values[1] ?? '');
     return PlaybackFlowSettings(
@@ -112,6 +120,7 @@ final class PlaybackFlowPreferences {
       smartTransitions: values[4] != 'false',
       gapless: values[6] != 'false',
       qualityMode: StreamQualityMode.byName(values[7]),
+      highQualityOnMobile: values[8] == 'true',
     );
   }
 
@@ -124,6 +133,7 @@ final class PlaybackFlowPreferences {
     _store.write(_normalizeModeKey, value.normalization.name),
     _store.write(_gaplessKey, value.gapless.toString()),
     _store.write(_qualityModeKey, value.qualityMode.name),
+    _store.write(_highOnMobileKey, value.highQualityOnMobile.toString()),
   ]);
 }
 

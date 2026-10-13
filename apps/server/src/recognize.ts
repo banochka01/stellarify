@@ -21,7 +21,7 @@ export type RecognizedTrack = {
 };
 
 export class RecognitionError extends Error {
-  constructor(readonly code: "DISABLED" | "UPSTREAM" | "INVALID_AUDIO", message: string) {
+  constructor(readonly code: "DISABLED" | "UPSTREAM" | "INVALID_AUDIO" | "DAILY_LIMIT", message: string) {
     super(message);
   }
 }
@@ -54,12 +54,37 @@ export class RecognitionService {
     private readonly apiToken: string | undefined,
     private readonly request: FetchLike = fetch,
     private readonly endpoint = "https://api.audd.io/",
-    private readonly timeoutMs = 20_000
+    private readonly timeoutMs = 20_000,
+    /** Общий суточный лимит запросов к AudD на весь сервер (квота ключа). */
+    private readonly dailyLimit = 500,
+    private readonly now: () => number = Date.now
   ) {}
+
+  private day = "";
+  private used = 0;
 
   static fromEnvironment(request: FetchLike = fetch, env: NodeJS.ProcessEnv = process.env) {
     const token = env.AUDD_API_TOKEN?.trim();
-    return new RecognitionService(token || undefined, request);
+    const limit = Number.parseInt(env.AUDD_DAILY_LIMIT ?? "", 10);
+    return new RecognitionService(
+      token || undefined,
+      request,
+      undefined,
+      undefined,
+      Number.isFinite(limit) && limit >= 0 ? limit : 500
+    );
+  }
+
+  /** Резервирует запрос в суточной квоте (сутки по UTC). */
+  private takeQuota() {
+    const day = new Date(this.now()).toISOString().slice(0, 10);
+    if (day !== this.day) {
+      this.day = day;
+      this.used = 0;
+    }
+    if (this.used >= this.dailyLimit) return false;
+    this.used += 1;
+    return true;
   }
 
   get available() {
@@ -70,6 +95,9 @@ export class RecognitionService {
     if (!this.apiToken) throw new RecognitionError("DISABLED", "Распознавание не настроено");
     if (sample.byteLength < MIN_SAMPLE_BYTES || sample.byteLength > MAX_SAMPLE_BYTES) {
       throw new RecognitionError("INVALID_AUDIO", "Фрагмент слишком короткий или слишком длинный");
+    }
+    if (!this.takeQuota()) {
+      throw new RecognitionError("DAILY_LIMIT", "Лимит распознаваний на сегодня исчерпан, попробуйте завтра");
     }
     const form = new FormData();
     form.set("api_token", this.apiToken);
@@ -193,7 +221,11 @@ export function createRecognizeRouter(
         response.json({ track });
       } catch (error) {
         if (error instanceof RecognitionError) {
-          const status = error.code === "INVALID_AUDIO" ? 400 : error.code === "DISABLED" ? 503 : 502;
+          const status = error.code === "INVALID_AUDIO"
+            ? 400
+            : error.code === "DISABLED"
+              ? 503
+              : error.code === "DAILY_LIMIT" ? 429 : 502;
           response.status(status).json({ error: { code: `RECOGNITION_${error.code}`, message: error.message } });
           return;
         }

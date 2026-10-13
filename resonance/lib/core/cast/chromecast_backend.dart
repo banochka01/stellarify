@@ -108,12 +108,25 @@ final class _ChromecastLink implements CastLink {
         if (status is List && status.isNotEmpty && status.first is Map) {
           final id = (status.first as Map)['mediaSessionId'];
           if (id is int) _mediaSessionId = id;
+          final item = status.first as Map;
+          if (item['playerState'] == 'IDLE' &&
+              item['idleReason'] == 'FINISHED' &&
+              !_finished.isClosed) {
+            _finished.add(null);
+          }
         }
       }
     });
   }
 
   final CastSession _session;
+  final _finished = StreamController<void>.broadcast();
+
+  @override
+  Stream<void> get finished => _finished.stream;
+
+  @override
+  bool get reportsFinish => true;
   late final StreamSubscription<Map<String, dynamic>> _messages;
   int? _mediaSessionId;
   var _requestId = 1;
@@ -185,6 +198,7 @@ final class _ChromecastLink implements CastLink {
   @override
   Future<void> close() async {
     await _messages.cancel();
+    await _finished.close();
     try {
       _session.sendMessage(CastSession.kNamespaceReceiver, {
         'type': 'STOP',

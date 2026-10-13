@@ -83,7 +83,7 @@ class SoundQualityOptions extends StatelessWidget {
             StreamQualityMode.high =>
               'Всегда высокое качество, в том числе в мобильной сети.',
             StreamQualityMode.lossless =>
-              'Lossless по Wi‑Fi, где провайдер его отдаёт; в мобильной сети — высокое.',
+              'Lossless по Wi‑Fi, где провайдер его отдаёт; в мобильной сети — не выше высокого.',
           }, style: TextStyle(color: muted)),
         ),
         Padding(
@@ -97,6 +97,19 @@ class SoundQualityOptions extends StatelessWidget {
             selected: {flow.qualityMode},
             onSelectionChanged: (value) =>
                 unawaited(onChanged(flow.copyWith(qualityMode: value.first))),
+          ),
+        ),
+        SwitchListTile(
+          value: flow.highQualityOnMobile,
+          onChanged: flow.qualityMode == StreamQualityMode.auto
+              ? null
+              : (enabled) => unawaited(
+                  onChanged(flow.copyWith(highQualityOnMobile: enabled)),
+                ),
+          secondary: const Icon(Icons.signal_cellular_alt_rounded),
+          title: const Text('Высокое качество в мобильной сети'),
+          subtitle: const Text(
+            'Иначе в сотовой сети действует мобильное качество из настроек офлайна. Lossless по мобильной сети не включается.',
           ),
         ),
       ],

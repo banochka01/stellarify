@@ -87,7 +87,9 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
         }
       }),
       _engine.completed.listen(_onCompleted),
-      _engine.advancedToQueued.listen((_) => unawaited(_onGaplessAdvance())),
+      _engine.advancedToQueued.listen(
+        (lufs) => unawaited(_onGaplessAdvance(lufs)),
+      ),
       _engine.errors.listen((message) {
         unawaited(_recoverFromEngineError(message));
       }),
@@ -155,8 +157,10 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     String trackId,
     TrackSource source,
     ResolvedAudioSource resolved,
+    double? gainDb,
   })?
   _gapless;
+  Timer? _gaplessWatchdog;
   bool _preparingGapless = false;
   double? _currentGainDb;
 
@@ -199,21 +203,33 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     }
   }
 
-  Future<void> _applyGain(UnifiedTrack track, ResolvedAudioSource audio) async {
-    double? gain;
+  Future<double?> _gainFor(
+    UnifiedTrack track,
+    ResolvedAudioSource audio,
+  ) async {
     try {
-      gain = await _normalizer.gainFor(
+      return await _normalizer.gainFor(
         mode: _flowSettings.normalization,
         track: track,
         source: audio,
       );
     } on Object {
-      gain = null;
+      return null;
     }
+  }
+
+  Future<void> _applyGain(UnifiedTrack track, ResolvedAudioSource audio) async {
+    final gain = await _gainFor(track, audio);
     // Пока считали, трек мог смениться.
     if (_disposed || _state.currentTrack?.id != track.id) return;
     _currentGainDb = gain;
     await _engine.setReplayGain(gain);
+  }
+
+  void _rememberLoudness(UnifiedTrack track, double? lufs) {
+    if (lufs == null) return;
+    // Сохранение не должно задерживать переключение трека.
+    unawaited(_normalizer.remember(track, lufs));
   }
 
   /// Перед сменой трека сохраняет громкость, измеренную плеером.
@@ -226,9 +242,9 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     }
     try {
       final lufs = await _engine.measuredLoudnessLufs().timeout(
-        const Duration(milliseconds: 300),
+        const Duration(milliseconds: 150),
       );
-      if (lufs != null) await _normalizer.remember(track, lufs);
+      _rememberLoudness(track, lufs);
     } on Object {
       // Измерение оппортунистично.
     }
@@ -383,6 +399,24 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
         'Не удалось переключиться на ${_providerTitle(source.provider)}: $error',
       );
     }
+  }
+
+  /// Перерезолвит поток текущего трека, если ссылка истекает в ближайшие
+  /// [margin] (трансляции нужна живая ссылка). Плеер не переоткрывается.
+  Future<void> refreshExpiringSource({
+    Duration margin = const Duration(minutes: 2),
+  }) async {
+    final source = _state.activeTrackSource;
+    final audio = _state.activeAudioSource;
+    if (source == null ||
+        audio == null ||
+        audio.streamUrl.isScheme('file') ||
+        !audio.isExpired(DateTime.now().toUtc().add(margin))) {
+      return;
+    }
+    _sourceCache.invalidate(source);
+    final fresh = await _resolveSource(source);
+    _emit(_state.copyWith(activeAudioSource: fresh));
   }
 
   Future<void> prepareCurrent({Duration start = Duration.zero}) async {
@@ -960,8 +994,15 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     if (!completed || _transitioning) {
       return;
     }
-    if (_gapless != null) {
-      // Плеер сам перейдёт на поставленный следом трек.
+    final pending = _gapless;
+    if (pending != null) {
+      // Плеер сам перейдёт на поставленный следом трек. Если переход так и
+      // не случился (запись не открылась), идём дальше обычным путём.
+      _gaplessWatchdog?.cancel();
+      _gaplessWatchdog = Timer(const Duration(seconds: 2), () {
+        if (_disposed || !identical(_gapless, pending)) return;
+        unawaited(_dropGapless().then((_) => next()));
+      });
       return;
     }
     if (_fading || _stopAfterCurrent) {
@@ -1043,6 +1084,11 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     final previous = _state.activeTrackSource;
     await _captureLoudness();
     _gapless = null;
+    _gaplessWatchdog?.cancel();
+    // Гейн ставим до старта трека, чтобы первые секунды не звучали с чужим.
+    final gain = await _gainFor(track, resolved);
+    _currentGainDb = gain;
+    await _engine.setReplayGain(gain);
     // Автокэш/предзагрузка не должны вытеснить файл, который сейчас звучит.
     _offlineDownloads?.setActiveTrackId(track.id);
     await _engine.open(resolved, play: play, start: start);
@@ -1068,7 +1114,6 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
         'Выбран доступный источник: ${_providerTitle(source.provider)}',
       );
     }
-    await _applyGain(track, resolved);
     _scheduleAccessCheck();
     _startNextPreflight();
     _preloadNextAudio();
@@ -1150,26 +1195,35 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
         _state.queue[index].id != next.id) {
       return;
     }
-    await _engine.setQueuedNext(prepared.resolved);
+    final gain = await _gainFor(next, prepared.resolved);
+    final queued = await _engine.setQueuedNext(prepared.resolved, gainDb: gain);
+    if (!queued || _disposed) return;
     _gapless = (
       index: index,
       trackId: next.id,
       source: prepared.source,
       resolved: prepared.resolved,
+      gainDb: gain,
     );
   }
 
   Future<void> _dropGapless() async {
+    _gaplessWatchdog?.cancel();
     if (_gapless == null) return;
     _gapless = null;
     await _engine.setQueuedNext(null);
   }
 
   /// Плеер сам начал следующий трек: переносим очередь без повторного open.
-  Future<void> _onGaplessAdvance() async {
+  Future<void> _onGaplessAdvance(double? previousLufs) async {
+    _gaplessWatchdog?.cancel();
     final prepared = _gapless;
     _gapless = null;
     if (prepared == null || _disposed) return;
+    final finished = _state.currentTrack;
+    if (finished != null && _flowSettings.normalizeLoudness) {
+      _rememberLoudness(finished, previousLufs);
+    }
     final valid =
         prepared.index < _state.queue.length &&
         _state.queue[prepared.index].id == prepared.trackId;
@@ -1192,7 +1246,8 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
         errorMessage: null,
       ),
     );
-    await _applyGain(track, prepared.resolved);
+    // Гейн этой записи плеер уже применил сам в момент перехода.
+    _currentGainDb = prepared.gainDb;
     await _persist();
     _scheduleAccessCheck();
     _startNextPreflight();
@@ -1244,6 +1299,7 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     _offlineDownloads?.setActiveTrackId(null);
     _accessTimer?.cancel();
     _sourceNoticeTimer?.cancel();
+    _gaplessWatchdog?.cancel();
     for (final subscription in _subscriptions) {
       await subscription.cancel();
     }

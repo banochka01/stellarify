@@ -149,3 +149,31 @@ test("upstream failures surface as 502 without leaking details", async () => {
   await assert.rejects(failing.recognize(Buffer.alloc(MIN_SAMPLE_BYTES + 1)), (error: unknown) =>
     error instanceof RecognitionError && error.code === "UPSTREAM");
 });
+
+test("global daily AudD quota resets on the next UTC day", async () => {
+  let now = Date.parse("2026-10-13T10:00:00Z");
+  let upstreamCalls = 0;
+  const service = new RecognitionService(
+    "t",
+    async () => {
+      upstreamCalls += 1;
+      return new Response(JSON.stringify({ status: "success", result: null }), { status: 200 });
+    },
+    undefined,
+    undefined,
+    2,
+    () => now
+  );
+  const audio = Buffer.alloc(MIN_SAMPLE_BYTES + 1);
+  assert.equal(await service.recognize(audio), null);
+  assert.equal(await service.recognize(audio), null);
+  await assert.rejects(service.recognize(audio), (error: unknown) =>
+    error instanceof RecognitionError && error.code === "DAILY_LIMIT");
+  assert.equal(upstreamCalls, 2);
+  now = Date.parse("2026-10-14T00:00:01Z");
+  assert.equal(await service.recognize(audio), null);
+  assert.equal(
+    (RecognitionService.fromEnvironment(fakeFetch, { AUDD_API_TOKEN: "x", AUDD_DAILY_LIMIT: "0" }) as unknown as { dailyLimit: number }).dailyLimit,
+    0
+  );
+});

@@ -54,6 +54,7 @@ class _RecognizeSheetState extends ConsumerState<_RecognizeSheet> {
   String? _message;
   RecognizedTrack? _recognized;
   UnifiedTrack? _match;
+  bool _exact = false;
   bool _added = false;
 
   @override
@@ -106,7 +107,11 @@ class _RecognizeSheetState extends ConsumerState<_RecognizeSheet> {
       }
       final path = await _recorder.stop();
       setState(() => _stage = _Stage.sending);
-      final bytes = await File(path ?? file.path).readAsBytes();
+      final recorded = File(path ?? file.path);
+      final bytes = await recorded.readAsBytes();
+      // Фрагмент нигде не храним: удаляем сразу после чтения.
+      await _deleteQuietly(recorded);
+      if (recorded.path != file.path) await _deleteQuietly(file);
       final recognized = await ref
           .read(recognitionApiProvider)
           .recognize(bytes, contentType: 'audio/mp4');
@@ -119,27 +124,33 @@ class _RecognizeSheetState extends ConsumerState<_RecognizeSheet> {
       if (!mounted) return;
       setState(() {
         _recognized = recognized;
-        _match = match;
+        _match = match?.track;
+        _exact = match?.exact ?? false;
         _stage = _Stage.found;
       });
-      if (match != null) await _addToLibrary(match);
+      // Автоматически — только точное совпадение; похожее добавит человек.
+      if (match != null && match.exact) await _addToLibrary(match.track);
     } on RecognitionException catch (error) {
       _fail(error.message);
     } on Object {
       _fail('Не удалось записать фрагмент.');
     } finally {
-      // Фрагмент нигде не храним: сразу удаляем временный файл.
-      if (file != null && await file.exists()) {
-        try {
-          await file.delete();
-        } on Object {
-          // Временная папка очистится системой.
-        }
-      }
+      // На случай ошибки до чтения файла.
+      if (file != null) await _deleteQuietly(file);
     }
   }
 
-  Future<UnifiedTrack?> _findInCatalogs(RecognizedTrack recognized) async {
+  static Future<void> _deleteQuietly(File file) async {
+    try {
+      if (await file.exists()) await file.delete();
+    } on Object {
+      // Временная папка очистится системой.
+    }
+  }
+
+  Future<({UnifiedTrack track, bool exact})?> _findInCatalogs(
+    RecognizedTrack recognized,
+  ) async {
     final registry = ref.read(providerRegistryProvider);
     final batches = await Future.wait([
       for (final provider in MusicProvider.values)
@@ -151,7 +162,7 @@ class _RecognizeSheetState extends ConsumerState<_RecognizeSheet> {
     final tracks = const MusicGraphBuilder().canonicalize(
       batches.expand((batch) => batch),
     );
-    return bestCatalogMatch(recognized, tracks);
+    return catalogMatch(recognized, tracks);
   }
 
   Future<void> _addToLibrary(UnifiedTrack track) async {
@@ -227,10 +238,21 @@ class _RecognizeSheetState extends ConsumerState<_RecognizeSheet> {
                     Text(
                       _added
                           ? 'Добавлено в «Любимое».'
-                          : 'Добавляю в медиатеку…',
+                          : _exact
+                          ? 'Добавляю в медиатеку…'
+                          : 'Похожий трек: «${match.title}» — ${match.artist}. Проверьте, тот ли это.',
                       style: TextStyle(color: muted),
                     ),
                     const SizedBox(height: 12),
+                    if (!_exact && !_added)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: OutlinedButton.icon(
+                          onPressed: () => unawaited(_addToLibrary(match)),
+                          icon: const Icon(Icons.favorite_border_rounded),
+                          label: const Text('Добавить в «Любимое»'),
+                        ),
+                      ),
                     FilledButton.icon(
                       onPressed: () => unawaited(_play(match)),
                       icon: const Icon(Icons.play_arrow_rounded),

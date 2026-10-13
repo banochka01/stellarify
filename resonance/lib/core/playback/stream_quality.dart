@@ -21,30 +21,31 @@ enum StreamQualityMode {
 
 /// Качество, которое запрашиваем у провайдера с учётом сети.
 ///
-/// * «Авто»: Wi‑Fi — [wifiQuality], мобильная сеть — [mobileQuality].
-/// * «Высокое»: всегда high; в мобильной сети не выше [mobileQuality],
-///   если только [allowHighOnMobile].
-/// * «Lossless»: Wi‑Fi — lossless; в мобильной сети lossless не тянем
-///   (трафик ×5–10), а играем high.
+/// * Wi‑Fi: «Авто» — [wifiQuality], «Высокое» — high, «Lossless» — lossless.
+/// * Мобильная сеть: [mobileQuality] — потолок для любого режима, если
+///   человек явно не разрешил высокое качество ([allowHighOnMobile]).
+///   Даже с разрешением lossless по мобильной сети не тянем (трафик ×5–10).
 AudioQuality resolveStreamQuality({
   required StreamQualityMode mode,
   required NetworkKind network,
   AudioQuality wifiQuality = AudioQuality.high,
   AudioQuality mobileQuality = AudioQuality.medium,
-  bool allowHighOnMobile = true,
+  bool allowHighOnMobile = false,
 }) {
-  final mobile = network == NetworkKind.mobile;
-  switch (mode) {
-    case StreamQualityMode.auto:
-      return mobile ? mobileQuality : wifiQuality;
-    case StreamQualityMode.high:
-      if (!mobile || allowHighOnMobile) return AudioQuality.high;
-      return mobileQuality;
-    case StreamQualityMode.lossless:
-      if (!mobile) return AudioQuality.lossless;
-      return allowHighOnMobile ? AudioQuality.high : mobileQuality;
+  final wanted = switch (mode) {
+    StreamQualityMode.auto => wifiQuality,
+    StreamQualityMode.high => AudioQuality.high,
+    StreamQualityMode.lossless => AudioQuality.lossless,
+  };
+  if (network != NetworkKind.mobile) return wanted;
+  if (mode == StreamQualityMode.auto || !allowHighOnMobile) {
+    return _lower(wanted, mobileQuality);
   }
+  return _lower(wanted, AudioQuality.high);
 }
+
+AudioQuality _lower(AudioQuality a, AudioQuality b) =>
+    a.index <= b.index ? a : b;
 
 /// Бейдж формата в плеере.
 enum AudioFormatBadge {

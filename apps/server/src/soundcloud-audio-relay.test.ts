@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SoundCloudAudioRelay } from "./soundcloud-audio-relay.js";
+import { SoundCloudAudioRelay, relayTicketFromPath } from "./soundcloud-audio-relay.js";
 
 const ticket = "abcdefghijklmnopqrstuvwxyz123456";
 const proxyUrl = "203.0.113.8:8080:user:pass";
@@ -88,4 +88,33 @@ test("rejects redirects outside SoundCloud CDN domains", async () => {
     () => relay.open(ticket, "GET", {}),
     /unexpected stream host/
   );
+});
+
+test("issues a short-lived cast ticket for the same stream", async () => {
+  let now = 1_000;
+  const tickets = [ticket, "ZYXWVUTSRQPONMLKJIHGFEDCBA654321"];
+  const urls: string[] = [];
+  const relay = new SoundCloudAudioRelay(
+    proxyUrl,
+    async (input) => {
+      urls.push(String(input));
+      return new Response("audio", { status: 200, headers: { "content-type": "audio/mpeg" } });
+    },
+    () => now,
+    () => tickets.shift()!
+  );
+  const issued = relay.issue({ streamUrl: "https://cf-media.sndcdn.com/cast.mp3", protocol: "progressive" });
+  const cast = relay.issueCastTicket(`https://music.example${issued.streamUrl}`);
+  assert.notEqual(cast.streamUrl, issued.streamUrl);
+  assert.equal(Date.parse(cast.expiresAt), now + 5 * 60_000);
+  const castTicket = relayTicketFromPath(cast.streamUrl)!;
+  assert.equal((await relay.open(castTicket, "GET", {})).status, 200);
+  assert.equal(urls[0], "https://cf-media.sndcdn.com/cast.mp3");
+
+  now += 5 * 60_000 + 1;
+  await assert.rejects(relay.open(castTicket, "GET", {}));
+  // Родительский тикет живёт дольше.
+  assert.equal((await relay.open(ticket, "GET", {})).status, 200);
+  assert.throws(() => relay.issueCastTicket("https://evil.example/other"));
+  assert.equal(relayTicketFromPath("/api/v1/playback/soundcloud-relay/short"), undefined);
 });

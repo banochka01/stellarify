@@ -63,11 +63,15 @@ abstract interface class PlaybackEngine {
   Future<double?> measuredLoudnessLufs();
 
   /// Ставит [source] следующим в плейлист плеера для бесшовного перехода;
-  /// `null` убирает поставленный ранее.
-  Future<void> setQueuedNext(ResolvedAudioSource? source);
+  /// `null` убирает поставленный ранее. [gainDb] — гейн выравнивания для
+  /// этой записи: плеер применит его в момент перехода, без участия сервиса.
+  /// Возвращает `false`, если поставить не удалось.
+  Future<bool> setQueuedNext(ResolvedAudioSource? source, {double? gainDb});
 
   /// Плеер сам перешёл на источник, поставленный через [setQueuedNext].
-  Stream<void> get advancedToQueued;
+  /// Значение — громкость (LUFS) доигравшего трека по измерителю, если она
+  /// достоверна.
+  Stream<double?> get advancedToQueued;
 
   /// Усиление полос эквалайзера в дБ ([equalizerBands]); `null` — выключен.
   Future<void> setEqualizer(List<double>? gainsDb);
@@ -85,15 +89,52 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
       final queued = _queuedIndex;
       if (queued != null && playlist.index == queued) {
         _queuedIndex = null;
-        _advanced.add(null);
+        unawaited(_onAdvanced(playlist.index));
       }
     });
   }
 
+  /// Переход на поставленную запись. Гейн следующего трека применяется
+  /// первым — до того, как сервис узнает о смене, чтобы громкий трек не
+  /// прозвучал с гейном тихого.
+  Future<void> _onAdvanced(int index) async {
+    _gainFactor = gainDbToVolumeFactor(_queuedGainDb);
+    final gainDb = _queuedGainDb;
+    _queuedGainDb = null;
+    try {
+      await _applyVolume();
+    } on Object {
+      // Громкость вернётся при следующем setVolume.
+    }
+    // Измеритель общий для бесшовной цепочки: после первого перехода он
+    // копит уже несколько треков, поэтому дальше его показаниям не верим
+    // до следующего open().
+    final lufs = _meterDirty ? null : await measuredLoudnessLufs();
+    _meterDirty = true;
+    final useDynamic = gainDb == null;
+    if (_dynamicNormalize != useDynamic) {
+      _dynamicNormalize = useDynamic;
+      await _applyFilters();
+    }
+    // Доигранные записи убираем: плейлист плеера не должен расти, а его
+    // порядок не должен смешиваться с очередью приложения.
+    try {
+      for (var i = 0; i < index; i++) {
+        await player.remove(0);
+      }
+    } on Object {
+      // Лишние записи не мешают: open() всё равно заменит плейлист.
+    }
+    if (!_advanced.isClosed) _advanced.add(lufs);
+  }
+
   final media_kit.Player player;
   late final StreamSubscription<media_kit.Playlist> _playlistSubscription;
-  final _advanced = StreamController<void>.broadcast();
+  final _advanced = StreamController<double?>.broadcast();
   int? _queuedIndex;
+  double? _queuedGainDb;
+  bool _meterDirty = false;
+  double _engineVolume = -1;
   bool _gaplessConfigured = false;
   double _userVolume = 100;
   double _gainFactor = 1;
@@ -117,12 +158,19 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
   Stream<Duration> get duration => player.stream.duration;
 
   @override
-  Stream<double> get volume => player.stream.volume.map(
-    (value) => _gainFactor == 1 ? value : value / _gainFactor,
-  );
+  Stream<double> get volume => player.stream.volume.map((value) {
+    // Источник правды — громкость пользователя. Эхо от собственной смены
+    // громкости (гейн) игнорируем; иначе это внешняя смена (системные
+    // кнопки), и пересчитываем громкость пользователя из неё.
+    if ((value - _engineVolume).abs() > .6) {
+      _userVolume = (value / _gainFactor).clamp(0, 100).toDouble();
+      _engineVolume = value;
+    }
+    return _userVolume;
+  });
 
   @override
-  Stream<void> get advancedToQueued => _advanced.stream;
+  Stream<double?> get advancedToQueued => _advanced.stream;
 
   @override
   Stream<String> get errors => player.stream.error;
@@ -163,20 +211,35 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
       start: start == Duration.zero ? null : start,
     );
     _queuedIndex = null;
-    return player.open(media, play: play);
+    _queuedGainDb = null;
+    return _openFresh(media, play);
+  }
+
+  Future<void> _openFresh(media_kit.Media media, bool play) async {
+    if (_meterDirty && _normalize) {
+      // Новый трек не бесшовный: пересоздаём фильтры, чтобы измеритель
+      // считал только его.
+      await _applyFilters();
+    }
+    _meterDirty = false;
+    await player.open(media, play: play);
   }
 
   @override
-  Future<void> setQueuedNext(ResolvedAudioSource? source) async {
+  Future<bool> setQueuedNext(
+    ResolvedAudioSource? source, {
+    double? gainDb,
+  }) async {
     try {
       final queued = _queuedIndex;
       if (queued != null) {
         _queuedIndex = null;
+        _queuedGainDb = null;
         if (queued < player.state.playlist.medias.length) {
           await player.remove(queued);
         }
       }
-      if (source == null) return;
+      if (source == null) return true;
       if (!_gaplessConfigured) {
         final dynamic platform = player.platform;
         await platform.setProperty('gapless-audio', 'weak');
@@ -189,10 +252,14 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
           httpHeaders: source.headers,
         ),
       );
+      _queuedGainDb = gainDb;
       _queuedIndex = player.state.playlist.medias.length - 1;
+      return true;
     } on Object {
       // Без бесшовного режима переход просто пойдёт обычным путём.
       _queuedIndex = null;
+      _queuedGainDb = null;
+      return false;
     }
   }
 
@@ -207,15 +274,16 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
     }
   }
 
-  Future<void> _applyVolume() => player.setVolume(
-    (_userVolume * _gainFactor).clamp(0, _maxVolume).toDouble(),
-  );
+  Future<void> _applyVolume() {
+    _engineVolume = (_userVolume * _gainFactor).clamp(0, _maxVolume).toDouble();
+    return player.setVolume(_engineVolume);
+  }
 
   @override
   Future<double?> measuredLoudnessLufs() async {
     try {
       final support = await audioFilterSupport();
-      if (!support.ebur128 || !_normalize) return null;
+      if (!support.ebur128 || !_normalize || _meterDirty) return null;
       final dynamic platform = player.platform;
       final value = await platform.getProperty('af-metadata/meter');
       return parseEbur128Integrated(value);
@@ -240,7 +308,9 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
   }
 
   @override
-  Future<void> setShuffle(bool enabled) => player.setShuffle(enabled);
+  // Очередь тасует сервис; плейлист плеера держит максимум текущий и
+  // поставленный следом трек, и его порядок менять нельзя.
+  Future<void> setShuffle(bool enabled) async {}
 
   @override
   Future<void> setRepeatMode(PlaybackRepeatMode mode) {
