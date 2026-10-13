@@ -10,12 +10,16 @@ class SeekTimeline extends StatefulWidget {
     required this.value,
     required this.onSeek,
     this.height = 18,
+    this.color,
     super.key,
   });
 
   final double value;
   final ValueChanged<double> onSeek;
   final double height;
+
+  /// Цвет прогресса; по умолчанию primary темы (например, акцент обложки).
+  final Color? color;
 
   @override
   State<SeekTimeline> createState() => _SeekTimelineState();
@@ -84,7 +88,7 @@ class _SeekTimelineState extends State<SeekTimeline> {
                         painter: _WaveformPainter(
                           progress: safeValue,
                           active: active,
-                          played: colors.primary,
+                          played: widget.color ?? colors.primary,
                           rest: colors.outline,
                         ),
                       ),
@@ -103,7 +107,8 @@ class _SeekTimelineState extends State<SeekTimeline> {
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: colors.primary.withValues(alpha: .5),
+                                color: (widget.color ?? colors.primary)
+                                    .withValues(alpha: .5),
                                 blurRadius: 10,
                               ),
                             ],
