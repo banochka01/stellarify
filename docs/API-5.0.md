@@ -2,7 +2,7 @@
 
 Все пути под `/api/v1`. Ошибки: `{ "error": { "code": string, "message": string } }` (message — на русском, можно показывать пользователю).
 Авторизация — существующий Resonance ID: `Authorization: Bearer <accessToken>` (как для `/api/v1/account/*`).
-«(auth)» — без токена `401 AUTH_REQUIRED`. Лимиты запросов: `429 RATE_LIMITED` + `retry-after`.
+«(auth)» — без токена `401 AUTH_REQUIRED`. Лимиты запросов: `429 RATE_LIMITED` + `retry-after`. На публичных эндпоинтах (`/graph/artist`, `/artists/overview`, `/features`, `/changelog`, `/setlists`) просроченный токен не даёт 401 — запрос обрабатывается как анонимный.
 Токены провайдеров для поиска передаются как в Волне: `x-soundcloud-token`, `x-yandex-token`, `x-spotify-token`, `x-vk-token`.
 `provider` ∈ `soundcloud | yandex | spotify | vk`.
 
@@ -13,7 +13,7 @@
 | Метод | Путь | Тело / query | Ответ |
 |---|---|---|---|
 | GET | `/profile` | — | `{ profile: SocialProfile }` |
-| PATCH | `/profile` | `{ displayName?, handle?: string\|null, isPublic?, shareListening?, shareRooms? }` | `{ profile }`; `409 HANDLE_TAKEN`, `400 INVALID_HANDLE` (`^[a-z0-9_.]{3,24}$`) |
+| PATCH | `/profile` | `{ displayName?, handle?: string\|null, isPublic?, shareListening?, shareRooms? }` | `{ profile }`; `409 HANDLE_TAKEN`, `400 INVALID_HANDLE` (`^[a-z0-9_.]{3,24}$`); смена `handle` — не чаще 5 раз в час (`429`) |
 | POST | `/profile/invite` | — | `{ profile }` с новым `inviteCode` |
 | GET | `/users/search?q=` | q ≥ 2 символов | `{ users: PublicProfile[] }` — только публичные профили |
 | GET | `/users/:userId` | — | `{ user: PublicProfile & { relation } }` или 404 |
@@ -27,8 +27,8 @@
 | PUT | `/now-playing` | `{ title, artist, provider?, trackId? }` | 204. Присылать при старте трека (живёт 10 мин) |
 | DELETE | `/now-playing` | — | 204 |
 | GET | `/feed` | — | `{ items: FeedItem[] }` |
-| GET | `/compatibility/:userId` | только друзья (иначе `403 NOT_FRIENDS`) | `{ compatibility: { percent 0–100, enoughData, sharedArtists[], sharedGenres[] } }` |
-| POST | `/blend/:userId` | `{ enabledProviders?, tzOffsetMinutes? }` | `{ title, compatibility, day, nextRefreshAt, mixes: DailyMix[] }` |
+| GET | `/compatibility/:userId` | только друзья (иначе `403 NOT_FRIENDS`) | `{ compatibility: { percent 0–100, enoughData, sharedArtists[], sharedGenres[] } }`; если друг не делится прослушиваниями (`shareListening=false`) — только `percent`, `sharedArtists=[]` |
+| POST | `/blend/:userId` | `{ enabledProviders?, tzOffsetMinutes? }` | `{ title, compatibility, day, nextRefreshAt, mixes: DailyMix[] }`; `403 FRIEND_PRIVATE`, если друг не делится прослушиваниями |
 
 ```ts
 type SocialProfile = { userId; displayName; handle: string|null; isPublic; shareListening; shareRooms; inviteCode; updatedAt };
@@ -41,7 +41,7 @@ type FeedItem = {
   room: { code: string|null; isPrivate; participants; track: {title; artist}|null } | null; // только при shareRooms
 };
 ```
-Закрытая комната показывается без `code`/`track`, если зритель не был её участником раньше. Лента содержит только друзей, разрешивших показ.
+Лента кэшируется на ~20 с. Закрытая комната показывается без `code`/`track`, если зритель не был её участником раньше. Лента содержит только друзей, разрешивших показ.
 Совместимость считается по пересечению артистов из истории Волны, избранного и плейлистов (с учётом транслитерации «Кино»/«Kino»). Жанров в истории нет — `sharedGenres` пока всегда `[]`.
 Blend строится поверх «Вашего дня» (`DailyMix[]` того же формата, `id` с префиксом `blend:`), учитывает исключения обоих.
 
@@ -50,18 +50,18 @@ Blend строится поверх «Вашего дня» (`DailyMix[]` тог
 | Метод | Путь | Ответ |
 |---|---|---|
 | GET | `/artist?name=&limit=20` | `{ artist, key, source: "graph"\|"providers"\|"mixed", neighbors: GraphNeighbor[] }` |
-| GET | `/path?from=&to=&tracks=0\|1&provider=soundcloud` | `{ found, nodes: [{ artist, key, via: EdgeKind[], listened? }], queries: [{ artist, query }], tracks?: WaveItem[] }` |
+| GET | `/path?from=&to=&tracks=0\|1&provider=soundcloud` (auth, 6/мин) | `{ found, nodes: [{ artist, key, via: EdgeKind[], listened? }], queries: [{ artist, query }], tracks?: WaveItem[] }` |
 | GET | `/me` (auth) | `{ listened: [{ artist, key, plays }], unexplored: GraphNeighbor[] & { from }, newUser }` |
 
 `GraphNeighbor = { artist, key, weight, kinds: { colisten?, feat?, similar? }, listened? }` — `listened` есть, если запрос с токеном.
-`colisten` — число аккаунтов, слушающих обоих (ребро есть только если таких ≥ `GRAPH_MIN_USERS`, по умолчанию 3; данные обезличены). `feat` — совместные кредиты. `similar` — fallback по данным провайдеров (для новых пользователей и редких артистов).
+`colisten` — сколько аккаунтов слушают обоих, `feat` — совместные кредиты из истории; оба ребра есть только при ≥ `GRAPH_MIN_USERS` (по умолчанию 3) разных аккаунтах. Значения в `kinds` огрублены до степени двойки (это сила связи, а не точный счётчик); артисты ниже порога не показываются. Граф пересобирается в фоне раз в 30 минут (окно истории 90 дней), сразу после старта сервера он может быть пустым. `similar` — fallback по данным провайдеров (для новых пользователей и редких артистов).
 «Радио по пути»: `queries` — упорядоченные поисковые запросы; с `tracks=1` сервер сам ищет до 2 треков на запрос у `provider` (`reason: "По пути: <артист>"`). Если путь не найден, `found=false`, `nodes=[from, to]`.
 
 ## 3. Страницы артистов 2.0 — `/api/v1/artists`
 
 | Метод | Путь | Ответ |
 |---|---|---|
-| GET | `/overview?name=&provider=soundcloud` | см. ниже (токен необязателен, нужен для `following`) |
+| GET | `/overview?name=&provider=soundcloud` | см. ниже (токен необязателен, нужен для `following`; 10/мин с IP; ответ кэшируется на 30 мин) |
 | GET | `/follows` (auth) | `{ follows: [{ artist, key, followedAt, seenAt }] }` |
 | PUT | `/follows` (auth) `{ artist }` | `{ follow }` (лимит 500) |
 | DELETE | `/follows?artist=` (auth) | 204 |
@@ -80,12 +80,12 @@ overview = {
   following: boolean
 }
 ```
-Непрочитанными считаются релизы, вышедшие не раньше дня подписки и ещё не отмеченные `seen`.
+Релиз относится к артисту при точном совпадении одного из исполнителей в кредите. Непрочитанными считаются релизы, вышедшие не раньше дня подписки и ещё не отмеченные `seen`.
 
 ## 4. Сет-листы — `GET /api/v1/setlists?artist=&limit=5`
 
 `{ available: boolean, setlists: Setlist[] }`, `Setlist = { id, eventDate (YYYY-MM-DD), venue, city, country, tour, url, tracks: [{ title, query, cover, tape }] }`.
-`query` — готовая строка для `/catalog/search` (для каверов — с исполнителем оригинала). Без `SETLISTFM_API_KEY` → `available: false`.
+`query` — готовая строка для `/catalog/search` (для каверов — с исполнителем оригинала). Без `SETLISTFM_API_KEY` → `available: false` (ответ с `cache-control: no-store`).
 
 ## 5. Совместные плейлисты — `/api/v1/collab-playlists` (auth)
 
@@ -107,7 +107,7 @@ overview = {
 
 `Entry = { entryId, track, position, addedBy, addedAt }`.
 `HistoryEntry = { id, userId, action: "add"|"remove"|"rename", entryId, track, position, oldName, newName, revertOf, revertedBy, createdAt }`.
-Откат применяет обратное действие и пишет его новой записью (`revertOf`); у исходной появляется `revertedBy`. Поле `version` растёт при каждом изменении — удобно для опроса.
+При удалении из друзей или блокировке участники удаляются из плейлистов друг друга. Откат применяет обратное действие и пишет его новой записью (`revertOf`); у исходной появляется `revertedBy`. Поле `version` растёт при каждом изменении — удобно для опроса.
 
 ## 6. Умная чистка медиатеки — `POST /api/v1/library/cleanup` (auth)
 

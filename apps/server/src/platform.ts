@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import express from "express";
 import { z } from "zod";
-import { clientKey, handle, parse, RateGate, requireUser, type Authenticate } from "./api-helpers.js";
+import { clientKey, handle, optionalUser, parse, RateGate, requireUser, type Authenticate } from "./api-helpers.js";
 import type { ReleaseChannel, SocialStore } from "./social-store.js";
 
 export type ChangelogEntry = {
@@ -116,7 +116,7 @@ export function createPlatformRouter(
   const router = express.Router();
   const gate = new RateGate(120, 60_000);
   const channelOf = (request: express.Request) => {
-    const userId = authenticate(request);
+    const userId = optionalUser(authenticate, request);
     if (userId) return { userId, channel: social.channel(userId) };
     return { userId: undefined, channel: parse(channelSchema.default("stable"), request.query.channel, "Неизвестный канал") };
   };
@@ -141,7 +141,9 @@ export function createPlatformRouter(
 
   router.get("/channel", handle((request, response) => {
     response.setHeader("cache-control", "private, no-store");
-    return { channel: social.channel(requireUser(authenticate, request)) };
+    const userId = requireUser(authenticate, request);
+    gate.check(userId);
+    return { channel: social.channel(userId) };
   }));
 
   router.put("/channel", handle((request) => {

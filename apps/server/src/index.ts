@@ -726,12 +726,14 @@ const socialDb = openSqlite(
   process.env.SOCIAL_DB_PATH || join(dirname(process.env.AUTH_DB_PATH || "./data/resonance.sqlite"), "social.sqlite")
 );
 const socialStore = new SocialStore(socialDb);
-const collabPlaylists = new CollabPlaylistStore(socialDb);
+const collabPlaylists = new CollabPlaylistStore(socialDb, Date.now, (a, b) => socialStore.isBlockedEitherWay(a, b));
+socialStore.onRelationshipEnded((a, b) => collabPlaylists.removeSharedMemberships(a, b));
 const musicGraph = new MusicGraph({
   artistSets: () => accountStore.listeningArtistSets(),
   search: waveSearch,
   fallbackProviders: ["soundcloud", "yandex"]
 }, { minUsers: optionalNumber(process.env.GRAPH_MIN_USERS) ?? 3 });
+musicGraph.start();
 const setlists = SetlistService.fromEnvironment();
 app.use("/api/v1/social", createSocialRouter(
   new SocialService(socialStore, accountStore, dailyMixes, { live: liveRoomPresence, isMember: isRoomMember }),

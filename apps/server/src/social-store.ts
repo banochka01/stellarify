@@ -33,6 +33,13 @@ const handlePattern = /^[a-z0-9_.]{3,24}$/u;
  * Lives in its own SQLite file next to the account database.
  */
 export class SocialStore {
+  /** Called when two accounts stop being friends (unfriend or block), e.g. to drop shared playlists. */
+  readonly #endedListeners: Array<(a: string, b: string) => void> = [];
+
+  onRelationshipEnded(listener: (a: string, b: string) => void) {
+    this.#endedListeners.push(listener);
+  }
+
   constructor(private readonly db: DatabaseSync, private readonly now: () => number = Date.now) {
     db.exec(`
       CREATE TABLE IF NOT EXISTS social_profiles (
@@ -211,8 +218,8 @@ export class SocialStore {
   accept(userId: string, fromId: string): FriendRelation {
     const exists = this.db.prepare("SELECT 1 FROM social_requests WHERE from_id = ? AND to_id = ?").get(fromId, userId);
     if (!exists) throw new ApiError("REQUEST_NOT_FOUND", "Заявка не найдена", 404);
-    const friends = this.db.prepare("SELECT COUNT(*) AS count FROM social_friends WHERE user_id = ?").get(userId) as { count: number };
-    if (Number(friends.count) >= 1_000) throw new ApiError("FRIEND_LIMIT", "Достигнут лимит друзей", 409);
+    const count = (id: string) => Number((this.db.prepare("SELECT COUNT(*) AS count FROM social_friends WHERE user_id = ?").get(id) as { count: number }).count);
+    if (count(userId) >= 1_000 || count(fromId) >= 1_000) throw new ApiError("FRIEND_LIMIT", "Достигнут лимит друзей", 409);
     transaction(this.db, () => {
       this.db.prepare("DELETE FROM social_requests WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?)")
         .run(fromId, userId, userId, fromId);
@@ -232,6 +239,7 @@ export class SocialStore {
   removeFriend(userId: string, friendId: string) {
     this.db.prepare("DELETE FROM social_friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)")
       .run(userId, friendId, friendId, userId);
+    for (const listener of this.#endedListeners) listener(userId, friendId);
   }
 
   block(userId: string, targetId: string) {

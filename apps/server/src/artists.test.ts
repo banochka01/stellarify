@@ -4,7 +4,7 @@ import { openSqlite } from "./api-helpers.js";
 import { ArtistPageService, BandsintownConcerts, createArtistRouter } from "./artists.js";
 import type { Release } from "./releases.js";
 import { SocialStore } from "./social-store.js";
-import { headerAuth, serveRouter } from "./test-http.js";
+import { headerAuth, serveRouter, strictHeaderAuth } from "./test-http.js";
 
 const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
 
@@ -48,6 +48,44 @@ test("artist overview aggregates tracks, releases, clips and degrades without ke
     assert.equal((await api.call("POST", "/releases/seen", "u1", { artist: "Queen" })).status, 404);
     assert.equal((await api.call("DELETE", "/follows?artist=Muse", "u1")).status, 204);
     assert.deepEqual((await api.call("GET", "/follows", "u1")).body.follows, []);
+  } finally {
+    await api.close();
+  }
+});
+
+test("overview is cached per (artist, provider), strictly limited, exact artist matching, expired token = anonymous", async () => {
+  const social = new SocialStore(openSqlite(":memory:"));
+  let searches = 0;
+  const releases: Release[] = [
+    { id: "x1", provider: "spotify", title: "Other band", artist: "Museum Tapes", releaseDate: day(0), kind: "single", externalUrl: "https://open.spotify.com/album/x" },
+    { id: "x2", provider: "spotify", title: "Collab", artist: "Someone, Muse", releaseDate: day(0), kind: "single", externalUrl: "https://open.spotify.com/album/y" }
+  ];
+  const service = new ArtistPageService({
+    search: async () => {
+      searches += 1;
+      return [
+        { id: "t1", title: "Hit", artist: "Muse", externalUrl: "https://e/1" },
+        { id: "t2", title: "Not theirs", artist: "Museum Tapes", externalUrl: "https://e/2" }
+      ];
+    },
+    releases: { available: true, feed: async () => ({ available: true, releases }) },
+    social
+  });
+  const api = await serveRouter("/api/v1/artists", createArtistRouter(service, social, strictHeaderAuth));
+  try {
+    const first = await api.call("GET", "/overview?name=Muse", "bad");
+    assert.equal(first.status, 200, "expired token degrades to anonymous");
+    assert.deepEqual(first.body.topTracks.map((track: { id: string }) => track.id), ["t1"]);
+    await api.call("GET", "/overview?name=muse");
+    assert.equal(searches, 1, "second request served from cache");
+    await api.call("GET", "/overview?name=Muse&provider=yandex");
+    assert.equal(searches, 2, "provider is part of the cache key");
+    for (let index = 0; index < 7; index += 1) await api.call("GET", "/overview?name=Muse");
+    assert.equal((await api.call("GET", "/overview?name=Muse")).status, 429);
+
+    social.follow("u1", "Muse");
+    const unread = await service.unread("u1");
+    assert.deepEqual(unread.releases.map((release) => release.id), ["x2"], "Museum Tapes is not Muse");
   } finally {
     await api.close();
   }

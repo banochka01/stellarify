@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { openSqlite } from "./api-helpers.js";
 import { applyFlagOverrides, createPlatformRouter, defaultFeatureFlags, enabledFlags } from "./platform.js";
 import { SocialStore } from "./social-store.js";
-import { headerAuth, serveRouter } from "./test-http.js";
+import { headerAuth, serveRouter, strictHeaderAuth } from "./test-http.js";
 
 test("flags depend on channel, env requirements, overrides and rollout", () => {
   const flags = defaultFeatureFlags({});
@@ -24,6 +24,21 @@ test("flags depend on channel, env requirements, overrides and rollout", () => {
   const share = users.filter((user) => enabledFlags(half, "beta", user).includes("social.blend")).length;
   assert.ok(share > 60 && share < 140, String(share));
   assert.equal(enabledFlags(half, "beta", "user-1").includes("social.blend"), enabledFlags(half, "beta", "user-1").includes("social.blend"));
+});
+
+test("expired token on public endpoints is anonymous; GET /channel is rate limited", async () => {
+  const api = await serveRouter("/api/v1", createPlatformRouter(new SocialStore(openSqlite(":memory:")), strictHeaderAuth, defaultFeatureFlags({})));
+  try {
+    const features = await api.call("GET", "/features?channel=beta", "bad");
+    assert.equal(features.status, 200);
+    assert.equal(features.body.channel, "beta");
+    assert.equal((await api.call("GET", "/channel", "bad")).status, 401);
+    let limited = false;
+    for (let index = 0; index < 125 && !limited; index += 1) limited = (await api.call("GET", "/channel", "u9")).status === 429;
+    assert.ok(limited);
+  } finally {
+    await api.close();
+  }
 });
 
 test("changelog, features and account channel", async () => {

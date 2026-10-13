@@ -15,6 +15,21 @@ export class ApiError extends Error {
 /** Resolves the Resonance account behind a request; throws on a bad token, `undefined` for guests. */
 export type Authenticate = (request: express.Request) => string | undefined;
 
+/** Public endpoints: an expired or broken token degrades to anonymous access instead of 401. */
+export function optionalUser(authenticate: Authenticate, request: express.Request) {
+  try { return authenticate(request); } catch { return undefined; }
+}
+
+/** Upper bound of outbound provider calls one request may make. */
+export class CallBudget {
+  constructor(public remaining: number) {}
+  take(count = 1) {
+    if (this.remaining < count) return false;
+    this.remaining -= count;
+    return true;
+  }
+}
+
 type Handler = (request: express.Request, response: express.Response) => unknown;
 
 export function handle(fn: Handler) {
@@ -82,6 +97,7 @@ export class TtlCache<T> {
     const running = this.#pending.get(key);
     if (running) return running;
     const task = load().then((value) => {
+      if (this.#values.size >= this.maxEntries) this.#sweep();
       if (this.#values.size >= this.maxEntries) this.#values.delete(this.#values.keys().next().value!);
       this.#values.set(key, { expiresAt: this.now() + this.ttlMs, value });
       return value;
@@ -90,8 +106,21 @@ export class TtlCache<T> {
     return task;
   }
 
+  /** Fresh value without loading, if any. */
+  peek(key: string): T | undefined {
+    const hit = this.#values.get(key);
+    return hit && hit.expiresAt > this.now() ? hit.value : undefined;
+  }
+
+  get size() { return this.#values.size; }
+
   clear() {
     this.#values.clear();
+  }
+
+  #sweep() {
+    const now = this.now();
+    for (const [key, entry] of this.#values) if (entry.expiresAt <= now) this.#values.delete(key);
   }
 }
 

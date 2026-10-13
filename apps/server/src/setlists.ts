@@ -100,8 +100,10 @@ export function createSetlistRouter(service: SetlistService) {
       artist: z.string().trim().min(1).max(200),
       limit: z.coerce.number().int().min(1).max(20).default(5)
     }), request.query, "Укажите артиста");
-    response.setHeader("cache-control", "public, max-age=3600");
-    return service.recent(query.artist, query.limit);
+    const result = await service.recent(query.artist, query.limit);
+    // Only cache real answers; "unavailable" must not stick in shared caches after a key is added.
+    response.setHeader("cache-control", result.available ? "public, max-age=3600" : "no-store");
+    return result;
   }));
   return router;
 }

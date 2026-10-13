@@ -38,3 +38,15 @@ test("setlist.fm responses become search queries, cached", async () => {
   await service.recent("muse");
   assert.equal(calls, 1);
 });
+
+test("cache-control is public only for real answers", async () => {
+  const off = await serveRouter("/s", createSetlistRouter(new SetlistService("")));
+  const on = await serveRouter("/s", createSetlistRouter(new SetlistService("key", (async () => new Response(JSON.stringify({ setlist: [] }))) as typeof fetch)));
+  try {
+    assert.equal((await off.call("GET", "/?artist=Muse")).headers.get("cache-control"), "no-store");
+    assert.equal((await on.call("GET", "/?artist=Muse")).headers.get("cache-control"), "public, max-age=3600");
+  } finally {
+    await off.close();
+    await on.close();
+  }
+});

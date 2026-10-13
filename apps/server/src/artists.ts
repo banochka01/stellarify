@@ -1,8 +1,9 @@
 import express from "express";
 import { z } from "zod";
-import { ApiError, clientKey, handle, parse, RateGate, requireUser, TtlCache, type Authenticate } from "./api-helpers.js";
+import { ApiError, CallBudget, clientKey, handle, optionalUser, parse, RateGate, requireUser, TtlCache, type Authenticate } from "./api-helpers.js";
 import type { Clip } from "./clips.js";
-import type { MusicGraph } from "./graph.js";
+import { artistKey, type GraphNeighbor, type MusicGraph } from "./graph.js";
+import { splitArtists } from "./track-matcher.js";
 import type { ProviderAccess, ProviderTrack } from "./provider-gateway.js";
 import { releaseTime, type Release } from "./releases.js";
 import type { SetlistService } from "./setlists.js";
@@ -72,25 +73,50 @@ export interface ArtistPageDeps {
   social: SocialStore;
 }
 
+export type ArtistOverview = {
+  artist: string;
+  provider: WaveProviderName;
+  topTracks: Array<ProviderTrack & { provider: WaveProviderName }>;
+  releases: { available: boolean; items: Release[] };
+  clips: Clip[];
+  concerts: { available: boolean; items: Concert[] };
+  setlists: { available: boolean; setlists: import("./setlists.js").Setlist[] };
+  similar: GraphNeighbor[];
+  following: boolean;
+};
+
 const settle = async <T>(task: Promise<T>, fallback: T) => {
   try { return await task; } catch { return fallback; }
 };
 
 /** «Страница артиста 2.0»: one aggregated request instead of five from the client. */
 export class ArtistPageService {
-  constructor(private readonly deps: ArtistPageDeps) {}
+  readonly #overviews: TtlCache<Omit<ArtistOverview, "following">>;
 
-  async overview(artist: string, options: { userId?: string; provider: WaveProviderName; access?: ProviderAccess }) {
+  constructor(private readonly deps: ArtistPageDeps, now: () => number = Date.now) {
+    this.#overviews = new TtlCache(30 * 60_000, 1_000, now);
+  }
+
+  /**
+   * Whole overview is cached by (artist, provider) for 30 minutes; only
+   * `following` is per-user. One miss costs at most ~10 provider calls.
+   */
+  async overview(artist: string, options: { userId?: string; provider: WaveProviderName; access?: ProviderAccess }): Promise<ArtistOverview> {
     const name = artist.trim();
-    const key = normalize(name);
+    const base = await this.#overviews.get(`${options.provider}:${normalize(name)}`, () => this.#compose(name, options));
+    return { ...base, following: options.userId ? this.deps.social.isFollowing(options.userId, name) : false };
+  }
+
+  async #compose(name: string, options: { provider: WaveProviderName; access?: ProviderAccess }) {
+    const key = artistKey(name);
     const topTracks = await settle(this.deps.search(options.provider, name, 15, options.access), [] as ProviderTrack[]);
-    const own = topTracks.filter((track) => normalize(track.artist).includes(key)).slice(0, 10);
+    const own = topTracks.filter((track) => splitArtists(track.artist).includes(key)).slice(0, 10);
     const [releases, clips, concerts, setlists, similar] = await Promise.all([
       settle(this.deps.releases.feed([name], 365), { available: this.deps.releases.available, releases: [] as Release[] }),
       this.#clips(name, own),
       settle(this.deps.concerts?.upcoming(name) ?? Promise.resolve([]), [] as Concert[]),
       settle(this.deps.setlists?.recent(name, 3) ?? Promise.resolve({ available: false, setlists: [] }), { available: false, setlists: [] }),
-      settle(this.deps.graph?.neighbors(name, { limit: 10 }).then((result) => result.neighbors) ?? Promise.resolve([]), [])
+      settle(this.deps.graph?.neighbors(name, { limit: 10, budget: new CallBudget(4) }).then((result) => result.neighbors) ?? Promise.resolve([]), [])
     ]);
     return {
       artist: name,
@@ -100,14 +126,13 @@ export class ArtistPageService {
       clips,
       concerts: { available: this.deps.concerts?.available ?? false, items: concerts },
       setlists,
-      similar,
-      following: options.userId ? this.deps.social.isFollowing(options.userId, name) : false
+      similar
     };
   }
 
   async #clips(artist: string, tracks: ProviderTrack[]) {
     if (!this.deps.clips) return [];
-    const found = await Promise.all(tracks.slice(0, 3).map((track) => settle(this.deps.clips!.find(track.title, artist), [] as Clip[])));
+    const found = await Promise.all(tracks.slice(0, 2).map((track) => settle(this.deps.clips!.find(track.title, artist), [] as Clip[])));
     const seen = new Set<string>();
     return found.flat().filter((clip) => {
       const id = String((clip as { id?: unknown }).id ?? JSON.stringify(clip));
@@ -126,8 +151,9 @@ export class ArtistPageService {
     const feed = await this.deps.releases.feed(follows.map((follow) => follow.artist), 60);
     const seen = this.deps.social.seenReleaseIds(userId);
     const releases = feed.releases.flatMap((release) => {
-      const artist = normalize(release.artist);
-      const follow = follows.find((entry) => artist.includes(entry.key));
+      // Exact credit match: following "Muse" must not match "Museum Tapes".
+      const credits = splitArtists(release.artist);
+      const follow = follows.find((entry) => credits.includes(artistKey(entry.artist)));
       if (!follow || seen.has(release.id)) return [];
       // Only releases dated on or after the day the artist was followed count as new.
       const followedDay = Math.floor(Date.parse(follow.followedAt) / 86_400_000) * 86_400_000;
@@ -157,6 +183,7 @@ export function createArtistRouter(
 ) {
   const router = express.Router();
   const gate = new RateGate(60, 60_000);
+  const overviewGate = new RateGate(10, 60_000);
   router.use((request, response, next) => {
     response.setHeader("cache-control", "private, no-store");
     try {
@@ -172,8 +199,9 @@ export function createArtistRouter(
       name: artistSchema,
       provider: z.enum(["soundcloud", "yandex", "spotify", "vk"]).default("soundcloud")
     }), request.query, "Укажите артиста");
+    overviewGate.check(clientKey(request));
     return service.overview(query.name, {
-      userId: authenticate(request),
+      userId: optionalUser(authenticate, request),
       provider: query.provider,
       access: access(request)[query.provider]
     });

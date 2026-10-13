@@ -1,7 +1,7 @@
 import express from "express";
 import { z } from "zod";
 import type { WaveBlock, WaveTasteSignals } from "./account-store.js";
-import { ApiError, handle, parse, RateGate, requireUser, type Authenticate } from "./api-helpers.js";
+import { ApiError, handle, parse, RateGate, requireUser, TtlCache, type Authenticate } from "./api-helpers.js";
 import type { DailyMixesResult, DailyMixInput } from "./daily-mixes.js";
 import type { LiveRoomPresence } from "./rooms.js";
 import { publicProfile, type SocialStore } from "./social-store.js";
@@ -12,6 +12,8 @@ import type { WaveAccess, WaveProviderName } from "./wave.js";
 export interface TasteSource {
   getWaveTasteSignals(userId: string): WaveTasteSignals;
   getWaveBlocks(userId: string): WaveBlock[];
+  /** One query for many accounts (friends feed). */
+  recentListening(userIds: string[], since: number, perUser?: number): Map<string, Array<{ title: string; artist: string; createdAt: string }>>;
 }
 
 export interface BlendBuilder {
@@ -94,32 +96,61 @@ type NowPlaying = { title: string; artist: string; provider?: string; trackId?: 
 const NOW_PLAYING_TTL = 10 * 60_000;
 const RECENT_WINDOW = 3 * 24 * 60 * 60_000;
 
+type FeedResult = { items: Array<{
+  friend: ReturnType<typeof publicProfile>;
+  nowPlaying: { title: string; artist: string; at: string } | null;
+  recent: Array<{ title: string; artist: string; at: string }>;
+  room: { code: string | null; isPrivate: boolean; participants: number; track: { title: string; artist: string } | null } | null;
+}> };
+
 export class SocialService {
   readonly #nowPlaying = new Map<string, NowPlaying>();
+  readonly #feedCache: TtlCache<FeedResult>;
+  readonly #maxNowPlaying: number;
+  #timer?: NodeJS.Timeout;
 
   constructor(
     readonly store: SocialStore,
     private readonly taste: TasteSource,
     private readonly mixes: BlendBuilder,
     private readonly rooms: RoomPresenceSource,
-    private readonly now: () => number = Date.now
-  ) {}
-
-  setNowPlaying(userId: string, track: Omit<NowPlaying, "at"> | null) {
-    if (!track) this.#nowPlaying.delete(userId);
-    else {
-      if (this.#nowPlaying.size >= 50_000) this.#sweep();
-      this.#nowPlaying.set(userId, { ...track, at: this.now() });
-    }
+    private readonly now: () => number = Date.now,
+    options: { maxNowPlaying?: number; feedCacheMs?: number } = {}
+  ) {
+    this.#maxNowPlaying = options.maxNowPlaying ?? 50_000;
+    this.#feedCache = new TtlCache(options.feedCacheMs ?? 20_000, 5_000, now);
+    this.#timer = setInterval(() => this.#sweep(), 60_000);
+    this.#timer.unref?.();
   }
 
-  /** «Что слушают друзья»: only friends who opted in to sharing listening and/or rooms. */
-  feed(userId: string) {
+  stop() {
+    if (this.#timer) clearInterval(this.#timer);
+    this.#timer = undefined;
+  }
+
+  get nowPlayingSize() { return this.#nowPlaying.size; }
+
+  setNowPlaying(userId: string, track: Omit<NowPlaying, "at"> | null) {
+    this.#nowPlaying.delete(userId);
+    if (!track) return;
+    if (this.#nowPlaying.size >= this.#maxNowPlaying) this.#sweep();
+    // Hard cap: evict the oldest entries (Map keeps insertion order; updates re-insert at the end).
+    while (this.#nowPlaying.size >= this.#maxNowPlaying) this.#nowPlaying.delete(this.#nowPlaying.keys().next().value!);
+    this.#nowPlaying.set(userId, { ...track, at: this.now() });
+  }
+
+  /** «Что слушают друзья»: cached briefly per viewer. */
+  feed(userId: string): Promise<FeedResult> {
+    return this.#feedCache.get(userId, async () => this.#buildFeed(userId));
+  }
+
+  #buildFeed(userId: string): FeedResult {
     const friends = this.store.friendIds(userId).slice(0, 300).map((id) => this.store.profile(id));
     const listening = friends.filter((friend) => friend.shareListening);
     const roomSharers = friends.filter((friend) => friend.shareRooms);
     const presence = this.rooms.live(roomSharers.map((friend) => friend.userId));
     const now = this.now();
+    const history = this.taste.recentListening(listening.map((friend) => friend.userId), now - RECENT_WINDOW, 5);
     const items = friends.filter((friend) => friend.shareListening || friend.shareRooms).map((friend) => {
       let nowPlaying: { title: string; artist: string; at: string } | null = null;
       let recent: Array<{ title: string; artist: string; at: string }> = [];
@@ -128,16 +159,7 @@ export class SocialService {
         if (live && now - live.at < NOW_PLAYING_TTL) {
           nowPlaying = { title: live.title, artist: live.artist, at: new Date(live.at).toISOString() };
         }
-        const seen = new Set<string>();
-        recent = this.taste.getWaveTasteSignals(friend.userId).listening
-          .filter((item) => item.type !== "skipped" && item.type !== "disliked" && now - Date.parse(item.createdAt) < RECENT_WINDOW)
-          .filter((item) => {
-            const key = `${item.artist}::${item.title}`.toLowerCase();
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          })
-          .slice(0, 5)
+        recent = (history.get(friend.userId) ?? [])
           .map((item) => ({ title: item.title, artist: item.artist, at: item.createdAt }));
         if (!nowPlaying && recent[0] && now - Date.parse(recent[0].at) < NOW_PLAYING_TTL) nowPlaying = recent[0];
       }
@@ -165,17 +187,24 @@ export class SocialService {
     };
   }
 
-  compatibility(userId: string, friendId: string) {
+  /** A friend who does not share listening reveals only the percentage, never artists. */
+  compatibility(userId: string, friendId: string): Compatibility {
     this.#requireFriend(userId, friendId);
-    return compatibility(
+    const result = compatibility(
       artistWeights(this.taste.getWaveTasteSignals(userId)),
       artistWeights(this.taste.getWaveTasteSignals(friendId))
     );
+    if (this.store.profile(friendId).shareListening) return result;
+    return { percent: result.percent, enoughData: result.enoughData, sharedArtists: [], sharedGenres: [] };
   }
 
   /** Blend: a shared daily mix built on top of DailyMixService from both tastes. */
   async blend(userId: string, friendId: string, options: { enabledProviders: WaveProviderName[]; tzOffsetMinutes: number }, access: WaveAccess) {
     this.#requireFriend(userId, friendId);
+    // A Blend exposes the friend's top artists through its seeds and tracks.
+    if (!this.store.profile(friendId).shareListening) {
+      throw new ApiError("FRIEND_PRIVATE", "Друг скрыл свои прослушивания", 403);
+    }
     const mine = artistWeights(this.taste.getWaveTasteSignals(userId));
     const theirs = artistWeights(this.taste.getWaveTasteSignals(friendId));
     const match = compatibility(mine, theirs);
@@ -186,7 +215,8 @@ export class SocialService {
       if (a[index]) interleaved.push(a[index]!);
       if (b[index]) interleaved.push(b[index]!);
     }
-    const blocks = [...this.taste.getWaveBlocks(userId), ...this.taste.getWaveBlocks(friendId)].filter((block) => !block.removed);
+    // Only the requester's own exclusions: the friend's block list is private.
+    const blocks = this.taste.getWaveBlocks(userId).filter((block) => !block.removed);
     const owner = `blend:${[userId, friendId].sort().join(":")}`;
     const result = await this.mixes.build(owner, {
       favoriteArtists: interleaved,
@@ -251,6 +281,7 @@ export function createSocialRouter(
   const writes = new RateGate(60, 60_000);
   const reads = new RateGate(240, 60_000);
   const blends = new RateGate(10, 60_000);
+  const handles = new RateGate(5, 60 * 60_000);
   const store = service.store;
 
   router.use((request, response, next) => {
@@ -268,8 +299,11 @@ export function createSocialRouter(
   const me = (response: express.Response) => response.locals.userId as string;
 
   router.get("/profile", handle((_request, response) => ({ profile: store.profile(me(response)) })));
-  router.patch("/profile", handle((request, response) =>
-    ({ profile: store.updateProfile(me(response), parse(profilePatch, request.body, "Некорректные данные профиля")) })));
+  router.patch("/profile", handle((request, response) => {
+    const patch = parse(profilePatch, request.body, "Некорректные данные профиля");
+    if (patch.handle !== undefined && patch.handle !== store.profile(me(response)).handle) handles.check(me(response));
+    return { profile: store.updateProfile(me(response), patch) };
+  }));
   router.post("/profile/invite", handle((_request, response) => ({ profile: store.rotateInvite(me(response)) })));
 
   router.get("/users/search", handle((request, response) => {
@@ -316,7 +350,7 @@ export function createSocialRouter(
     service.setNowPlaying(me(response), null);
     response.status(204).end();
   }));
-  router.get("/feed", handle((_request, response) => service.feed(me(response))));
+  router.get("/feed", handle(async (_request, response) => service.feed(me(response))));
   router.get("/compatibility/:userId", handle((request, response) =>
     ({ compatibility: service.compatibility(me(response), parse(userIdParam, request.params.userId)) })));
   router.post("/blend/:userId", handle(async (request, response) => {

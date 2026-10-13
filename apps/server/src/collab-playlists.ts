@@ -29,7 +29,13 @@ const MAX_HISTORY = 1_000;
  * (who added/removed/renamed what) and one-step revert of any history entry.
  */
 export class CollabPlaylistStore {
-  constructor(private readonly db: DatabaseSync, private readonly now: () => number = Date.now) {
+  constructor(
+    private readonly db: DatabaseSync,
+    private readonly now: () => number = Date.now,
+    /** Blocked accounts lose access to each other's playlists. */
+    private readonly isBlocked: (a: string, b: string) => boolean = () => false,
+    private readonly maxTracks = MAX_TRACKS
+  ) {
     db.exec(`
       CREATE TABLE IF NOT EXISTS collab_playlists (
         id TEXT PRIMARY KEY,
@@ -84,10 +90,20 @@ export class CollabPlaylistStore {
     return this.get(id, ownerId);
   }
 
+  /** Unfriend/block: drop each side from the other's playlists. */
+  removeSharedMemberships(a: string, b: string) {
+    this.db.prepare(`
+      DELETE FROM collab_members WHERE
+        (user_id = ? AND playlist_id IN (SELECT id FROM collab_playlists WHERE owner_id = ?)) OR
+        (user_id = ? AND playlist_id IN (SELECT id FROM collab_playlists WHERE owner_id = ?))
+    `).run(b, a, a, b);
+  }
+
   role(playlistId: string, userId: string): CollabRole | undefined {
     const playlist = this.db.prepare("SELECT owner_id FROM collab_playlists WHERE id = ?").get(playlistId) as { owner_id: string } | undefined;
     if (!playlist) return undefined;
     if (playlist.owner_id === userId) return "owner";
+    if (this.isBlocked(playlist.owner_id, userId)) return undefined;
     const member = this.db.prepare("SELECT role FROM collab_members WHERE playlist_id = ? AND user_id = ?").get(playlistId, userId) as { role: string } | undefined;
     return member ? (member.role === "editor" ? "editor" : "viewer") : undefined;
   }
@@ -104,17 +120,20 @@ export class CollabPlaylistStore {
   list(userId: string) {
     return (this.db.prepare(`
       SELECT p.id, p.name, p.owner_id, p.updated_at,
+        CASE WHEN p.owner_id = ? THEN 'owner'
+          ELSE (SELECT m.role FROM collab_members m WHERE m.playlist_id = p.id AND m.user_id = ?) END AS role,
         (SELECT COUNT(*) FROM collab_tracks t WHERE t.playlist_id = p.id) AS track_count,
         (SELECT COUNT(*) FROM collab_members m WHERE m.playlist_id = p.id) AS member_count
       FROM collab_playlists p
       WHERE p.owner_id = ? OR p.id IN (SELECT playlist_id FROM collab_members WHERE user_id = ?)
       ORDER BY p.updated_at DESC
-    `).all(userId, userId) as Array<{ id: string; name: string; owner_id: string; updated_at: number; track_count: number; member_count: number }>)
+    `).all(userId, userId, userId, userId) as Array<{ id: string; name: string; owner_id: string; role: string; updated_at: number; track_count: number; member_count: number }>)
+      .filter((row) => row.role === "owner" || !this.isBlocked(row.owner_id, userId))
       .map((row) => ({
         id: row.id,
         name: row.name,
         ownerId: row.owner_id,
-        role: this.role(row.id, userId)!,
+        role: (row.role === "owner" ? "owner" : row.role === "editor" ? "editor" : "viewer") as CollabRole,
         trackCount: Number(row.track_count),
         memberCount: Number(row.member_count) + 1,
         updatedAt: new Date(row.updated_at).toISOString()
@@ -174,7 +193,7 @@ export class CollabPlaylistStore {
     this.#require(playlistId, userId, "editor");
     return transaction(this.db, () => {
       const count = this.db.prepare("SELECT COUNT(*) AS count, MAX(position) AS last FROM collab_tracks WHERE playlist_id = ?").get(playlistId) as { count: number; last: number | null };
-      if (Number(count.count) >= MAX_TRACKS) throw new ApiError("COLLAB_LIMIT", "В плейлисте слишком много треков", 409);
+      if (Number(count.count) >= this.maxTracks) throw new ApiError("COLLAB_LIMIT", "В плейлисте слишком много треков", 409);
       const entryId = randomUUID();
       const at = position ?? (count.last === null ? 0 : Number(count.last) + 1);
       this.#insertTrack(playlistId, entryId, track, at, userId);
@@ -229,6 +248,8 @@ export class CollabPlaylistStore {
         inverse = this.#history(playlistId, userId, { action: "remove", entryId: entry.entryId, track: current.track, position: current.position, revertOf: entry.id });
       } else if (entry.action === "remove") {
         if (this.#entry(playlistId, entry.entryId!)) throw new ApiError("CONFLICT", "Трек уже в плейлисте", 409);
+        const count = this.db.prepare("SELECT COUNT(*) AS count FROM collab_tracks WHERE playlist_id = ?").get(playlistId) as { count: number };
+        if (Number(count.count) >= this.maxTracks) throw new ApiError("COLLAB_LIMIT", "В плейлисте слишком много треков", 409);
         this.#insertTrack(playlistId, entry.entryId!, entry.track ?? {}, entry.position ?? 0, userId);
         inverse = this.#history(playlistId, userId, { action: "add", entryId: entry.entryId, track: entry.track, position: entry.position, revertOf: entry.id });
       } else {
