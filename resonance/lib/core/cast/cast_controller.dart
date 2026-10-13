@@ -133,6 +133,13 @@ String castContentType(ResolvedAudioSource audio) {
 
 /// Активное подключение к устройству.
 abstract interface class CastLink {
+  /// Трек доиграл на устройстве. DLNA этого не сообщает — поток пустой,
+  /// и очередь там продолжается только из приложения.
+  Stream<void> get finished;
+
+  /// Сообщает ли приёмник об окончании трека.
+  bool get reportsFinish;
+
   Future<void> load(CastMedia media);
   Future<void> play();
   Future<void> pause();
@@ -157,7 +164,15 @@ abstract interface class CastPlayback {
   ResonancePlaybackState get state;
   Stream<ResonancePlaybackState> get states;
   Future<void> pause();
+  Future<void> next();
+
+  /// Перерезолвит поток текущего трека, если его ссылка скоро истечёт.
+  Future<void> refreshExpiringSource();
 }
+
+/// Подменяет адрес потока на тот, что можно отдать в локальную сеть
+/// (короткоживущий cast-тикет сервера).
+typedef CastUrlIssuer = Future<Uri> Function(Uri streamUrl);
 
 final class CastState {
   const CastState({
@@ -206,8 +221,13 @@ final class CastState {
 }
 
 final class CastController extends StateNotifier<CastState> {
-  CastController(this._backends, this._playback)
-    : super(CastState(available: _backends.isNotEmpty));
+  CastController(this._backends, this._playback, {CastUrlIssuer? castUrl})
+    // ignore: prefer_initializing_formals
+    : _castUrl = castUrl,
+      super(CastState(available: _backends.isNotEmpty));
+
+  final CastUrlIssuer? _castUrl;
+  StreamSubscription<void>? _finishedWatch;
 
   final List<CastBackend> _backends;
   final Future<CastPlayback> Function() _playback;
@@ -259,17 +279,19 @@ final class CastController extends StateNotifier<CastState> {
         .firstOrNull;
     if (backend == null) return;
     final playback = await _playback();
-    final castable = castableMedia(playback.state);
-    final media = castable.media;
-    if (media == null) {
-      state = state.copyWith(message: castable.reason);
-      return;
-    }
     await disconnect();
     state = state.copyWith(connecting: true, clearMessage: true);
+    final media = await _prepare(playback, playback.state);
+    if (media == null) {
+      state = state.copyWith(connecting: false);
+      return;
+    }
     try {
       final link = await backend.connect(target);
       await link.load(media);
+      _finishedWatch = link.finished.listen(
+        (_) => unawaited(_onRemoteFinished(playback)),
+      );
       _link = link;
       _castTrackId = playback.state.currentTrack?.id;
       await playback.pause();
@@ -295,17 +317,69 @@ final class CastController extends StateNotifier<CastState> {
     if (link == null || id == null || id == _castTrackId) return;
     if (value.activeAudioSource == null) return;
     _castTrackId = id;
-    final media = castableMedia(value).media;
     if (value.playing) await playback.pause();
-    if (media == null) {
-      state = state.copyWith(message: castableMedia(value).reason);
-      return;
-    }
+    final media = await _prepare(playback, value);
+    if (media == null) return;
     try {
       await link.load(media.at(Duration.zero));
       state = state.copyWith(playing: true, clearMessage: true);
     } on Object {
       state = state.copyWith(message: 'Устройство не открыло следующий трек.');
+    }
+  }
+
+  /// Свежий поток (если ссылка истекает — перерезолв) и адрес, который
+  /// можно отдать устройству. `null` — передать нельзя (причина в state).
+  Future<CastMedia?> _prepare(
+    CastPlayback playback,
+    ResonancePlaybackState value,
+  ) async {
+    var current = value;
+    final audio = value.activeAudioSource;
+    if (audio != null &&
+        audio.isExpired(
+          DateTime.now().toUtc().add(const Duration(minutes: 2)),
+        )) {
+      try {
+        await playback.refreshExpiringSource();
+        current = playback.state;
+      } on Object {
+        state = state.copyWith(message: 'Ссылка на поток истекла.');
+        return null;
+      }
+    }
+    final castable = castableMedia(current);
+    final media = castable.media;
+    if (media == null) {
+      state = state.copyWith(message: castable.reason);
+      return null;
+    }
+    final issuer = _castUrl;
+    if (issuer == null) return media;
+    try {
+      final url = await issuer(media.url);
+      return CastMedia(
+        url: url,
+        title: media.title,
+        artist: media.artist,
+        contentType: media.contentType,
+        artworkUrl: media.artworkUrl,
+        start: media.start,
+      );
+    } on Object {
+      state = state.copyWith(message: 'Сервер не выдал ссылку для трансляции.');
+      return null;
+    }
+  }
+
+  /// Трек доиграл на устройстве — продолжаем очередь приложения;
+  /// [_followTrack] передаст следующий трек.
+  Future<void> _onRemoteFinished(CastPlayback playback) async {
+    if (_link == null) return;
+    try {
+      await playback.next();
+    } on Object {
+      state = state.copyWith(playing: false);
     }
   }
 
@@ -345,6 +419,8 @@ final class CastController extends StateNotifier<CastState> {
   Future<void> disconnect() async {
     await _trackWatch?.cancel();
     _trackWatch = null;
+    await _finishedWatch?.cancel();
+    _finishedWatch = null;
     final link = _link;
     _link = null;
     _castTrackId = null;

@@ -391,6 +391,30 @@ app.post("/api/v1/playback/resolve", async (request, response) => {
   }
 });
 
+const castTicketSchema = z.object({ streamUrl: z.string().trim().min(1).max(2_000) });
+const castTicketLimiter = new FixedWindowRateLimiter(60, 10 * 60_000);
+
+// Трансляция на Chromecast/DLNA: отдаём устройству в сети короткий тикет
+// на тот же поток, а не долгую ссылку клиента.
+app.post("/api/v1/playback/cast-ticket", (request, response) => {
+  if (!castTicketLimiter.allow(request.ip || "unknown")) {
+    response.status(429).json({ error: { code: "RATE_LIMITED", message: "Too many cast requests" } });
+    return;
+  }
+  const input = castTicketSchema.safeParse(request.body);
+  if (!input.success) {
+    response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Invalid cast request" } });
+    return;
+  }
+  try {
+    const ticket = soundCloudAudioRelay.issueCastTicket(input.data.streamUrl);
+    response.setHeader("cache-control", "no-store");
+    response.json({ streamUrl: absoluteRelayUrl(request, ticket.streamUrl), expiresAt: ticket.expiresAt });
+  } catch (error) {
+    sendGatewayError(response, error);
+  }
+});
+
 const waveRequestSchema = z.object({
   prompt: z.string().trim().max(500).optional(),
   seedQueries: z.array(z.string().trim().min(1).max(200)).max(20).default([]),

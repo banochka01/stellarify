@@ -83,6 +83,32 @@ export class SoundCloudAudioRelay {
     };
   }
 
+  /**
+   * Короткоживущий тикет для трансляции в локальную сеть: телевизор или
+   * колонка получают не 30-минутную ссылку клиента, а отдельную на тот же
+   * поток (тот же трек) на несколько минут — её хватает, чтобы приёмник
+   * открыл поток и дочитал его по Range-запросам с уже установленным
+   * соединением.
+   */
+  issueCastTicket(relayPath: string, ttlMs = 5 * 60_000): SoundCloudRelayTicket {
+    const parent = relayTicketFromPath(relayPath);
+    const entry = parent ? this.entries.get(parent) : undefined;
+    if (!parent || !entry || entry.expiresAt <= this.now()) {
+      throw relayNotFound();
+    }
+    this.prune();
+    const ticket = this.createTicket();
+    if (!ticketPattern.test(ticket) || ticket === parent) {
+      throw new Error("SoundCloud relay generated an invalid ticket");
+    }
+    const expiresAt = Math.min(entry.expiresAt, this.now() + Math.max(30_000, ttlMs));
+    this.entries.set(ticket, { streamUrl: entry.streamUrl, expiresAt });
+    return {
+      streamUrl: `${relayPathPrefix}${ticket}`,
+      expiresAt: new Date(expiresAt).toISOString()
+    };
+  }
+
   async open(
     ticket: string,
     method: "GET" | "HEAD",
@@ -162,6 +188,19 @@ export class SoundCloudAudioRelay {
       if (entry.expiresAt <= now) this.entries.delete(ticket);
     }
   }
+}
+
+/** Тикет из абсолютного или относительного адреса relay; иначе `undefined`. */
+export function relayTicketFromPath(value: string): string | undefined {
+  let path = value;
+  try {
+    path = new URL(value, "http://relay.invalid").pathname;
+  } catch {
+    return undefined;
+  }
+  if (!path.startsWith(relayPathPrefix)) return undefined;
+  const ticket = path.slice(relayPathPrefix.length);
+  return ticketPattern.test(ticket) ? ticket : undefined;
 }
 
 export function isSoundCloudRelayTicket(value: string) {

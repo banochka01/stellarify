@@ -75,7 +75,9 @@ final class DlnaBackend implements CastBackend {
   Future<CastLink> connect(CastTarget target) async {
     final device = _devices[target.id];
     if (device == null) throw StateError('Устройство пропало из сети');
-    return _DlnaLink(device);
+    // Свежий объект на каждое подключение: close() освобождает его
+    // поллер и потоки, а найденное устройство остаётся пригодным.
+    return _DlnaLink(DLNADevice(device.info));
   }
 }
 
@@ -83,6 +85,12 @@ final class _DlnaLink implements CastLink {
   _DlnaLink(this._device);
 
   final DLNADevice _device;
+
+  @override
+  Stream<void> get finished => const Stream.empty();
+
+  @override
+  bool get reportsFinish => false;
 
   @override
   Future<void> load(CastMedia media) async {
