@@ -15,17 +15,20 @@ export type ChangelogEntry = {
 /** Public changelog, newest first. Beta entries are only shown to the beta channel. */
 export const changelog: ChangelogEntry[] = [
   {
-    version: "5.0.0-beta.1",
+    version: "5.0.0",
     date: "2026-10-13",
-    channel: "beta",
-    title: "Resonance 5.0 — бета",
+    channel: "stable",
+    title: "Resonance 5.0 «Граф»",
     highlights: [
       "Друзья: профили, заявки, лента «что слушают друзья» и совместимость вкусов",
       "Blend — общий микс на двоих",
       "Музыкальный граф и «радио по пути» от одного артиста к другому",
       "Страницы артистов 2.0: релизы, клипы, концерты и сет-листы",
-      "Совместные плейлисты с историей правок и откатом",
-      "Умная чистка медиатеки: дубли и замены недоступных треков"
+      "Совместные плейлисты с историей правок и откатом, DJ-режим в комнатах",
+      "Умная чистка медиатеки: дубли и замены недоступных треков",
+      "Нормализация громкости, gapless, выбор качества и lossless",
+      "Трансляция на Chromecast и DLNA, распознавание трека",
+      "Android Auto, Wear OS, Android TV; новый дизайн приложения и сайта"
     ]
   },
   {
@@ -64,16 +67,16 @@ export function defaultFeatureFlags(env = process.env): FeatureFlag[] {
     { key: "social.profiles", description: "Профили и друзья", channels: ["stable", "beta"], rollout: 100 },
     { key: "social.feed", description: "Лента «что слушают друзья»", channels: ["stable", "beta"], rollout: 100 },
     { key: "social.compatibility", description: "Совместимость вкусов", channels: ["stable", "beta"], rollout: 100 },
-    { key: "social.blend", description: "Blend-микс на двоих", channels: ["beta"], rollout: 100 },
+    { key: "social.blend", description: "Blend-микс на двоих", channels: ["stable", "beta"], rollout: 100 },
     { key: "social.rooms", description: "Друзья в комнатах", channels: ["stable", "beta"], rollout: 100 },
     { key: "graph.explore", description: "Музыкальный граф", channels: ["stable", "beta"], rollout: 100 },
-    { key: "graph.pathRadio", description: "Радио по пути", channels: ["beta"], rollout: 100 },
+    { key: "graph.pathRadio", description: "Радио по пути", channels: ["stable", "beta"], rollout: 100 },
     { key: "artists.page2", description: "Страницы артистов 2.0", channels: ["stable", "beta"], rollout: 100 },
     { key: "artists.followReleases", description: "Следить за релизами", channels: ["stable", "beta"], rollout: 100 },
     { key: "artists.concerts", description: "Концерты", channels: ["stable", "beta"], rollout: 100, requires: () => Boolean(env.BANDSINTOWN_APP_ID?.trim()) },
     { key: "artists.setlists", description: "Сет-листы", channels: ["stable", "beta"], rollout: 100, requires: () => Boolean(env.SETLISTFM_API_KEY?.trim()) },
     { key: "playlists.collab", description: "Совместные плейлисты", channels: ["stable", "beta"], rollout: 100 },
-    { key: "library.cleanup", description: "Умная чистка медиатеки", channels: ["beta"], rollout: 100 }
+    { key: "library.cleanup", description: "Умная чистка медиатеки", channels: ["stable", "beta"], rollout: 100 }
   ];
 }
 

@@ -189,9 +189,9 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "4.0.0",
+    version: process.env.CLIENT_VERSION || "5.0.0",
     notes: process.env.CLIENT_RELEASE_NOTES ||
-      "Resonance 4.0: переезд всей медиатеки из Spotify, VK и Яндекса, умный офлайн, «Ваш день» и радио по треку, новые релизы, Комнаты 2.0 с чатом и реакциями, караоке-тексты, эквалайзер, трей и хоткеи на Windows, виджет на Android.",
+      "Resonance 5.0 «Граф»: друзья и совместимость вкусов, Blend на двоих, музыкальный граф и радио по пути, страницы артистов с концертами и сет-листами, совместные плейлисты, чистка медиатеки, нормализация громкости, gapless и lossless, трансляция на Chromecast и DLNA, Android Auto, Wear OS и Android TV, новый дизайн.",
     downloads: {
       windows: "https://music.webcordes.ru/downloads/windows",
       windowsPortable: "https://music.webcordes.ru/downloads/windows-portable",

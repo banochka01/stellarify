@@ -6,7 +6,8 @@ import { SocialStore } from "./social-store.js";
 import { headerAuth, serveRouter, strictHeaderAuth } from "./test-http.js";
 
 test("flags depend on channel, env requirements, overrides and rollout", () => {
-  const flags = defaultFeatureFlags({});
+  const flags = applyFlagOverrides(defaultFeatureFlags({}), "social.blend=beta");
+  assert.ok(enabledFlags(defaultFeatureFlags({}), "stable").includes("social.blend"), "5.0 ships Blend to stable");
   const stable = enabledFlags(flags, "stable");
   const beta = enabledFlags(flags, "beta");
   assert.ok(stable.includes("social.profiles"));
@@ -48,7 +49,7 @@ test("changelog, features and account channel", async () => {
     assert.equal(stable.status, 200);
     assert.ok(stable.body.entries.every((entry: { channel: string }) => entry.channel === "stable"));
     const beta = await api.call("GET", "/changelog?channel=beta");
-    assert.equal(beta.body.entries[0].channel, "beta");
+    assert.ok(beta.body.entries.length >= stable.body.entries.length);
     assert.equal((await api.call("GET", "/changelog?channel=nightly")).status, 400);
 
     assert.equal((await api.call("GET", "/features")).body.channel, "stable");
