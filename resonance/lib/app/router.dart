@@ -131,14 +131,14 @@ final resonanceRouter = GoRouter(
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path: '/changelog',
-              name: 'changelog',
-              builder: (context, state) => const ChangelogScreen(),
-            ),
-            GoRoute(
               path: '/settings',
               name: 'settings',
               builder: (context, state) => const SettingsScreen(),
+            ),
+            GoRoute(
+              path: '/changelog',
+              name: 'changelog',
+              builder: (context, state) => const ChangelogScreen(),
             ),
             GoRoute(
               path: '/storage',

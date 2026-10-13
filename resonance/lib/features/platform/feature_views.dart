@@ -33,6 +33,15 @@ class FeaturePage extends StatelessWidget {
       children: [
         Row(
           children: [
+            if (Navigator.of(context).canPop()) ...[
+              IconButton(
+                tooltip: 'Назад',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: const Icon(Icons.arrow_back_rounded),
+              ),
+              const SizedBox(width: 4),
+            ],
             Expanded(
               child: Text(
                 eyebrow,
