@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/database/app_database.dart';
 import 'package:resonance/core/networking/network_status.dart';
+import 'package:resonance/core/playback/stream_quality.dart';
 import 'package:resonance/core/preferences/offline_preferences.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
@@ -62,7 +63,14 @@ final effectiveQualityProvider = Provider<AudioQuality>((ref) {
       AudioQuality.high;
   final network =
       ref.watch(networkKindProvider).valueOrNull ?? NetworkKind.wifi;
-  return ref.watch(offlineSettingsProvider).qualityFor(network, wifi);
+  return resolveStreamQuality(
+    mode: ref.watch(
+      playbackFlowControllerProvider.select((flow) => flow.qualityMode),
+    ),
+    network: network,
+    wifiQuality: wifi,
+    mobileQuality: ref.watch(offlineSettingsProvider).mobileQuality,
+  );
 });
 
 /// Самые частые треки истории: по числу прослушиваний, при равенстве —

@@ -18,6 +18,7 @@ import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/features/auth/account_controller.dart';
 import 'package:resonance/features/settings/equalizer_card.dart';
 import 'package:resonance/features/settings/service_status_screen.dart';
+import 'package:resonance/features/settings/sound_quality_options.dart';
 import 'package:resonance/features/wave/wave_controller.dart';
 import 'package:resonance/features/wave/wave_home_sections.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
@@ -538,22 +539,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
               const Divider(height: 1),
-              SwitchListTile(
-                value: flow.normalizeLoudness,
-                onChanged: (enabled) => unawaited(
-                  _updateFlow(flow.copyWith(normalizeLoudness: enabled)),
-                ),
-                secondary: const Icon(Icons.graphic_eq_rounded),
-                title: const Text('Выравнивать громкость'),
-                subtitle: Text(
-                  ref
-                              .watch(audioEffectsControllerProvider)
-                              .support
-                              ?.normalization ==
-                          false
-                      ? 'В этой сборке плеера нет фильтра громкости — настройка сохранится и заработает, когда он появится.'
-                      : 'Одна громкость для YouTube, Яндекса, SoundCloud и офлайн-треков.',
-                ),
+              SoundQualityOptions(
+                flow: flow,
+                onChanged: _updateFlow,
+                dynamicFilterAvailable: ref
+                    .watch(audioEffectsControllerProvider)
+                    .support
+                    ?.ebur128,
               ),
               const Divider(height: 1),
               SwitchListTile(
