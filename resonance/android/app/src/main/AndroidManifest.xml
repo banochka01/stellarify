@@ -45,10 +45,19 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Not exported: browsing goes through ResonanceBrowserService, which
+             validates the caller. MEDIA_BUTTON lets MediaButtonReceiver find it. -->
         <service
             android:name="com.ryanheise.audioservice.AudioService"
-            android:exported="true"
+            android:exported="false"
             android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".ResonanceBrowserService"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>

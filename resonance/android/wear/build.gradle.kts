@@ -6,6 +6,15 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val phoneVersion: List<String> = rootProject.file("../pubspec.yaml")
+    .readLines()
+    .first { it.startsWith("version:") }
+    .substringAfter("version:")
+    .trim()
+    .split("+")
+val phoneVersionName = phoneVersion[0]
+val phoneVersionCode = phoneVersion.getOrNull(1)?.toInt() ?: 1
+
 android {
     namespace = "app.resonance.wear"
     compileSdk = 36
@@ -15,12 +24,18 @@ android {
         applicationId = "app.resonance.resonance"
         minSdk = 30
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        // Derived from the phone app version (pubspec.yaml `x.y.z+N`): the
+        // watch APK shares the applicationId, so its code must be unique and
+        // grow with every phone release.
+        versionCode = phoneVersionCode * 10 + 1
+        versionName = phoneVersionName
     }
 
     buildTypes {
         release {
+            // Must stay identical to :app (android/app/build.gradle.kts), which
+            // currently signs release with the debug key: Data Layer pairing
+            // requires the same applicationId AND the same signing key.
             signingConfig = signingConfigs.getByName("debug")
         }
     }

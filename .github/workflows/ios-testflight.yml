@@ -53,9 +53,9 @@ jobs:
         working-directory: resonance
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e # v2.21.0
         with:
           flutter-version: "3.44.4"
           cache: true
@@ -65,6 +65,7 @@ jobs:
           P12: ${{ secrets.IOS_CERTIFICATE_P12_BASE64 }}
           P12_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
           PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          CONFIGURED_TEAM_ID: ${{ vars.IOS_TEAM_ID }}
         run: |
           KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
           KEYCHAIN_PASSWORD="$(uuidgen)"
@@ -83,8 +84,7 @@ jobs:
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
           cp "$RUNNER_TEMP/profile.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$UUID.mobileprovision"
           echo "PROFILE_NAME=$NAME" >> "$GITHUB_ENV"
-          echo "TEAM_ID=${{ vars.IOS_TEAM_ID }}" >> "$GITHUB_ENV"
-          if [ -z "${{ vars.IOS_TEAM_ID }}" ]; then echo "TEAM_ID=$TEAM" >> "$GITHUB_ENV"; fi
+          echo "TEAM_ID=${CONFIGURED_TEAM_ID:-$TEAM}" >> "$GITHUB_ENV"
 
       - name: Enable CarPlay (opt-in)
         if: vars.RESONANCE_CARPLAY == '1'
@@ -147,3 +147,5 @@ jobs:
         run: |
           security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
           rm -f "$HOME/.appstoreconnect/private_keys/"*.p8
+          rm -f "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/profile.mobileprovision" "$RUNNER_TEMP/profile.plist"
+          rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/"*.mobileprovision

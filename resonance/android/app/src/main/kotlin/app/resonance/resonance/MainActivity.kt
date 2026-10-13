@@ -59,7 +59,6 @@ class MainActivity : AudioServiceActivity() {
 
     private fun isTelevision(): Boolean {
         val uiMode = getSystemService(UI_MODE_SERVICE) as? UiModeManager
-        return uiMode?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
-            packageManager.hasSystemFeature("android.software.leanback")
+        return uiMode?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
     }
 }
