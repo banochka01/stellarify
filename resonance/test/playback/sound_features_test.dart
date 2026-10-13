@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:resonance/core/cast/cast_controller.dart';
+import 'package:resonance/core/cast/cast_providers.dart';
 import 'package:resonance/core/networking/network_status.dart';
 import 'package:resonance/core/playback/audio_effects.dart';
 import 'package:resonance/core/playback/loudness_normalization.dart';
@@ -33,10 +34,35 @@ void main() {
       expect(
         normalizationGainDb(
           mode: LoudnessNormalizationMode.track,
-          track: const LoudnessStats(integratedLufs: -18),
+          track: const LoudnessStats(integratedLufs: -18, truePeakDb: -6),
         ),
         4,
       );
+    });
+
+    test('without a known true peak quiet tracks are never boosted', () {
+      expect(
+        normalizationGainDb(
+          mode: LoudnessNormalizationMode.track,
+          track: const LoudnessStats(integratedLufs: -18),
+        ),
+        0,
+      );
+    });
+
+    test('album gain needs provider data or enough measured tracks', () {
+      const measured = LoudnessStats(integratedLufs: -10);
+      const provider = LoudnessStats(
+        integratedLufs: -10,
+        origin: LoudnessOrigin.provider,
+      );
+      expect(albumLoudnessReliable(const []), isFalse);
+      expect(albumLoudnessReliable(const [measured, measured]), isFalse);
+      expect(
+        albumLoudnessReliable(const [measured, measured, measured]),
+        isTrue,
+      );
+      expect(albumLoudnessReliable(const [provider]), isTrue);
     });
 
     test('off mode and unknown loudness apply no gain', () {
@@ -57,7 +83,7 @@ void main() {
       expect(
         normalizationGainDb(
           mode: LoudnessNormalizationMode.track,
-          track: const LoudnessStats(integratedLufs: -30),
+          track: const LoudnessStats(integratedLufs: -30, truePeakDb: -12),
         ),
         loudnessMaxBoostDb,
       );
@@ -208,8 +234,27 @@ void main() {
         resolveStreamQuality(
           mode: StreamQualityMode.lossless,
           network: NetworkKind.mobile,
+          allowHighOnMobile: true,
         ),
         AudioQuality.high,
+      );
+      // Мобильное качество — потолок, пока высокое не разрешено явно.
+      expect(
+        resolveStreamQuality(
+          mode: StreamQualityMode.lossless,
+          network: NetworkKind.mobile,
+          mobileQuality: AudioQuality.medium,
+        ),
+        AudioQuality.medium,
+      );
+      expect(
+        resolveStreamQuality(
+          mode: StreamQualityMode.auto,
+          network: NetworkKind.mobile,
+          wifiQuality: AudioQuality.low,
+          mobileQuality: AudioQuality.high,
+        ),
+        AudioQuality.low,
       );
       expect(
         resolveStreamQuality(
@@ -267,6 +312,9 @@ void main() {
       expect(restored.normalization, LoudnessNormalizationMode.album);
       expect(restored.gapless, isFalse);
       expect(restored.qualityMode, StreamQualityMode.lossless);
+      expect(restored.highQualityOnMobile, isFalse);
+      await preferences.write(restored.copyWith(highQualityOnMobile: true));
+      expect((await preferences.read()).highQualityOnMobile, isTrue);
       expect(
         restored.copyWith(normalizeLoudness: false).normalization,
         LoudnessNormalizationMode.off,
@@ -334,6 +382,78 @@ void main() {
         );
       },
     );
+
+    test('gain is set before start and travels with the queued file', () async {
+      final engine = FakePlaybackEngine();
+      final store = MemoryLoudnessStore();
+      await store.write('one', const LoudnessStats(integratedLufs: -10));
+      await store.write('two', const LoudnessStats(integratedLufs: -8));
+      final service = PlaybackService(
+        engine: engine,
+        providers: ProviderRegistry(resolvers: [_Resolver()]),
+        sourceSelectionPolicy: SourceSelectionPolicy(),
+        flowSettings: const PlaybackFlowSettings(enabled: false),
+        normalizer: LoudnessNormalizer(store),
+      );
+      addTearDown(service.dispose);
+      await service.setQueue([one, two], autoplay: true);
+      expect(engine.events.take(2), ['gain', 'open']);
+      expect(engine.replayGains.last, -4);
+
+      engine.emitDuration(const Duration(minutes: 3));
+      await Future<void>.delayed(Duration.zero);
+      await service.seek(const Duration(minutes: 2, seconds: 50));
+      await _waitFor(() => engine.queuedNext.whereType<Object>().isNotEmpty);
+      expect(engine.queuedGains.last, -6);
+
+      final gainCalls = engine.replayGains.length;
+      engine.emitAdvancedToQueued(-12);
+      await _waitFor(() => service.state.currentIndex == 1);
+      // Гейн записи применил сам движок, сервис его не дублирует.
+      expect(engine.replayGains, hasLength(gainCalls));
+      expect(service.currentGainDb, -6);
+      await _waitFor(() => store.values['one']?.integratedLufs == -12);
+    });
+
+    test('a failed queue is not treated as prepared', () async {
+      final engine = FakePlaybackEngine()..queueSucceeds = false;
+      final service = PlaybackService(
+        engine: engine,
+        providers: ProviderRegistry(resolvers: [_Resolver()]),
+        sourceSelectionPolicy: SourceSelectionPolicy(),
+        flowSettings: const PlaybackFlowSettings(enabled: false),
+      );
+      addTearDown(service.dispose);
+      await service.setQueue([one, two], autoplay: true);
+      engine.emitDuration(const Duration(minutes: 3));
+      await Future<void>.delayed(Duration.zero);
+      await service.seek(const Duration(minutes: 2, seconds: 50));
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      final opened = engine.openedSources.length;
+      engine.emitCompleted();
+      await _waitFor(() => service.state.currentIndex == 1);
+      expect(engine.openedSources.length, opened + 1);
+    });
+
+    test('missing advance after completion falls back to next()', () async {
+      final engine = FakePlaybackEngine();
+      final service = PlaybackService(
+        engine: engine,
+        providers: ProviderRegistry(resolvers: [_Resolver()]),
+        sourceSelectionPolicy: SourceSelectionPolicy(),
+        flowSettings: const PlaybackFlowSettings(enabled: false),
+      );
+      addTearDown(service.dispose);
+      await service.setQueue([one, two], autoplay: true);
+      engine.emitDuration(const Duration(minutes: 3));
+      await Future<void>.delayed(Duration.zero);
+      await service.seek(const Duration(minutes: 2, seconds: 50));
+      await _waitFor(() => engine.queuedNext.whereType<Object>().isNotEmpty);
+      engine.emitCompleted();
+      await Future<void>.delayed(const Duration(milliseconds: 2300));
+      expect(service.state.currentIndex, 1);
+      expect(engine.queuedNext.last, isNull);
+    });
 
     test('queue edits drop the prepared track', () async {
       final engine = FakePlaybackEngine();
@@ -405,6 +525,28 @@ void main() {
     });
   });
 
+  group('cast tickets', () {
+    test('relay streams are swapped for a short-lived cast ticket', () async {
+      final calls = <Map<String, Object?>>[];
+      Future<Map<String, dynamic>> post(Map<String, Object?> body) async {
+        calls.add(body);
+        return {
+          'streamUrl':
+              'https://music.example/api/v1/playback/soundcloud-relay/cast',
+        };
+      }
+
+      final direct = Uri.parse('https://cdn.example/a.mp3');
+      expect(await issueCastUrl(direct, post), direct);
+      expect(calls, isEmpty);
+      final relay = Uri.parse(
+        'https://music.example/api/v1/playback/soundcloud-relay/long',
+      );
+      expect((await issueCastUrl(relay, post)).path, endsWith('/cast'));
+      expect(calls.single['streamUrl'], relay.toString());
+    });
+  });
+
   group('recognition', () {
     test('matches the recognized track in catalog results', () {
       const recognized = RecognizedTrack(
@@ -420,6 +562,14 @@ void main() {
       final exact = _track('e', title: 'Warriors', artist: 'Imagine Dragons');
       expect(bestCatalogMatch(recognized, [wrong, remix, exact]), exact);
       expect(bestCatalogMatch(recognized, [wrong]), isNull);
+      expect(catalogMatch(recognized, [exact])?.exact, isTrue);
+      expect(catalogMatch(recognized, [remix])?.exact, isFalse);
+      expect(
+        catalogMatch(const RecognizedTrack(title: '!!!', artist: '???'), [
+          exact,
+        ]),
+        isNull,
+      );
     });
   });
 }
