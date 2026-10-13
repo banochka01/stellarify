@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:resonance/features/platform/feature_flags.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
+import 'package:resonance/features/rooms/room_dj_panel.dart';
 import 'package:resonance/features/rooms/room_live_widgets.dart';
 import 'package:resonance/features/rooms/room_queue_panel.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
@@ -45,14 +47,28 @@ class _RoomsScreenState extends ConsumerState<RoomsScreen> {
         130,
       ),
       children: [
-        const Text(
-          'СЛУШАТЬ ВМЕСТЕ',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.8,
-            color: ResonanceColors.primary,
-          ),
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'СЛУШАТЬ ВМЕСТЕ',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.8,
+                  color: ResonanceColors.primary,
+                ),
+              ),
+            ),
+            FeatureGate(
+              flag: FeatureFlag.social,
+              child: TextButton.icon(
+                onPressed: () => context.push('/social'),
+                icon: const Icon(Icons.people_alt_rounded, size: 18),
+                label: const Text('Друзья'),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 10),
         Text(
@@ -343,6 +359,7 @@ class _ActiveRoom extends ConsumerWidget {
           icon: const Icon(Icons.fullscreen_rounded),
           label: const Text('Открыть Stage с очередью зала'),
         ),
+        RoomDjPanel(canControl: room.canControl),
         const SizedBox(height: 24),
         const Text(
           'УЧАСТНИКИ',

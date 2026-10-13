@@ -12,6 +12,7 @@ import 'package:resonance/features/auth/account_controller.dart';
 import 'package:resonance/features/offline/offline_controller.dart';
 import 'package:resonance/features/onboarding/onboarding_feature.dart';
 import 'package:resonance/features/recap/listening_recorder.dart';
+import 'package:resonance/features/social/now_playing_reporter.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/appearance_backdrop.dart';
 import 'package:resonance/shared/widgets/compact_player.dart';
@@ -76,6 +77,7 @@ class _ResonanceAppState extends ConsumerState<ResonanceApp> {
     ref.watch(obsOverlayControllerProvider);
     ref.watch(listeningRecorderProvider);
     ref.watch(offlineCoordinatorProvider);
+    ref.watch(nowPlayingReporterProvider);
     ref.watch(windowsShellProvider);
     ref.watch(androidHomeWidgetProvider);
     final compact = ref.watch(compactModeProvider);

@@ -179,7 +179,11 @@ final class LibraryController extends AsyncNotifier<LibraryState> {
     return _database.loadLocalPlaylistTracks(playlistId);
   }
 
-  Future<MusicGraphCleanupResult> reconcileMusicGraph() async {
+  /// Merges duplicate recordings. With [onlyCanonicalIds] only the selected
+  /// duplicate groups (by canonical track id) are merged.
+  Future<MusicGraphCleanupResult> reconcileMusicGraph({
+    Set<String>? onlyCanonicalIds,
+  }) async {
     final sync = ref.read(librarySyncServiceProvider);
     late MusicGraphCleanupResult result;
     await sync.runLocalMutation(() async {
@@ -188,7 +192,10 @@ final class LibraryController extends AsyncNotifier<LibraryState> {
         ...before.favorites,
         ...before.playlists.expand((playlist) => playlist.tracks),
       ];
-      final graph = const MusicGraphBuilder().build(allTracks);
+      final built = const MusicGraphBuilder().build(allTracks);
+      final graph = onlyCanonicalIds == null
+          ? built
+          : _restrictGraph(built, onlyCanonicalIds);
       final favorites = <String, UnifiedTrack>{};
       for (final track in before.favorites) {
         final canonical = graph.canonicalFor(track);
@@ -220,6 +227,48 @@ final class LibraryController extends AsyncNotifier<LibraryState> {
     return result;
   }
 
+  /// Smart cleanup: replaces tracks by id (favorites and playlists) with the
+  /// given track, deduplicating afterwards. Synced as one library replacement
+  /// through `/account/library/operations`. Returns the number of replaced
+  /// entries.
+  Future<int> replaceTracks(Map<String, UnifiedTrack> replacements) async {
+    if (replacements.isEmpty) return 0;
+    final sync = ref.read(librarySyncServiceProvider);
+    var replaced = 0;
+    await sync.runLocalMutation(() async {
+      final before = await _database.loadLocalLibrarySnapshot();
+      List<UnifiedTrack> apply(List<UnifiedTrack> tracks) {
+        final result = <UnifiedTrack>[];
+        final seen = <String>{};
+        for (final track in tracks) {
+          final next = replacements[track.id];
+          if (next != null) replaced++;
+          final value = next ?? track;
+          if (seen.add(value.id)) result.add(value);
+        }
+        return result;
+      }
+
+      final after = LocalLibrarySnapshot(
+        favorites: apply(before.favorites),
+        playlists: [
+          for (final playlist in before.playlists)
+            LocalPlaylistSnapshot(
+              id: playlist.id,
+              name: playlist.name,
+              createdAt: playlist.createdAt,
+              updatedAt: playlist.updatedAt,
+              tracks: apply(playlist.tracks),
+            ),
+        ],
+      );
+      await _database.replaceLocalLibrary(after);
+      await sync.recordLibraryReplacement(before: before, after: after);
+    });
+    state = AsyncData(await _load());
+    return replaced;
+  }
+
   Future<LibraryState> _load() async {
     final snapshot = await _database.loadLocalLibrarySnapshot();
     final graphTracks = <String, UnifiedTrack>{};
@@ -236,6 +285,20 @@ final class LibraryController extends AsyncNotifier<LibraryState> {
       graphTracks: graphTracks.values.toList(growable: false),
     );
   }
+}
+
+MusicGraphSnapshot _restrictGraph(MusicGraphSnapshot graph, Set<String> ids) {
+  final nodes = graph.nodes
+      .where((node) => ids.contains(node.track.id))
+      .toList(growable: false);
+  return MusicGraphSnapshot(
+    nodes: nodes,
+    edges: const [],
+    canonicalByTrackId: {
+      for (final entry in graph.canonicalByTrackId.entries)
+        if (ids.contains(entry.value.id)) entry.key: entry.value,
+    },
+  );
 }
 
 List<UnifiedTrack> _canonicalPlaylist(

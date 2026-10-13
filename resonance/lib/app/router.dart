@@ -2,17 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:resonance/features/artist/artist_screen.dart';
 import 'package:resonance/features/auth/account_screen.dart';
+import 'package:resonance/features/changelog/changelog.dart';
 import 'package:resonance/features/home/home_screen.dart';
 import 'package:resonance/features/library/library_screen.dart';
+import 'package:resonance/features/library_cleanup/library_cleanup.dart';
 import 'package:resonance/features/music_graph/music_graph_screen.dart';
 import 'package:resonance/features/player/now_playing_screen.dart';
 import 'package:resonance/features/player/visual_stage_screen.dart';
+import 'package:resonance/features/playlists/collaborative_playlist.dart';
 import 'package:resonance/features/recap/recap_screen.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/features/rooms/rooms_screen.dart';
 import 'package:resonance/features/search/search_screen.dart';
 import 'package:resonance/features/settings/settings_screen.dart';
 import 'package:resonance/features/settings/storage_screen.dart';
+import 'package:resonance/features/social/social_screen.dart';
 import 'package:resonance/shared/widgets/adaptive_app_shell.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 
@@ -79,6 +83,23 @@ final resonanceRouter = GoRouter(
               name: 'music-graph',
               builder: (context, state) => const MusicGraphScreen(),
             ),
+            GoRoute(
+              path: '/library/cleanup',
+              name: 'library-cleanup',
+              builder: (context, state) => const LibraryCleanupScreen(),
+            ),
+            GoRoute(
+              path: '/collab',
+              name: 'collab-playlists',
+              builder: (context, state) => const CollaborativePlaylistsScreen(),
+            ),
+            GoRoute(
+              path: '/collab/:id',
+              name: 'collab-playlist',
+              builder: (context, state) => CollaborativePlaylistScreen(
+                playlistId: state.pathParameters['id']!,
+              ),
+            ),
           ],
         ),
         StatefulShellBranch(
@@ -99,10 +120,20 @@ final resonanceRouter = GoRouter(
                 );
               },
             ),
+            GoRoute(
+              path: '/social',
+              name: 'social',
+              builder: (context, state) => const SocialScreen(),
+            ),
           ],
         ),
         StatefulShellBranch(
           routes: [
+            GoRoute(
+              path: '/changelog',
+              name: 'changelog',
+              builder: (context, state) => const ChangelogScreen(),
+            ),
             GoRoute(
               path: '/settings',
               name: 'settings',

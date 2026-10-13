@@ -3,10 +3,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/music_graph/music_graph.dart';
+import 'package:resonance/features/music_graph/music_graph_map_view.dart';
 import 'package:resonance/features/player/track_action.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
@@ -22,6 +24,16 @@ class MusicGraphScreen extends ConsumerStatefulWidget {
 class _MusicGraphScreenState extends ConsumerState<MusicGraphScreen> {
   String? _selectedId;
   bool _cleaning = false;
+  List<UnifiedTrack>? _graphInput;
+  MusicGraphSnapshot? _graphCache;
+
+  MusicGraphSnapshot _graphFor(List<UnifiedTrack> tracks) {
+    if (!identical(tracks, _graphInput) || _graphCache == null) {
+      _graphInput = tracks;
+      _graphCache = const MusicGraphBuilder().build(tracks);
+    }
+    return _graphCache!;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -74,9 +86,7 @@ class _MusicGraphScreenState extends ConsumerState<MusicGraphScreen> {
                   subtitle: error.toString(),
                 ),
                 data: (state) {
-                  final graph = const MusicGraphBuilder().build(
-                    state.graphTracks,
-                  );
+                  final graph = _graphFor(state.graphTracks);
                   if (graph.nodes.isEmpty) {
                     return const _GraphMessage(
                       icon: Icons.hub_outlined,
@@ -89,7 +99,7 @@ class _MusicGraphScreenState extends ConsumerState<MusicGraphScreen> {
                       .where((node) => node.track.id == _selectedId)
                       .firstOrNull;
                   final current = selected ?? _initialNode(graph.nodes);
-                  return _GraphContent(
+                  final content = _GraphContent(
                     graph: graph,
                     selected: current,
                     compact: compact,
@@ -100,6 +110,22 @@ class _MusicGraphScreenState extends ConsumerState<MusicGraphScreen> {
                     onCleanup: graph.duplicateCount == 0
                         ? null
                         : () => _cleanup(graph.duplicateCount),
+                  );
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      MusicGraphMapSection(snapshot: graph),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () => context.push('/library/cleanup'),
+                          icon: const Icon(Icons.cleaning_services_rounded),
+                          label: const Text('Умная чистка медиатеки'),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      content,
+                    ],
                   );
                 },
               ),

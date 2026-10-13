@@ -8,6 +8,7 @@ import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
+import 'package:resonance/features/artist/artist_overview.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/music_graph/music_graph.dart';
 import 'package:resonance/features/player/track_action.dart';
@@ -226,6 +227,15 @@ class ArtistScreen extends ConsumerWidget {
                 child: _ArtistActions(artist: artist, tracks: list),
               ),
             ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: compact ? 20 : 40,
+                vertical: 8,
+              ),
+              child: ArtistOverviewSection(artist: artist),
+            ),
+          ),
           ...switch (tracks) {
             AsyncData() when list.isEmpty => [
               const SliverToBoxAdapter(
