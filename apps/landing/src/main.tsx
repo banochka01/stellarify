@@ -7,6 +7,7 @@ import "@fontsource-variable/roboto-flex";
 import App from "./App";
 import "./styles.css";
 import "./graph.css";
+import "./sections.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

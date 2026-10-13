@@ -26,9 +26,9 @@ export function QueueCinema() {
     const context = gsap.context(() => {
       const media = gsap.matchMedia();
       media.add(
-        { reduce: "(prefers-reduced-motion: reduce)", desktop: "(min-width: 900px)" },
+        { reduce: "(prefers-reduced-motion: reduce)" },
         ({ conditions }) => {
-          const { reduce, desktop } = conditions as { reduce: boolean; desktop: boolean };
+          const { reduce } = conditions as { reduce: boolean };
           const stage = container.querySelector<HTMLElement>(".cinema-stage");
           const promptEl = container.querySelector<HTMLElement>(".queue-prompt-text");
           if (!stage) return;
@@ -60,22 +60,13 @@ export function QueueCinema() {
             timeline.to(row, { autoAlpha: 1, y: 0, duration: 0.55 }, 0.9 + i * 0.5);
           });
           timeline.to({}, { duration: 0.7 });
-          if (desktop) {
-            ScrollTrigger.create({
-              trigger: container,
-              start: "top top",
-              end: "bottom bottom",
-              scrub: 0.6,
-              animation: timeline
-            });
-          } else {
-            ScrollTrigger.create({
+          // Embedded in a tab panel: play once when visible (no scroll pinning).
+          ScrollTrigger.create({
               trigger: stage,
               start: "top 74%",
               once: true,
               onEnter: () => timeline.play()
             });
-          }
         }
       );
       return () => media.revert();
