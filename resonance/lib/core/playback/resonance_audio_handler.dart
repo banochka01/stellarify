@@ -152,20 +152,12 @@ final class ResonanceAudioHandler extends audio_service.BaseAudioHandler
     }
   }
 
-  /// Wear OS remote / external controllers: `setVolume` with {'volume': 0..100}.
   @override
   Future<dynamic> customAction(
     String name, [
     Map<String, dynamic>? extras,
   ]) async {
     if (name == likeActionName) await onLike?.call();
-    if (name == 'setVolume') {
-      final raw = extras?['volume'];
-      if (raw is num) {
-        await _service.setVolume(raw.toDouble());
-      }
-      return null;
-    }
     return null;
   }
 

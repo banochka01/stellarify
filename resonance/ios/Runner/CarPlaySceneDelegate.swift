@@ -13,21 +13,47 @@ import UIKit
 final class CarPlayBridge {
   static let shared = CarPlayBridge()
   private var channel: FlutterMethodChannel?
+  private var pending: [(FlutterMethodChannel) -> Void] = []
+  private var headlessEngine: FlutterEngine?
 
   func attach(messenger: FlutterBinaryMessenger) {
-    channel = FlutterMethodChannel(name: "app.resonance/carplay", binaryMessenger: messenger)
+    let channel = FlutterMethodChannel(name: "app.resonance/carplay", binaryMessenger: messenger)
+    self.channel = channel
+    let queued = pending
+    pending.removeAll()
+    queued.forEach { $0(channel) }
+  }
+
+  /// CarPlay cold start: the phone UI (and its implicit Flutter engine) may
+  /// not exist. Queue the call and, if no window scene shows up shortly,
+  /// run a headless engine so Dart can answer.
+  private func withChannel(_ work: @escaping (FlutterMethodChannel) -> Void) {
+    if let channel { return work(channel) }
+    pending.append(work)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+      guard let self, self.channel == nil, self.headlessEngine == nil else { return }
+      let hasWindowScene = UIApplication.shared.connectedScenes.contains { $0 is UIWindowScene }
+      if hasWindowScene { return }
+      let engine = FlutterEngine(name: "resonance-carplay")
+      engine.run()
+      GeneratedPluginRegistrant.register(with: engine)
+      self.headlessEngine = engine
+      self.attach(messenger: engine.binaryMessenger)
+    }
   }
 
   func children(of parentId: String, completion: @escaping ([[String: Any]]) -> Void) {
-    guard let channel else { return completion([]) }
-    channel.invokeMethod("children", arguments: ["parentId": parentId]) { result in
-      completion(result as? [[String: Any]] ?? [])
+    withChannel { channel in
+      channel.invokeMethod("children", arguments: ["parentId": parentId]) { result in
+        completion(result as? [[String: Any]] ?? [])
+      }
     }
   }
 
   func play(mediaId: String, completion: @escaping () -> Void) {
-    guard let channel else { return completion() }
-    channel.invokeMethod("play", arguments: ["mediaId": mediaId]) { _ in completion() }
+    withChannel { channel in
+      channel.invokeMethod("play", arguments: ["mediaId": mediaId]) { _ in completion() }
+    }
   }
 }
 

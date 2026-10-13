@@ -3,12 +3,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:resonance/app/providers.dart';
 import 'package:resonance/app/resonance_app.dart';
 import 'package:resonance/core/desktop/quick_actions.dart';
 import 'package:resonance/core/desktop/windows_shell.dart';
 import 'package:resonance/core/diagnostics/client_error_reporter.dart';
 import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/core/platform/device_form.dart';
+import 'package:resonance/core/playback/carplay_bridge.dart';
 import 'package:resonance/core/playback/windows_media_controls.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -48,5 +50,15 @@ Future<void> main(List<String> args) async {
       await windowManager.focus();
     });
   }
-  runApp(const ProviderScope(child: ResonanceApp()));
+  final container = ProviderContainer();
+  if (Platform.isIOS) {
+    // Registered before the first frame so a CarPlay cold start (no phone UI)
+    // is answered; the first call initializes playback on demand.
+    CarPlayBridge.install(
+      () => container.read(playbackServiceProvider.future),
+    );
+  }
+  runApp(
+    UncontrolledProviderScope(container: container, child: const ResonanceApp()),
+  );
 }
