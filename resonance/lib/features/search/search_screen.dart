@@ -15,6 +15,7 @@ import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/offline_download_button.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
+import 'package:resonance/shared/widgets/resonance_states.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -195,7 +196,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
               ),
               const SizedBox(height: 38),
-              if (_loading) const LinearProgressIndicator(minHeight: 2),
+              if (_loading) ...[
+                const LinearProgressIndicator(minHeight: 2),
+                if (_tracks.isEmpty) ...[
+                  const SizedBox(height: ResonanceSpacing.lg),
+                  const ResonanceTrackListSkeleton(count: 6),
+                ],
+              ],
               if (_error != null) _SearchMessage.error(_error!),
               if (!_loading && _error == null && _tracks.isEmpty)
                 _SearchMessage.empty(
@@ -492,20 +499,15 @@ class _SearchMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 70),
+      padding: const EdgeInsets.symmetric(vertical: ResonanceSpacing.xxl),
       child: Center(
-        child: Column(
-          children: [
-            Icon(icon, size: 46, color: ResonanceColors.muted),
-            const SizedBox(height: 14),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: ResonanceColors.muted),
-            ),
-          ],
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: ResonanceEmptyState(
+            icon: icon,
+            title: title,
+            message: subtitle,
+          ),
         ),
       ),
     );

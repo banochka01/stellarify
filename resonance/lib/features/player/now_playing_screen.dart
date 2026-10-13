@@ -19,6 +19,7 @@ import 'package:resonance/features/lyrics/lyrics_karaoke.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/features/rooms/room_queue_panel.dart';
 import 'package:resonance/features/wave/wave_track_actions.dart';
+import 'package:resonance/shared/theme/resonance_tokens.dart';
 import 'package:resonance/shared/widgets/ambient.dart';
 import 'package:resonance/shared/widgets/offline_download_button.dart';
 import 'package:resonance/shared/widgets/playback_position.dart';
@@ -52,15 +53,21 @@ class NowPlayingScreen extends ConsumerWidget {
                     builder: (context, constraints) {
                       final compact = constraints.maxWidth < 760;
                       if (compact) {
+                        final gutter = ResonanceSpacing.gutter(
+                          constraints.maxWidth,
+                        );
                         return SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(22, 22, 22, 30),
+                          padding: EdgeInsets.fromLTRB(gutter, 18, gutter, 30),
                           child: Column(
                             children: [
                               ResonanceTrackSwap(
                                 child: _GlowingArtwork(
                                   key: ValueKey(track.id),
                                   track: track,
-                                  size: min(constraints.maxWidth - 44, 430),
+                                  size: min(
+                                    constraints.maxWidth - gutter * 2,
+                                    520,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 30),
@@ -152,9 +159,10 @@ class _Header extends ConsumerWidget {
     final label =
         state.sourceShiftMessage ??
         (next == null ? 'Далее: —' : 'Далее: ${next!.title} — ${next!.artist}');
+    final narrow = MediaQuery.sizeOf(context).width < 420;
     return Container(
       height: 58,
-      padding: const EdgeInsets.symmetric(horizontal: 18),
+      padding: EdgeInsets.symmetric(horizontal: narrow ? 4 : 18),
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: Color(0x1AFFFFFF))),
       ),
@@ -165,18 +173,18 @@ class _Header extends ConsumerWidget {
             onPressed: context.pop,
             icon: const Icon(Icons.arrow_back_rounded),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: narrow ? 2 : 10),
           if (inRoom)
             RoomChip(
               compact: true,
               onTap: () => unawaited(showRoomQueueSheet(context)),
             )
-          else
+          else if (!narrow)
             const Text(
               'Сейчас играет',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
             ),
-          const SizedBox(width: 24),
+          SizedBox(width: narrow ? 4 : 24),
           Expanded(
             child: Text(
               label,
@@ -192,7 +200,7 @@ class _Header extends ConsumerWidget {
               ),
             ),
           ),
-          const SizedBox(width: 24),
+          SizedBox(width: narrow ? 0 : 24),
           if (ref.watch(sleepTimerProvider.select((timer) => timer.active)))
             const SleepTimerButton(),
           PopupMenuButton<String>(
@@ -235,7 +243,7 @@ class _Header extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: narrow ? 0 : 8),
           _SourceShiftPanel(state: state, track: current, compact: true),
         ],
       ),
@@ -649,22 +657,16 @@ class _GlowingArtwork extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = watchTrackPalette(ref, track);
+    final radius = (size * .045).clamp(ResonanceRadii.sm, ResonanceRadii.xl);
     return DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: palette.glow.withValues(alpha: .22),
-            blurRadius: 70,
-            spreadRadius: -18,
-            offset: const Offset(0, 22),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(radius),
+        boxShadow: ResonanceShadows.glow(palette.glow),
       ),
       child: TrackArtwork(
         track: track,
         size: size,
-        borderRadius: 24,
+        borderRadius: radius,
         fallbackAsset: 'assets/images/resonance_fallback_cover.png',
       ),
     );

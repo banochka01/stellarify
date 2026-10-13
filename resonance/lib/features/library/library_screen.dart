@@ -20,6 +20,7 @@ import 'package:resonance/features/wave/wave_track_actions.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/offline_download_button.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
+import 'package:resonance/shared/widgets/resonance_states.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 
 class LibraryScreen extends ConsumerWidget {
@@ -131,8 +132,7 @@ class LibraryScreen extends ConsumerWidget {
                   child: KeyedSubtree(
                     key: ValueKey(library.runtimeType),
                     child: library.when(
-                      loading: () =>
-                          const LinearProgressIndicator(minHeight: 2),
+                      loading: () => const ResonanceTrackListSkeleton(),
                       // Без сети вместо ошибки — то, что уже скачано.
                       error: (error, _) => offline
                           ? const OfflineAvailableList()
@@ -750,7 +750,13 @@ class _PlaylistCard extends ConsumerWidget {
               ),
               Expanded(
                 child: tracks.isEmpty
-                    ? const Center(child: Text('В плейлисте пока нет треков'))
+                    ? const Center(
+                        child: ResonanceEmptyState(
+                          icon: Icons.library_music_outlined,
+                          title: 'В плейлисте пока нет треков',
+                          message: 'Добавляйте треки из поиска или волны.',
+                        ),
+                      )
                     : ListView.builder(
                         itemCount: tracks.length,
                         itemBuilder: (context, index) => ListTile(
@@ -836,39 +842,12 @@ class _EmptyCard extends StatelessWidget {
   final String subtitle;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: ResonanceColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: ResonanceColors.border),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 28, color: ResonanceColors.muted),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: const TextStyle(color: ResonanceColors.muted),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => ResonanceEmptyState(
+    icon: icon,
+    title: title,
+    message: subtitle,
+    compact: true,
+  );
 }
 
 class _ErrorState extends StatelessWidget {
@@ -878,19 +857,11 @@ class _ErrorState extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        children: [
-          const Icon(Icons.error_outline_rounded, size: 40),
-          const SizedBox(height: 10),
-          Text(message, textAlign: TextAlign.center),
-          const SizedBox(height: 12),
-          OutlinedButton(onPressed: onRetry, child: const Text('Повторить')),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => ResonanceEmptyState.error(
+    title: 'Не удалось загрузить медиатеку',
+    message: message,
+    action: OutlinedButton(onPressed: onRetry, child: const Text('Повторить')),
+  );
 }
 
 class ImportPlaylistDialog extends StatefulWidget {
