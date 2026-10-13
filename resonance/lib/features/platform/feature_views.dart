@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:resonance/features/platform/feature_api.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/track_artwork.dart';
 
 /// Shared page chrome for the Resonance 5 sections.
 class FeaturePage extends StatelessWidget {
@@ -210,6 +211,9 @@ class FeatureCover extends StatelessWidget {
               source,
               width: size,
               height: size,
+              cacheWidth: artworkCacheBucket(
+                size * MediaQuery.devicePixelRatioOf(context),
+              ),
               fit: BoxFit.cover,
               errorBuilder: (_, _, _) => placeholder,
             ),

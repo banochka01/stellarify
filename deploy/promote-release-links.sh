@@ -29,4 +29,13 @@ for link in "${!releases[@]}"; do
   mv -Tf "${downloads_dir}/${temporary}" "${downloads_dir}/${link}"
 done
 
+# Optional per-ABI Android build (flutter build apk --split-per-abi): the
+# universal APK above stays the default download.
+arm64="Resonance-android-${version}-arm64-v8a.apk"
+if [[ -f "${downloads_dir}/${arm64}" ]]; then
+  temporary=".Resonance-android-arm64-current.apk.tmp.$$"
+  ln -s "${arm64}" "${downloads_dir}/${temporary}"
+  mv -Tf "${downloads_dir}/${temporary}" "${downloads_dir}/Resonance-android-arm64-current.apk"
+fi
+
 echo "Promoted Resonance ${version} download links in ${downloads_dir}"

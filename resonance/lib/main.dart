@@ -10,6 +10,7 @@ import 'package:resonance/core/desktop/windows_shell.dart';
 import 'package:resonance/core/diagnostics/client_error_reporter.dart';
 import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/core/platform/device_form.dart';
+import 'package:resonance/core/platform/image_cache_budget.dart';
 import 'package:resonance/core/playback/carplay_bridge.dart';
 import 'package:resonance/core/playback/windows_media_controls.dart';
 import 'package:window_manager/window_manager.dart';
@@ -18,8 +19,19 @@ Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   ClientErrorReporter.instance.installGlobalHandlers();
   MediaKit.ensureInitialized();
-  await BackendEndpoint.initialize();
-  await DeviceForm.initialize();
+  // Независимые платформенные вызовы до первого кадра идут параллельно:
+  // защищённое хранилище, определение ТВ и SMTC не ждут друг друга.
+  await Future.wait<Object?>([
+    BackendEndpoint.initialize(),
+    DeviceForm.initialize(),
+    // Native media controls are optional. Their initialization must not keep
+    // the window hidden when Windows or a native dependency rejects them.
+    if (Platform.isWindows) WindowsMediaControls.initialize(),
+  ]);
+  applyImageCacheBudget(
+    PaintingBinding.instance.imageCache,
+    mobile: Platform.isAndroid || Platform.isIOS,
+  );
   if (DeviceForm.isTelevision) {
     // D-pad navigation: always show focus highlights on Android TV. Arrow and
     // select/center keys are handled by WidgetsApp.defaultShortcuts.
@@ -27,9 +39,6 @@ Future<void> main(List<String> args) async {
         FocusHighlightStrategy.alwaysTraditional;
   }
   if (Platform.isWindows) {
-    // Native media controls are optional. Their initialization must not keep
-    // the window hidden when Windows or a native dependency rejects them.
-    await WindowsMediaControls.initialize();
     pendingLaunchActions.addAll(args.map(QuickAction.parse).nonNulls);
   }
   if (DeviceForm.isDesktop) {
@@ -54,11 +63,12 @@ Future<void> main(List<String> args) async {
   if (Platform.isIOS) {
     // Registered before the first frame so a CarPlay cold start (no phone UI)
     // is answered; the first call initializes playback on demand.
-    CarPlayBridge.install(
-      () => container.read(playbackServiceProvider.future),
-    );
+    CarPlayBridge.install(() => container.read(playbackServiceProvider.future));
   }
   runApp(
-    UncontrolledProviderScope(container: container, child: const ResonanceApp()),
+    UncontrolledProviderScope(
+      container: container,
+      child: const ResonanceApp(),
+    ),
   );
 }

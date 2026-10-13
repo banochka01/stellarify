@@ -21,6 +21,11 @@ import 'package:url_launcher/url_launcher.dart';
 class ResonanceApp extends ConsumerStatefulWidget {
   const ResonanceApp({super.key});
 
+  /// Число построений корня приложения: тест держит его на минимуме, чтобы
+  /// фоновые сервисы не перестраивали весь MaterialApp при старте.
+  @visibleForTesting
+  static int debugBuildCount = 0;
+
   @override
   ConsumerState<ResonanceApp> createState() => _ResonanceAppState();
 }
@@ -70,16 +75,25 @@ class _ResonanceAppState extends ConsumerState<ResonanceApp> {
     }
   }
 
+  static void _ignore(Object? _, Object? _) {}
+
   @override
   Widget build(BuildContext context) {
+    assert(() {
+      ResonanceApp.debugBuildCount++;
+      return true;
+    }());
     final appearance = ref.watch(appearanceControllerProvider);
-    ref.watch(accountControllerProvider);
-    ref.watch(obsOverlayControllerProvider);
-    ref.watch(listeningRecorderProvider);
-    ref.watch(offlineCoordinatorProvider);
-    ref.watch(nowPlayingReporterProvider);
-    ref.watch(windowsShellProvider);
-    ref.watch(androidHomeWidgetProvider);
+    // Фоновые сервисы только держим живыми: listen не перестраивает
+    // MaterialApp при каждом их loading → data и смене сессии.
+    ref
+      ..listen<Object?>(accountControllerProvider, _ignore)
+      ..listen<Object?>(obsOverlayControllerProvider, _ignore)
+      ..listen<Object?>(listeningRecorderProvider, _ignore)
+      ..listen<Object?>(offlineCoordinatorProvider, _ignore)
+      ..listen<Object?>(nowPlayingReporterProvider, _ignore)
+      ..listen<Object?>(windowsShellProvider, _ignore)
+      ..listen<Object?>(androidHomeWidgetProvider, _ignore);
     final compact = ref.watch(compactModeProvider);
     return MaterialApp.router(
       title: 'Resonance',

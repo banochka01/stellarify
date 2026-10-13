@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 class ResonanceLogo extends StatelessWidget {
   const ResonanceLogo({this.size = 28, super.key});
 
-  static const asset = 'assets/images/resonance_mark.png';
+  static const asset = 'assets/images/resonance_mark.webp';
 
   final double size;
 

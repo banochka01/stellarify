@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/desktop/quick_actions.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/playback_position.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -15,9 +15,10 @@ class CompactPlayer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(playbackStateProvider).valueOrNull;
-    final track = state?.currentTrack;
-    final playing = state?.playing ?? false;
+    // Без позиции: мини-плеер не перестраивается на каждый тик.
+    final state = ref.watch(playbackFrameProvider);
+    final track = state.currentTrack;
+    final playing = state.playing;
     final liked =
         track != null &&
         (ref

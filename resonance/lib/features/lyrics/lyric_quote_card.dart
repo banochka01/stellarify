@@ -195,7 +195,7 @@ class LyricQuoteCard extends ConsumerWidget {
                 Row(
                   children: [
                     Image.asset(
-                      'assets/images/resonance_mark.png',
+                      'assets/images/resonance_mark.webp',
                       width: 22,
                       height: 22,
                       errorBuilder: (_, _, _) => const SizedBox(),

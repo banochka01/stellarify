@@ -31,7 +31,15 @@ abstract final class ResonanceFonts {
 }
 
 abstract final class ResonanceTheme {
-  static ThemeData forPreset(ResonanceThemePreset preset) {
+  static final _cache = <ResonanceThemePreset, ThemeData>{};
+
+  /// ThemeData собирается один раз на пресет: корень приложения
+  /// перестраивается при смене оформления, и одинаковая тема не должна
+  /// заново считать ColorScheme и TextTheme.
+  static ThemeData forPreset(ResonanceThemePreset preset) =>
+      _cache.putIfAbsent(preset, () => _build(preset));
+
+  static ThemeData _build(ResonanceThemePreset preset) {
     // Имена пресетов сохранены ради совместимости с сохранёнными настройками:
     // graphite теперь «Эфир» (по умолчанию), midnight — «Графит», ember — «Янтарь».
     final palette = switch (preset) {

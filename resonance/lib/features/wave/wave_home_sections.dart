@@ -360,6 +360,9 @@ class _ReleaseCard extends ConsumerWidget {
                       artwork.toString(),
                       width: size,
                       height: size,
+                      cacheWidth: artworkCacheBucket(
+                        size * MediaQuery.devicePixelRatioOf(context),
+                      ),
                       fit: BoxFit.cover,
                       errorBuilder: (_, _, _) => Container(
                         width: size,
