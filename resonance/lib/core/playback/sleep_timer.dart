@@ -13,8 +13,42 @@ abstract interface class SleepTimerPlayback {
   void setStopAfterCurrent(bool value);
 }
 
+/// Докуда играть в режиме «до конца»: трек, альбом или вся очередь.
+enum SleepTimerScope { track, album, queue }
+
+/// Последний трек, после которого нужно остановиться: для альбома — конец
+/// непрерывного отрезка того же альбома в очереди, для очереди — её конец.
+String? sleepTimerTargetTrackId(
+  ResonancePlaybackState playback,
+  SleepTimerScope scope,
+) {
+  final queue = playback.queue;
+  final index = playback.currentIndex;
+  if (index < 0 || index >= queue.length) return null;
+  switch (scope) {
+    case SleepTimerScope.track:
+      return queue[index].id;
+    case SleepTimerScope.queue:
+      return queue.last.id;
+    case SleepTimerScope.album:
+      final album = queue[index].album?.trim().toLowerCase();
+      if (album == null || album.isEmpty) return queue[index].id;
+      var last = index;
+      while (last + 1 < queue.length &&
+          queue[last + 1].album?.trim().toLowerCase() == album) {
+        last++;
+      }
+      return queue[last].id;
+  }
+}
+
 final class SleepTimerState {
-  const SleepTimerState({this.endsAt, this.endOfTrackId, this.fading = false});
+  const SleepTimerState({
+    this.endsAt,
+    this.endOfTrackId,
+    this.fading = false,
+    this.scope = SleepTimerScope.track,
+  });
 
   /// Момент, когда начнётся затухание (режим «через N минут»).
   final DateTime? endsAt;
@@ -22,6 +56,9 @@ final class SleepTimerState {
   /// Трек, после которого нужно остановиться (режим «в конце трека»).
   final String? endOfTrackId;
   final bool fading;
+
+  /// Для режима «до конца»: трек, альбом или очередь.
+  final SleepTimerScope scope;
 
   bool get active => endsAt != null || endOfTrackId != null || fading;
   bool get endOfTrack => endOfTrackId != null;
@@ -71,15 +108,20 @@ final class SleepTimerController extends StateNotifier<SleepTimerState> {
   }
 
   /// Останавливает музыку, когда закончится текущий трек.
-  Future<void> startEndOfTrack() async {
+  Future<void> startEndOfTrack() => startEndOf(SleepTimerScope.track);
+
+  /// Останавливает музыку в конце трека, альбома или всей очереди
+  /// (плейлиста); последние секунды плавно затухают.
+  Future<void> startEndOf(SleepTimerScope scope) async {
     cancel();
     final generation = _generation;
     final playback = await _playback();
     if (_disposed || generation != _generation) return;
-    final trackId = playback.state.currentTrack?.id;
+    final trackId = sleepTimerTargetTrackId(playback.state, scope);
     if (trackId == null) return;
-    state = SleepTimerState(endOfTrackId: trackId);
-    _armedPlayback = playback..setStopAfterCurrent(true);
+    state = SleepTimerState(endOfTrackId: trackId, scope: scope);
+    _armedPlayback = playback
+      ..setStopAfterCurrent(playback.state.currentTrack?.id == trackId);
     _subscription = playback.states.listen(
       (value) => _watchTrackEnd(value, generation),
     );
@@ -91,10 +133,17 @@ final class SleepTimerController extends StateNotifier<SleepTimerState> {
     if (armed == null || state.fading || generation != _generation) return;
     final current = playback.currentTrack?.id;
     if (current != armed) {
-      // Трек уже сменился (пропуск или ручной выбор) — останавливаемся сразу.
+      final target = playback.queue.indexWhere((track) => track.id == armed);
+      if (target > playback.currentIndex && playback.currentIndex >= 0) {
+        // Альбом или очередь ещё не доиграли — ждём последний трек.
+        _armedPlayback?.setStopAfterCurrent(false);
+        return;
+      }
+      // Последний трек уже пропущен — останавливаемся сразу.
       unawaited(_fire(generation, fade: const Duration(seconds: 2)));
       return;
     }
+    _armedPlayback?.setStopAfterCurrent(true);
     if (!playback.playing && playback.position > Duration.zero) {
       final duration = playback.duration;
       // Плеер сам встал на паузу в конце трека — таймер выполнил работу.
