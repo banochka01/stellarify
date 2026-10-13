@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
+import 'package:resonance/features/wave/context_mixes.dart';
 import 'package:resonance/features/wave/daily_mixes.dart';
 import 'package:resonance/features/wave/new_releases.dart';
 import 'package:resonance/features/wave/wave_blocks.dart';
@@ -123,6 +124,7 @@ class WaveDaySection extends ConsumerWidget {
           subtitle: 'обновляется каждое утро',
           gutter: gutter,
         ),
+        ContextMixesRow(gutter: gutter),
         SizedBox(
           height: size + MediaQuery.textScalerOf(context).scale(64),
           child: ListView.separated(
