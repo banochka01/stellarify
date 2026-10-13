@@ -47,6 +47,16 @@ import { WaveService, WaveSessionError } from "./wave.js";
 import { WavePersonalizer } from "./wave-personalizer.js";
 import { DailyMixService } from "./daily-mixes.js";
 import { ReleaseService } from "./releases.js";
+import { openSqlite } from "./api-helpers.js";
+import { SocialStore } from "./social-store.js";
+import { SocialService, createSocialRouter } from "./social.js";
+import { MusicGraph, createGraphRouter } from "./graph.js";
+import { ArtistPageService, BandsintownConcerts, createArtistRouter } from "./artists.js";
+import { SetlistService, createSetlistRouter } from "./setlists.js";
+import { CollabPlaylistStore, createCollabPlaylistRouter } from "./collab-playlists.js";
+import { LibraryCleanupService, createLibraryCleanupRouter } from "./library-cleanup.js";
+import { createPlatformRouter } from "./platform.js";
+import { isRoomMember, liveRoomPresence } from "./rooms.js";
 
 const port = Number(process.env.PORT || 8787);
 const webOrigin = process.env.WEB_ORIGIN || "http://localhost:5173";
@@ -137,8 +147,9 @@ try {
 } catch (error) {
   console.error("Clip offsets disabled", error);
 }
+const clipService = ClipService.fromEnvironment();
 app.use("/api/v1/clips", createClipRouter(
-  ClipService.fromEnvironment(),
+  clipService,
   async (query, request) => query.yandexId
     ? yandex.clips(query.yandexId, query, providerAccess(request))
     : [],
@@ -708,6 +719,54 @@ app.post("/api/import/preview", (request, response) => {
     }, {})
   });
 });
+
+// ---- Resonance 5.0: social layer, Music Graph, artists 2.0, collab playlists, cleanup, flags ----
+const accountUserId = (request: express.Request) => accessControl.fromRequest(request).userId;
+const socialDb = openSqlite(
+  process.env.SOCIAL_DB_PATH || join(dirname(process.env.AUTH_DB_PATH || "./data/resonance.sqlite"), "social.sqlite")
+);
+const socialStore = new SocialStore(socialDb);
+const collabPlaylists = new CollabPlaylistStore(socialDb, Date.now, (a, b) => socialStore.isBlockedEitherWay(a, b));
+socialStore.onRelationshipEnded((a, b) => collabPlaylists.removeSharedMemberships(a, b));
+const musicGraph = new MusicGraph({
+  artistSets: () => accountStore.listeningArtistSets(),
+  search: waveSearch,
+  fallbackProviders: ["soundcloud", "yandex"]
+}, { minUsers: optionalNumber(process.env.GRAPH_MIN_USERS) ?? 3 });
+musicGraph.start();
+const setlists = SetlistService.fromEnvironment();
+app.use("/api/v1/social", createSocialRouter(
+  new SocialService(socialStore, accountStore, dailyMixes, { live: liveRoomPresence, isMember: isRoomMember }),
+  accountUserId,
+  waveAccess
+));
+app.use("/api/v1/graph", createGraphRouter(musicGraph, {
+  authenticate: accountUserId,
+  taste: (userId) => accountStore.getWaveTasteSignals(userId),
+  search: waveSearch,
+  access: waveAccess
+}));
+app.use("/api/v1/artists", createArtistRouter(new ArtistPageService({
+  search: waveSearch,
+  releases,
+  clips: clipService,
+  concerts: BandsintownConcerts.fromEnvironment(),
+  setlists,
+  graph: musicGraph,
+  social: socialStore
+}), socialStore, accountUserId, waveAccess));
+app.use("/api/v1/setlists", createSetlistRouter(setlists));
+app.use("/api/v1/collab-playlists", createCollabPlaylistRouter(
+  collabPlaylists,
+  accountUserId,
+  (ownerId, memberId) => socialStore.areFriends(ownerId, memberId)
+));
+app.use("/api/v1/library/cleanup", createLibraryCleanupRouter(
+  new LibraryCleanupService((userId) => accountStore.getLibrary(userId), waveSearch),
+  accountUserId,
+  waveAccess
+));
+app.use("/api/v1", createPlatformRouter(socialStore, accountUserId));
 
 app.use(jsonErrorHandler);
 

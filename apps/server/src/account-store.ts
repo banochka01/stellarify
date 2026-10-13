@@ -394,6 +394,52 @@ export class AccountStore {
     return this.getLibrary(userId);
   }
 
+  /**
+   * Anonymous per-account artist sets for the Music Graph: no user ids leave
+   * this method, only "these artists were listened to by the same person".
+   */
+  listeningArtistSets(maxUsers = 5_000, perUser = 60, windowDays = 90, maxRows = 200_000): string[][] {
+    const rows = this.#database.prepare(`
+      SELECT user_id, artist, COUNT(*) AS plays FROM account_wave_feedback
+      WHERE type IN ('started', 'finished', 'liked') AND created_at >= ?
+      GROUP BY user_id, artist
+      ORDER BY user_id, plays DESC
+      LIMIT ?
+    `).all(Date.now() - windowDays * 24 * 60 * 60 * 1_000, maxRows) as Array<{ user_id: string; artist: string; plays: number }>;
+    const byUser = new Map<string, string[]>();
+    for (const row of rows) {
+      let list = byUser.get(row.user_id);
+      if (!list) {
+        if (byUser.size >= maxUsers) continue;
+        list = [];
+        byUser.set(row.user_id, list);
+      }
+      if (list.length < perUser) list.push(row.artist);
+    }
+    return [...byUser.values()];
+  }
+
+  /** Recent positive listening of several accounts in one query (friends feed). */
+  recentListening(userIds: string[], since: number, perUser = 5) {
+    const result = new Map<string, Array<{ title: string; artist: string; createdAt: string }>>();
+    const ids = [...new Set(userIds)].slice(0, 500);
+    if (!ids.length) return result;
+    const rows = this.#database.prepare(`
+      SELECT user_id, title, artist, created_at FROM account_wave_feedback
+      WHERE user_id IN (${ids.map(() => "?").join(",")})
+        AND created_at >= ? AND type IN ('started', 'finished', 'liked')
+      ORDER BY created_at DESC
+      LIMIT ?
+    `).all(...ids, since, ids.length * perUser * 4) as Array<{ user_id: string; title: string; artist: string; created_at: number }>;
+    for (const row of rows) {
+      const list = result.get(row.user_id) ?? [];
+      if (list.length >= perUser || list.some((item) => item.title === row.title && item.artist === row.artist)) continue;
+      list.push({ title: row.title, artist: row.artist, createdAt: new Date(row.created_at).toISOString() });
+      result.set(row.user_id, list);
+    }
+    return result;
+  }
+
   prune() {
     const now = Date.now();
     this.#database.prepare("DELETE FROM account_sessions WHERE refresh_expires_at <= ?").run(now);

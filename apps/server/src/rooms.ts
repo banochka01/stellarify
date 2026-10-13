@@ -678,6 +678,42 @@ export function roomWaveUserIds(code: string, hostUserId: string) {
   )].slice(0, 10);
 }
 
+export type LiveRoomPresence = {
+  userId: string;
+  code: string;
+  isPrivate: boolean;
+  participants: number;
+  track: { title: string; artist: string } | null;
+};
+
+/** Live rooms the given accounts are in right now (for «друг сейчас в комнате»). */
+export function liveRoomPresence(userIds: Iterable<string>): LiveRoomPresence[] {
+  const wanted = new Set(userIds);
+  const result: LiveRoomPresence[] = [];
+  for (const room of rooms.values()) {
+    const seen = new Set<string>();
+    for (const participant of room.participants.values()) {
+      const userId = participant.userId;
+      if (!userId || !wanted.has(userId) || seen.has(userId)) continue;
+      seen.add(userId);
+      const track = room.playback.track;
+      result.push({
+        userId,
+        code: room.code,
+        isPrivate: room.isPrivate,
+        participants: room.participants.size,
+        track: track ? { title: track.title, artist: track.artist } : null
+      });
+    }
+  }
+  return result;
+}
+
+/** Whether the account has been admitted to the room before (private-room visibility). */
+export function isRoomMember(code: string, userId: string) {
+  try { return roomStore().isMember(code, userId); } catch { return false; }
+}
+
 /** Test hook: drops live rooms as if the server process restarted. */
 export function resetLiveRoomsForTests() {
   rooms.clear();
