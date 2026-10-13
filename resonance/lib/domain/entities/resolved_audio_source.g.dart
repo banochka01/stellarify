@@ -19,6 +19,16 @@ _ResolvedAudioSource _$ResolvedAudioSourceFromJson(Map<String, dynamic> json) =>
         ),
         codec: $checkedConvert('codec', (v) => v as String?),
         bitrate: $checkedConvert('bitrate', (v) => (v as num?)?.toInt()),
+        sampleRate: $checkedConvert('sampleRate', (v) => (v as num?)?.toInt()),
+        bitDepth: $checkedConvert('bitDepth', (v) => (v as num?)?.toInt()),
+        loudnessLufs: $checkedConvert(
+          'loudnessLufs',
+          (v) => (v as num?)?.toDouble(),
+        ),
+        truePeakDb: $checkedConvert(
+          'truePeakDb',
+          (v) => (v as num?)?.toDouble(),
+        ),
         preview: $checkedConvert('preview', (v) => v as bool? ?? false),
         expiresAt: $checkedConvert(
           'expiresAt',
@@ -43,6 +53,10 @@ Map<String, dynamic> _$ResolvedAudioSourceToJson(
   'protocol': _$StreamProtocolEnumMap[instance.protocol]!,
   'codec': instance.codec,
   'bitrate': instance.bitrate,
+  'sampleRate': instance.sampleRate,
+  'bitDepth': instance.bitDepth,
+  'loudnessLufs': instance.loudnessLufs,
+  'truePeakDb': instance.truePeakDb,
   'preview': instance.preview,
   'expiresAt': instance.expiresAt?.toIso8601String(),
   'headers': instance.headers,

@@ -106,6 +106,10 @@ final class BackendTokenProvider
         protocol: _protocolFromJson(_requiredString(sourceJson, 'protocol')),
         codec: sourceJson['codec'] as String?,
         bitrate: (sourceJson['bitrate'] as num?)?.toInt(),
+        sampleRate: (sourceJson['sampleRate'] as num?)?.toInt(),
+        bitDepth: (sourceJson['bitDepth'] as num?)?.toInt(),
+        loudnessLufs: (sourceJson['loudnessLufs'] as num?)?.toDouble(),
+        truePeakDb: (sourceJson['truePeakDb'] as num?)?.toDouble(),
         preview: sourceJson['preview'] == true,
         expiresAt: sourceJson['expiresAt'] is String
             ? DateTime.parse(sourceJson['expiresAt'] as String).toUtc()

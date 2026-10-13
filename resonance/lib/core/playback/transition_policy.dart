@@ -1,3 +1,4 @@
+import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 
 final _liveOrClassical = RegExp(
@@ -29,4 +30,33 @@ bool smartTransitionSkipsFade(UnifiedTrack? current, UnifiedTrack next) {
   return isAlbumContinuation(current, next) ||
       looksLiveOrClassical(current) ||
       looksLiveOrClassical(next);
+}
+
+/// Бесшовный (gapless) переход: следующий трек заранее ставится в плеер и
+/// начинается без паузы. Только для альбомного порядка (соседние треки
+/// одного альбома, без перемешивания) и только когда кроссфейд не нужен:
+/// Flow выключен, длительность перехода 0 или «умный» режим, который и так
+/// не затухает между треками одного альбома.
+bool shouldUseGapless({
+  required bool gaplessEnabled,
+  required bool flowEnabled,
+  required bool smartTransitions,
+  required Duration transition,
+  required UnifiedTrack? current,
+  required UnifiedTrack next,
+  bool shuffle = false,
+  PlaybackRepeatMode repeatMode = PlaybackRepeatMode.off,
+  bool stopAfterCurrent = false,
+}) {
+  if (!gaplessEnabled ||
+      current == null ||
+      shuffle ||
+      stopAfterCurrent ||
+      repeatMode == PlaybackRepeatMode.one ||
+      current.id == next.id) {
+    return false;
+  }
+  if (!isAlbumContinuation(current, next)) return false;
+  final crossfadeOff = !flowEnabled || transition == Duration.zero;
+  return crossfadeOff || smartTransitions;
 }

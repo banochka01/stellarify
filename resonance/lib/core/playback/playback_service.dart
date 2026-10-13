@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:resonance/core/errors/app_exception.dart';
+import 'package:resonance/core/playback/loudness_normalization.dart';
 import 'package:resonance/core/playback/lyric_loop_playback.dart';
 import 'package:resonance/core/playback/offline_downloads.dart';
 import 'package:resonance/core/playback/playback_engine.dart';
@@ -31,8 +32,10 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     Random? random,
     Future<void> Function(MusicProvider)? authorizeSource,
     PlaybackFlowSettings flowSettings = const PlaybackFlowSettings(),
+    LoudnessNormalizer? normalizer,
   }) {
     return PlaybackService._(
+      normalizer: normalizer ?? LoudnessNormalizer(null),
       engine: engine,
       providers: providers,
       sourceSelectionPolicy: sourceSelectionPolicy,
@@ -57,6 +60,7 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     required Random? random,
     required this._authorizeSource,
     required this._flowSettings,
+    required this._normalizer,
   }) : _sourceCache = sourceCache ?? ResolvedSourceCache(),
        _random = random ?? Random() {
     _subscriptions.addAll([
@@ -71,6 +75,7 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
       _engine.position.listen((position) {
         _emit(_state.copyWith(position: position));
         _maybePrefetchNext(position);
+        _maybePrepareGapless(position);
         _maybeStartAutomaticFlow(position);
       }),
       _engine.duration.listen(
@@ -80,6 +85,7 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
         if (!_transitioning && !_fading) _emit(_state.copyWith(volume: volume));
       }),
       _engine.completed.listen(_onCompleted),
+      _engine.advancedToQueued.listen((_) => unawaited(_onGaplessAdvance())),
       _engine.errors.listen((message) {
         unawaited(_recoverFromEngineError(message));
       }),
@@ -138,7 +144,22 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
   final _lastSuccessfulProvider = <String, MusicProvider>{};
   final _prefetchingTrackIds = <String>{};
   PlaybackFlowSettings _flowSettings;
+  final LoudnessNormalizer _normalizer;
   Timer? _sourceNoticeTimer;
+
+  /// Следующий трек, уже поставленный в плеер для бесшовного перехода.
+  ({
+    int index,
+    String trackId,
+    TrackSource source,
+    ResolvedAudioSource resolved,
+  })?
+  _gapless;
+  bool _preparingGapless = false;
+  double? _currentGainDb;
+
+  /// Гейн выравнивания громкости текущего трека, дБ (`null` — нет оценки).
+  double? get currentGainDb => _currentGainDb;
 
   ResonancePlaybackState _state = const ResonancePlaybackState();
   bool _recovering = false;
@@ -160,8 +181,55 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
   PlaybackFlowSettings get flowSettings => _flowSettings;
 
   Future<void> setFlowSettings(PlaybackFlowSettings settings) async {
+    final previous = _flowSettings;
     _flowSettings = settings;
     await _engine.setLoudnessNormalization(settings.normalizeLoudness);
+    if (previous.normalization != settings.normalization) {
+      final track = _state.currentTrack;
+      final audio = _state.activeAudioSource;
+      if (track != null && audio != null) await _applyGain(track, audio);
+    }
+    if (!settings.gapless ||
+        previous.enabled != settings.enabled ||
+        previous.transitionMs != settings.transitionMs ||
+        previous.smartTransitions != settings.smartTransitions) {
+      await _dropGapless();
+    }
+  }
+
+  Future<void> _applyGain(UnifiedTrack track, ResolvedAudioSource audio) async {
+    double? gain;
+    try {
+      gain = await _normalizer.gainFor(
+        mode: _flowSettings.normalization,
+        track: track,
+        source: audio,
+      );
+    } on Object {
+      gain = null;
+    }
+    // Пока считали, трек мог смениться.
+    if (_disposed || _state.currentTrack?.id != track.id) return;
+    _currentGainDb = gain;
+    await _engine.setReplayGain(gain);
+  }
+
+  /// Перед сменой трека сохраняет громкость, измеренную плеером.
+  Future<void> _captureLoudness() async {
+    final track = _state.currentTrack;
+    if (track == null ||
+        !_flowSettings.normalizeLoudness ||
+        _state.position < const Duration(seconds: 30)) {
+      return;
+    }
+    try {
+      final lufs = await _engine.measuredLoudnessLufs().timeout(
+        const Duration(milliseconds: 300),
+      );
+      if (lufs != null) await _normalizer.remember(track, lufs);
+    } on Object {
+      // Измерение оппортунистично.
+    }
   }
 
   bool _preloadNext = false;
@@ -224,6 +292,7 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     int startIndex = 0,
     bool autoplay = false,
   }) async {
+    await _dropGapless();
     final safeIndex = tracks.isEmpty
         ? -1
         : startIndex.clamp(0, tracks.length - 1);
@@ -395,6 +464,7 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
   @override
   void setStopAfterCurrent(bool value) {
     _stopAfterCurrent = value;
+    if (value) unawaited(_dropGapless());
   }
 
   @override
@@ -422,16 +492,19 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
   }
 
   Future<void> setShuffle(bool enabled) async {
+    await _dropGapless();
     _emit(_state.copyWith(shuffle: enabled));
     await _engine.setShuffle(enabled);
   }
 
   Future<void> setRepeatMode(PlaybackRepeatMode mode) async {
+    await _dropGapless();
     _emit(_state.copyWith(repeatMode: mode));
     await _engine.setRepeatMode(mode);
   }
 
   Future<void> addToQueue(UnifiedTrack track) async {
+    await _dropGapless();
     _emit(_state.copyWith(queue: [..._state.queue, track]));
     await _persist();
     _startNextPreflight();
@@ -448,6 +521,7 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
   }
 
   Future<void> playNext(UnifiedTrack track) async {
+    await _dropGapless();
     final insertAt = (_state.currentIndex + 1).clamp(0, _state.queue.length);
     final queue = [..._state.queue]..insert(insertAt, track);
     _emit(_state.copyWith(queue: queue));
@@ -466,6 +540,7 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
   }
 
   Future<void> removeAt(int index) async {
+    await _dropGapless();
     if (index < 0 || index >= _state.queue.length) {
       return;
     }
@@ -740,6 +815,7 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
   /// Убирает из очереди ещё не сыгранные треки, подходящие под [test]
   /// (например, только что заблокированного исполнителя в радио).
   Future<int> removeUpcomingWhere(bool Function(UnifiedTrack) test) async {
+    await _dropGapless();
     final current = _state.currentIndex;
     final queue = <UnifiedTrack>[];
     var removed = 0;
@@ -860,6 +936,10 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     if (!completed || _transitioning) {
       return;
     }
+    if (_gapless != null) {
+      // Плеер сам перейдёт на поставленный следом трек.
+      return;
+    }
     if (_fading || _stopAfterCurrent) {
       // Таймер сна: трек закончился — останавливаемся, а не идём дальше.
       _stopAfterCurrent = false;
@@ -937,6 +1017,8 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     String? recoveryReason,
   }) async {
     final previous = _state.activeTrackSource;
+    await _captureLoudness();
+    _gapless = null;
     // Автокэш/предзагрузка не должны вытеснить файл, который сейчас звучит.
     _offlineDownloads?.setActiveTrackId(track.id);
     await _engine.open(resolved, play: play, start: start);
@@ -962,6 +1044,132 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
         'Выбран доступный источник: ${_providerTitle(source.provider)}',
       );
     }
+    await _applyGain(track, resolved);
+    _scheduleAccessCheck();
+    _startNextPreflight();
+    _preloadNextAudio();
+  }
+
+  int _sequentialNextIndex() {
+    if (_state.queue.isEmpty || _state.currentIndex < 0) return -1;
+    if (_state.currentIndex + 1 < _state.queue.length) {
+      return _state.currentIndex + 1;
+    }
+    return _state.repeatMode == PlaybackRepeatMode.all ? 0 : -1;
+  }
+
+  /// За ~20 с до конца ставит следующий трек альбома в плеер, чтобы он
+  /// начался без паузы (gapless). Работает, только когда кроссфейд не нужен.
+  void _maybePrepareGapless(Duration position) {
+    if (_gapless != null ||
+        _preparingGapless ||
+        _transitioning ||
+        _fading ||
+        !_state.playing ||
+        _state.duration <= Duration.zero ||
+        _state.duration - position > const Duration(seconds: 20)) {
+      return;
+    }
+    final index = _sequentialNextIndex();
+    if (index < 0) return;
+    final next = _state.queue[index];
+    if (!shouldUseGapless(
+      gaplessEnabled: _flowSettings.gapless,
+      flowEnabled: _flowSettings.enabled,
+      smartTransitions: _flowSettings.smartTransitions,
+      transition: _flowSettings.transitionDuration,
+      current: _state.currentTrack,
+      next: next,
+      shuffle: _state.shuffle,
+      repeatMode: _state.repeatMode,
+      stopAfterCurrent: _stopAfterCurrent,
+    )) {
+      return;
+    }
+    _preparingGapless = true;
+    unawaited(
+      _prepareGapless(
+        index,
+        next,
+      ).whenComplete(() => _preparingGapless = false),
+    );
+  }
+
+  Future<void> _prepareGapless(int index, UnifiedTrack next) async {
+    final currentId = _state.currentTrack?.id;
+    ({TrackSource source, ResolvedAudioSource resolved})? prepared;
+    final local = await _offlineDownloads?.localSource(next);
+    final localSource = _offlineDownloads?.downloadedSource(next.id);
+    if (local != null && localSource != null) {
+      prepared = (source: localSource, resolved: local);
+    } else {
+      final sources = _sourceSelectionPolicy.orderedSources(
+        next,
+        lastSuccessfulProvider: _lastSuccessfulProvider[next.id],
+      );
+      for (final source in sources) {
+        if (_providers.resolverFor(source.provider) == null) continue;
+        try {
+          final resolved = await _resolveSource(source);
+          if (resolved.preview) continue;
+          prepared = (source: source, resolved: resolved);
+          break;
+        } on Object {
+          _sourceCache.invalidate(source);
+        }
+      }
+    }
+    if (prepared == null ||
+        _disposed ||
+        _state.currentTrack?.id != currentId ||
+        _sequentialNextIndex() != index ||
+        _state.queue[index].id != next.id) {
+      return;
+    }
+    await _engine.setQueuedNext(prepared.resolved);
+    _gapless = (
+      index: index,
+      trackId: next.id,
+      source: prepared.source,
+      resolved: prepared.resolved,
+    );
+  }
+
+  Future<void> _dropGapless() async {
+    if (_gapless == null) return;
+    _gapless = null;
+    await _engine.setQueuedNext(null);
+  }
+
+  /// Плеер сам начал следующий трек: переносим очередь без повторного open.
+  Future<void> _onGaplessAdvance() async {
+    final prepared = _gapless;
+    _gapless = null;
+    if (prepared == null || _disposed) return;
+    final valid =
+        prepared.index < _state.queue.length &&
+        _state.queue[prepared.index].id == prepared.trackId;
+    if (!valid) {
+      // Очередь успела поменяться — открываем то, что действительно следующее.
+      await next();
+      return;
+    }
+    final track = _state.queue[prepared.index];
+    _offlineDownloads?.setActiveTrackId(track.id);
+    _lastSuccessfulProvider[track.id] = prepared.source.provider;
+    _emit(
+      _state.copyWith(
+        currentIndex: prepared.index,
+        activeTrackSource: prepared.source,
+        activeAudioSource: prepared.resolved,
+        position: Duration.zero,
+        duration: Duration.zero,
+        buffering: false,
+        errorMessage: null,
+      ),
+    );
+    await _applyGain(track, prepared.resolved);
+    await _persist();
     _scheduleAccessCheck();
     _startNextPreflight();
     _preloadNextAudio();

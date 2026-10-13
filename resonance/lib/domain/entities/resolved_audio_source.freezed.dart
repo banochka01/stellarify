@@ -15,7 +15,11 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$ResolvedAudioSource {
 
-@UriStringConverter() Uri get streamUrl; StreamProtocol get protocol; String? get codec; int? get bitrate; bool get preview; DateTime? get expiresAt; Map<String, String> get headers;
+@UriStringConverter() Uri get streamUrl; StreamProtocol get protocol; String? get codec; int? get bitrate;/// Частота дискретизации и разрядность, если провайдер их сообщил
+/// (нужны для бейджа Hi-Res).
+ int? get sampleRate; int? get bitDepth;/// Интегральная громкость (LUFS) и истинный пик (dBTP) из метаданных
+/// провайдера — для выравнивания громкости без анализа.
+ double? get loudnessLufs; double? get truePeakDb; bool get preview; DateTime? get expiresAt; Map<String, String> get headers;
 /// Create a copy of ResolvedAudioSource
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +32,16 @@ $ResolvedAudioSourceCopyWith<ResolvedAudioSource> get copyWith => _$ResolvedAudi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ResolvedAudioSource&&(identical(other.streamUrl, streamUrl) || other.streamUrl == streamUrl)&&(identical(other.protocol, protocol) || other.protocol == protocol)&&(identical(other.codec, codec) || other.codec == codec)&&(identical(other.bitrate, bitrate) || other.bitrate == bitrate)&&(identical(other.preview, preview) || other.preview == preview)&&(identical(other.expiresAt, expiresAt) || other.expiresAt == expiresAt)&&const DeepCollectionEquality().equals(other.headers, headers));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ResolvedAudioSource&&(identical(other.streamUrl, streamUrl) || other.streamUrl == streamUrl)&&(identical(other.protocol, protocol) || other.protocol == protocol)&&(identical(other.codec, codec) || other.codec == codec)&&(identical(other.bitrate, bitrate) || other.bitrate == bitrate)&&(identical(other.sampleRate, sampleRate) || other.sampleRate == sampleRate)&&(identical(other.bitDepth, bitDepth) || other.bitDepth == bitDepth)&&(identical(other.loudnessLufs, loudnessLufs) || other.loudnessLufs == loudnessLufs)&&(identical(other.truePeakDb, truePeakDb) || other.truePeakDb == truePeakDb)&&(identical(other.preview, preview) || other.preview == preview)&&(identical(other.expiresAt, expiresAt) || other.expiresAt == expiresAt)&&const DeepCollectionEquality().equals(other.headers, headers));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,streamUrl,protocol,codec,bitrate,preview,expiresAt,const DeepCollectionEquality().hash(headers));
+int get hashCode => Object.hash(runtimeType,streamUrl,protocol,codec,bitrate,sampleRate,bitDepth,loudnessLufs,truePeakDb,preview,expiresAt,const DeepCollectionEquality().hash(headers));
 
 @override
 String toString() {
-  return 'ResolvedAudioSource(streamUrl: $streamUrl, protocol: $protocol, codec: $codec, bitrate: $bitrate, preview: $preview, expiresAt: $expiresAt, headers: $headers)';
+  return 'ResolvedAudioSource(streamUrl: $streamUrl, protocol: $protocol, codec: $codec, bitrate: $bitrate, sampleRate: $sampleRate, bitDepth: $bitDepth, loudnessLufs: $loudnessLufs, truePeakDb: $truePeakDb, preview: $preview, expiresAt: $expiresAt, headers: $headers)';
 }
 
 
@@ -48,7 +52,7 @@ abstract mixin class $ResolvedAudioSourceCopyWith<$Res>  {
   factory $ResolvedAudioSourceCopyWith(ResolvedAudioSource value, $Res Function(ResolvedAudioSource) _then) = _$ResolvedAudioSourceCopyWithImpl;
 @useResult
 $Res call({
-@UriStringConverter() Uri streamUrl, StreamProtocol protocol, String? codec, int? bitrate, bool preview, DateTime? expiresAt, Map<String, String> headers
+@UriStringConverter() Uri streamUrl, StreamProtocol protocol, String? codec, int? bitrate, int? sampleRate, int? bitDepth, double? loudnessLufs, double? truePeakDb, bool preview, DateTime? expiresAt, Map<String, String> headers
 });
 
 
@@ -65,13 +69,17 @@ class _$ResolvedAudioSourceCopyWithImpl<$Res>
 
 /// Create a copy of ResolvedAudioSource
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? streamUrl = null,Object? protocol = null,Object? codec = freezed,Object? bitrate = freezed,Object? preview = null,Object? expiresAt = freezed,Object? headers = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? streamUrl = null,Object? protocol = null,Object? codec = freezed,Object? bitrate = freezed,Object? sampleRate = freezed,Object? bitDepth = freezed,Object? loudnessLufs = freezed,Object? truePeakDb = freezed,Object? preview = null,Object? expiresAt = freezed,Object? headers = null,}) {
   return _then(_self.copyWith(
 streamUrl: null == streamUrl ? _self.streamUrl : streamUrl // ignore: cast_nullable_to_non_nullable
 as Uri,protocol: null == protocol ? _self.protocol : protocol // ignore: cast_nullable_to_non_nullable
 as StreamProtocol,codec: freezed == codec ? _self.codec : codec // ignore: cast_nullable_to_non_nullable
 as String?,bitrate: freezed == bitrate ? _self.bitrate : bitrate // ignore: cast_nullable_to_non_nullable
-as int?,preview: null == preview ? _self.preview : preview // ignore: cast_nullable_to_non_nullable
+as int?,sampleRate: freezed == sampleRate ? _self.sampleRate : sampleRate // ignore: cast_nullable_to_non_nullable
+as int?,bitDepth: freezed == bitDepth ? _self.bitDepth : bitDepth // ignore: cast_nullable_to_non_nullable
+as int?,loudnessLufs: freezed == loudnessLufs ? _self.loudnessLufs : loudnessLufs // ignore: cast_nullable_to_non_nullable
+as double?,truePeakDb: freezed == truePeakDb ? _self.truePeakDb : truePeakDb // ignore: cast_nullable_to_non_nullable
+as double?,preview: null == preview ? _self.preview : preview // ignore: cast_nullable_to_non_nullable
 as bool,expiresAt: freezed == expiresAt ? _self.expiresAt : expiresAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,headers: null == headers ? _self.headers : headers // ignore: cast_nullable_to_non_nullable
 as Map<String, String>,
@@ -159,10 +167,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@UriStringConverter()  Uri streamUrl,  StreamProtocol protocol,  String? codec,  int? bitrate,  bool preview,  DateTime? expiresAt,  Map<String, String> headers)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@UriStringConverter()  Uri streamUrl,  StreamProtocol protocol,  String? codec,  int? bitrate,  int? sampleRate,  int? bitDepth,  double? loudnessLufs,  double? truePeakDb,  bool preview,  DateTime? expiresAt,  Map<String, String> headers)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ResolvedAudioSource() when $default != null:
-return $default(_that.streamUrl,_that.protocol,_that.codec,_that.bitrate,_that.preview,_that.expiresAt,_that.headers);case _:
+return $default(_that.streamUrl,_that.protocol,_that.codec,_that.bitrate,_that.sampleRate,_that.bitDepth,_that.loudnessLufs,_that.truePeakDb,_that.preview,_that.expiresAt,_that.headers);case _:
   return orElse();
 
 }
@@ -180,10 +188,10 @@ return $default(_that.streamUrl,_that.protocol,_that.codec,_that.bitrate,_that.p
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@UriStringConverter()  Uri streamUrl,  StreamProtocol protocol,  String? codec,  int? bitrate,  bool preview,  DateTime? expiresAt,  Map<String, String> headers)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@UriStringConverter()  Uri streamUrl,  StreamProtocol protocol,  String? codec,  int? bitrate,  int? sampleRate,  int? bitDepth,  double? loudnessLufs,  double? truePeakDb,  bool preview,  DateTime? expiresAt,  Map<String, String> headers)  $default,) {final _that = this;
 switch (_that) {
 case _ResolvedAudioSource():
-return $default(_that.streamUrl,_that.protocol,_that.codec,_that.bitrate,_that.preview,_that.expiresAt,_that.headers);case _:
+return $default(_that.streamUrl,_that.protocol,_that.codec,_that.bitrate,_that.sampleRate,_that.bitDepth,_that.loudnessLufs,_that.truePeakDb,_that.preview,_that.expiresAt,_that.headers);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -200,10 +208,10 @@ return $default(_that.streamUrl,_that.protocol,_that.codec,_that.bitrate,_that.p
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@UriStringConverter()  Uri streamUrl,  StreamProtocol protocol,  String? codec,  int? bitrate,  bool preview,  DateTime? expiresAt,  Map<String, String> headers)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@UriStringConverter()  Uri streamUrl,  StreamProtocol protocol,  String? codec,  int? bitrate,  int? sampleRate,  int? bitDepth,  double? loudnessLufs,  double? truePeakDb,  bool preview,  DateTime? expiresAt,  Map<String, String> headers)?  $default,) {final _that = this;
 switch (_that) {
 case _ResolvedAudioSource() when $default != null:
-return $default(_that.streamUrl,_that.protocol,_that.codec,_that.bitrate,_that.preview,_that.expiresAt,_that.headers);case _:
+return $default(_that.streamUrl,_that.protocol,_that.codec,_that.bitrate,_that.sampleRate,_that.bitDepth,_that.loudnessLufs,_that.truePeakDb,_that.preview,_that.expiresAt,_that.headers);case _:
   return null;
 
 }
@@ -215,13 +223,21 @@ return $default(_that.streamUrl,_that.protocol,_that.codec,_that.bitrate,_that.p
 @JsonSerializable()
 
 class _ResolvedAudioSource extends ResolvedAudioSource {
-  const _ResolvedAudioSource({@UriStringConverter() required this.streamUrl, required this.protocol, this.codec, this.bitrate, this.preview = false, this.expiresAt, final  Map<String, String> headers = const <String, String>{}}): _headers = headers,super._();
+  const _ResolvedAudioSource({@UriStringConverter() required this.streamUrl, required this.protocol, this.codec, this.bitrate, this.sampleRate, this.bitDepth, this.loudnessLufs, this.truePeakDb, this.preview = false, this.expiresAt, final  Map<String, String> headers = const <String, String>{}}): _headers = headers,super._();
   factory _ResolvedAudioSource.fromJson(Map<String, dynamic> json) => _$ResolvedAudioSourceFromJson(json);
 
 @override@UriStringConverter() final  Uri streamUrl;
 @override final  StreamProtocol protocol;
 @override final  String? codec;
 @override final  int? bitrate;
+/// Частота дискретизации и разрядность, если провайдер их сообщил
+/// (нужны для бейджа Hi-Res).
+@override final  int? sampleRate;
+@override final  int? bitDepth;
+/// Интегральная громкость (LUFS) и истинный пик (dBTP) из метаданных
+/// провайдера — для выравнивания громкости без анализа.
+@override final  double? loudnessLufs;
+@override final  double? truePeakDb;
 @override@JsonKey() final  bool preview;
 @override final  DateTime? expiresAt;
  final  Map<String, String> _headers;
@@ -245,16 +261,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ResolvedAudioSource&&(identical(other.streamUrl, streamUrl) || other.streamUrl == streamUrl)&&(identical(other.protocol, protocol) || other.protocol == protocol)&&(identical(other.codec, codec) || other.codec == codec)&&(identical(other.bitrate, bitrate) || other.bitrate == bitrate)&&(identical(other.preview, preview) || other.preview == preview)&&(identical(other.expiresAt, expiresAt) || other.expiresAt == expiresAt)&&const DeepCollectionEquality().equals(other._headers, _headers));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ResolvedAudioSource&&(identical(other.streamUrl, streamUrl) || other.streamUrl == streamUrl)&&(identical(other.protocol, protocol) || other.protocol == protocol)&&(identical(other.codec, codec) || other.codec == codec)&&(identical(other.bitrate, bitrate) || other.bitrate == bitrate)&&(identical(other.sampleRate, sampleRate) || other.sampleRate == sampleRate)&&(identical(other.bitDepth, bitDepth) || other.bitDepth == bitDepth)&&(identical(other.loudnessLufs, loudnessLufs) || other.loudnessLufs == loudnessLufs)&&(identical(other.truePeakDb, truePeakDb) || other.truePeakDb == truePeakDb)&&(identical(other.preview, preview) || other.preview == preview)&&(identical(other.expiresAt, expiresAt) || other.expiresAt == expiresAt)&&const DeepCollectionEquality().equals(other._headers, _headers));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,streamUrl,protocol,codec,bitrate,preview,expiresAt,const DeepCollectionEquality().hash(_headers));
+int get hashCode => Object.hash(runtimeType,streamUrl,protocol,codec,bitrate,sampleRate,bitDepth,loudnessLufs,truePeakDb,preview,expiresAt,const DeepCollectionEquality().hash(_headers));
 
 @override
 String toString() {
-  return 'ResolvedAudioSource(streamUrl: $streamUrl, protocol: $protocol, codec: $codec, bitrate: $bitrate, preview: $preview, expiresAt: $expiresAt, headers: $headers)';
+  return 'ResolvedAudioSource(streamUrl: $streamUrl, protocol: $protocol, codec: $codec, bitrate: $bitrate, sampleRate: $sampleRate, bitDepth: $bitDepth, loudnessLufs: $loudnessLufs, truePeakDb: $truePeakDb, preview: $preview, expiresAt: $expiresAt, headers: $headers)';
 }
 
 
@@ -265,7 +281,7 @@ abstract mixin class _$ResolvedAudioSourceCopyWith<$Res> implements $ResolvedAud
   factory _$ResolvedAudioSourceCopyWith(_ResolvedAudioSource value, $Res Function(_ResolvedAudioSource) _then) = __$ResolvedAudioSourceCopyWithImpl;
 @override @useResult
 $Res call({
-@UriStringConverter() Uri streamUrl, StreamProtocol protocol, String? codec, int? bitrate, bool preview, DateTime? expiresAt, Map<String, String> headers
+@UriStringConverter() Uri streamUrl, StreamProtocol protocol, String? codec, int? bitrate, int? sampleRate, int? bitDepth, double? loudnessLufs, double? truePeakDb, bool preview, DateTime? expiresAt, Map<String, String> headers
 });
 
 
@@ -282,13 +298,17 @@ class __$ResolvedAudioSourceCopyWithImpl<$Res>
 
 /// Create a copy of ResolvedAudioSource
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? streamUrl = null,Object? protocol = null,Object? codec = freezed,Object? bitrate = freezed,Object? preview = null,Object? expiresAt = freezed,Object? headers = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? streamUrl = null,Object? protocol = null,Object? codec = freezed,Object? bitrate = freezed,Object? sampleRate = freezed,Object? bitDepth = freezed,Object? loudnessLufs = freezed,Object? truePeakDb = freezed,Object? preview = null,Object? expiresAt = freezed,Object? headers = null,}) {
   return _then(_ResolvedAudioSource(
 streamUrl: null == streamUrl ? _self.streamUrl : streamUrl // ignore: cast_nullable_to_non_nullable
 as Uri,protocol: null == protocol ? _self.protocol : protocol // ignore: cast_nullable_to_non_nullable
 as StreamProtocol,codec: freezed == codec ? _self.codec : codec // ignore: cast_nullable_to_non_nullable
 as String?,bitrate: freezed == bitrate ? _self.bitrate : bitrate // ignore: cast_nullable_to_non_nullable
-as int?,preview: null == preview ? _self.preview : preview // ignore: cast_nullable_to_non_nullable
+as int?,sampleRate: freezed == sampleRate ? _self.sampleRate : sampleRate // ignore: cast_nullable_to_non_nullable
+as int?,bitDepth: freezed == bitDepth ? _self.bitDepth : bitDepth // ignore: cast_nullable_to_non_nullable
+as int?,loudnessLufs: freezed == loudnessLufs ? _self.loudnessLufs : loudnessLufs // ignore: cast_nullable_to_non_nullable
+as double?,truePeakDb: freezed == truePeakDb ? _self.truePeakDb : truePeakDb // ignore: cast_nullable_to_non_nullable
+as double?,preview: null == preview ? _self.preview : preview // ignore: cast_nullable_to_non_nullable
 as bool,expiresAt: freezed == expiresAt ? _self.expiresAt : expiresAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,headers: null == headers ? _self._headers : headers // ignore: cast_nullable_to_non_nullable
 as Map<String, String>,

@@ -292,6 +292,10 @@ final class BackendSoundCloudProvider
         protocol: _protocolFromJson(_requiredString(json, 'protocol')),
         codec: json['codec'] as String?,
         bitrate: (json['bitrate'] as num?)?.toInt(),
+        sampleRate: (json['sampleRate'] as num?)?.toInt(),
+        bitDepth: (json['bitDepth'] as num?)?.toInt(),
+        loudnessLufs: (json['loudnessLufs'] as num?)?.toDouble(),
+        truePeakDb: (json['truePeakDb'] as num?)?.toDouble(),
         preview: json['preview'] == true,
         expiresAt: json['expiresAt'] is String
             ? DateTime.parse(json['expiresAt'] as String).toUtc()

@@ -142,6 +142,30 @@ final class FakePlaybackEngine implements PlaybackEngine {
     _audioOutput.add(device);
   }
 
+  final replayGains = <double?>[];
+  double? measuredLufs;
+  final queuedNext = <ResolvedAudioSource?>[];
+  final _advanced = StreamController<void>.broadcast();
+
+  @override
+  Future<void> setReplayGain(double? gainDb) async {
+    replayGains.add(gainDb);
+  }
+
+  @override
+  Future<double?> measuredLoudnessLufs() async => measuredLufs;
+
+  @override
+  Future<void> setQueuedNext(ResolvedAudioSource? source) async {
+    queuedNext.add(source);
+  }
+
+  @override
+  Stream<void> get advancedToQueued => _advanced.stream;
+
+  /// Плеер сам перешёл на поставленный следом источник (gapless).
+  void emitAdvancedToQueued() => _advanced.add(null);
+
   void emitDuration(Duration value) => _duration.add(value);
 
   void emitCompleted() => _completed.add(true);

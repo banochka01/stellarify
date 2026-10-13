@@ -15,6 +15,7 @@ import 'package:resonance/core/playback/audio_effects.dart';
 import 'package:resonance/core/playback/audio_focus_coordinator.dart';
 import 'package:resonance/core/playback/audio_output_controller.dart';
 import 'package:resonance/core/playback/demo_audio_source_resolver.dart';
+import 'package:resonance/core/playback/loudness_normalization.dart';
 import 'package:resonance/core/playback/offline_downloads.dart';
 import 'package:resonance/core/playback/playback_engine.dart';
 import 'package:resonance/core/playback/playback_service.dart';
@@ -333,6 +334,9 @@ final playbackServiceProvider = FutureProvider<PlaybackService>((ref) async {
     sourceCache: ref.watch(resolvedSourceCacheProvider),
     quality: onboarding.quality,
     flowSettings: flowSettings,
+    normalizer: LoudnessNormalizer(
+      DriftLoudnessStore(ref.watch(appDatabaseProvider)),
+    ),
   );
   await service.initialize();
   AudioFocusCoordinator? focusCoordinator;
