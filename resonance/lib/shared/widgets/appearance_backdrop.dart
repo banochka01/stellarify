@@ -9,6 +9,20 @@ class AppearanceBackdrop extends StatelessWidget {
 
   final AppearanceSettings settings;
 
+  /// Ширина декодирования фона: длинная сторона экрана в физических
+  /// пикселях, округлённая вверх до 512, чтобы поворот и ресайз окна не
+  /// декодировали фон заново на каждый пиксель.
+  static int decodeWidthFor(Size logical, double pixelRatio) {
+    final longest = logical.longestSide * pixelRatio;
+    final rounded = ((longest / 512).ceil() * 512).clamp(512, 4096);
+    return rounded.toInt();
+  }
+
+  static int _decodeWidth(BuildContext context) => decodeWidthFor(
+    MediaQuery.sizeOf(context),
+    MediaQuery.devicePixelRatioOf(context),
+  );
+
   @override
   Widget build(BuildContext context) {
     final backgroundPath = settings.backgroundPath;
@@ -21,6 +35,9 @@ class AppearanceBackdrop extends StatelessWidget {
               children: [
                 Image.file(
                   File(backgroundPath),
+                  // Фото пользователя бывает 4000+ px: декодируем по ширине
+                  // окна, иначе фон держит в памяти десятки мегабайт.
+                  cacheWidth: _decodeWidth(context),
                   fit: BoxFit.cover,
                   filterQuality: FilterQuality.high,
                   errorBuilder: (_, _, _) => const SizedBox.expand(),

@@ -122,6 +122,9 @@ class ArtistScreen extends ConsumerWidget {
                         opacity: .16,
                         child: CachedNetworkImage(
                           imageUrl: highQualityArtworkUrl(url),
+                          // Приглушённая подложка на 16 %: полного размера
+                          // не нужно.
+                          memCacheWidth: 640,
                           fit: BoxFit.cover,
                           color: Colors.black,
                           colorBlendMode: BlendMode.luminosity,
@@ -478,7 +481,7 @@ class _ArtistAvatar extends StatelessWidget {
               track: track!,
               size: size,
               borderRadius: size / 2,
-              fallbackAsset: 'assets/images/resonance_fallback_cover.png',
+              fallbackAsset: 'assets/images/resonance_fallback_cover.webp',
             ),
     );
   }
@@ -562,7 +565,7 @@ class _ArtistTrackRow extends ConsumerWidget {
                   track: track,
                   size: 44,
                   borderRadius: 8,
-                  fallbackAsset: 'assets/images/resonance_fallback_cover.png',
+                  fallbackAsset: 'assets/images/resonance_fallback_cover.webp',
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -636,7 +639,7 @@ class _ArtistTrackCard extends ConsumerWidget {
                 track: track,
                 size: 156,
                 borderRadius: 14,
-                fallbackAsset: 'assets/images/resonance_fallback_cover.png',
+                fallbackAsset: 'assets/images/resonance_fallback_cover.webp',
               ),
               const SizedBox(height: 10),
               Text(

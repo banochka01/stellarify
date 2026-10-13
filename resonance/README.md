@@ -149,7 +149,15 @@ K:\SDK\flutter_fresh\bin\flutter.bat analyze
 K:\SDK\flutter_fresh\bin\flutter.bat test
 K:\SDK\flutter_fresh\bin\flutter.bat build windows --release
 K:\SDK\flutter_fresh\bin\flutter.bat build apk --release
+K:\SDK\flutter_fresh\bin\flutter.bat build apk --release --split-per-abi
 ```
+
+The universal APK stays the default download (`Resonance-android-current.apk`).
+`--split-per-abi` is an additional artifact: the arm64-v8a APK is about 41 MB
+instead of about 113 MB, because media_kit bundles libmpv for every ABI.
+Publish it as `Resonance-android-<version>-arm64-v8a.apk`;
+`deploy/promote-release-links.sh` then also points
+`Resonance-android-arm64-current.apk` at it.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md),
 [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md), and

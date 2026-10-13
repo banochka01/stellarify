@@ -9,6 +9,7 @@ import 'package:resonance/features/platform/feature_flags.dart';
 import 'package:resonance/features/platform/feature_views.dart';
 import 'package:resonance/features/rooms/dj_mode.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
+import 'package:resonance/shared/widgets/playback_position.dart';
 
 /// DJ deck for the host or a DJ: pick the next track and crossfade into it
 /// manually. Listeners keep using the room reaction bar.
@@ -57,9 +58,10 @@ class _RoomDjPanelState extends ConsumerState<RoomDjPanel> {
         !ref.watch(featureEnabledProvider(FeatureFlag.djRooms))) {
       return const SizedBox.shrink();
     }
-    final playback = ref.watch(playbackStateProvider).valueOrNull;
-    final queue = playback?.queue ?? const <UnifiedTrack>[];
-    final current = playback?.currentIndex ?? -1;
+    // Без позиции: панель не должна перестраиваться на каждый тик плеера.
+    final playback = ref.watch(playbackFrameProvider);
+    final queue = playback.queue;
+    final current = playback.currentIndex;
     final upcoming = [
       for (var index = current + 1; index < queue.length; index++) queue[index],
     ].take(8).toList();

@@ -74,6 +74,7 @@ class TrackArtwork extends StatelessWidget {
             highQualityArtworkUrl(artworkUrl),
             width: size,
             height: size,
+            cacheWidth: cacheSize,
             fit: BoxFit.cover,
             errorBuilder: (_, _, _) => fallback,
           ),
@@ -161,6 +162,11 @@ class ArtworkFallback extends StatelessWidget {
     final body = fallbackAsset != null
         ? Image.asset(
             fallbackAsset!,
+            // Заглушка общая для всех размеров: декодируем по корзине, а не
+            // в исходные 1254 px на каждую мини-обложку.
+            cacheWidth: artworkCacheBucket(
+              dimension * MediaQuery.devicePixelRatioOf(context),
+            ),
             fit: BoxFit.cover,
             width: dimension,
             height: dimension,

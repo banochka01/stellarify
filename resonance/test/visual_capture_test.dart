@@ -101,18 +101,7 @@ void main() {
         ),
       ),
     );
-    await tester.runAsync(
-      () => Future.wait([
-        precacheImage(
-          const AssetImage('assets/images/resonance_cinematic_background.png'),
-          tester.element(find.byType(MaterialApp)),
-        ),
-        precacheImage(
-          const AssetImage('assets/images/resonance_fallback_cover.png'),
-          tester.element(find.byType(MaterialApp)),
-        ),
-      ]),
-    );
+    await _precacheFallbackCover(tester);
     // Живой фон главной зациклен, пока играет трек: ждём фиксированное время.
     for (var frame = 0; frame < 40; frame++) {
       await tester.pump(const Duration(milliseconds: 50));
@@ -236,12 +225,7 @@ void main() {
         ),
       ),
     );
-    await tester.runAsync(
-      () => precacheImage(
-        const AssetImage('assets/images/resonance_fallback_cover.png'),
-        tester.element(find.byType(MaterialApp)),
-      ),
-    );
+    await _precacheFallbackCover(tester);
     for (var frame = 0; frame < 40; frame++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
@@ -297,12 +281,7 @@ void main() {
         ),
       ),
     );
-    await tester.runAsync(
-      () => precacheImage(
-        const AssetImage('assets/images/resonance_fallback_cover.png'),
-        tester.element(find.byType(MaterialApp)),
-      ),
-    );
+    await _precacheFallbackCover(tester);
     await tester.pumpAndSettle();
     expect(tester.getSize(find.byType(TrackArtwork)).width, greaterThan(400));
 
@@ -360,12 +339,7 @@ void main() {
         ),
       ),
     );
-    await tester.runAsync(
-      () => precacheImage(
-        const AssetImage('assets/images/resonance_fallback_cover.png'),
-        tester.element(find.byType(MaterialApp)),
-      ),
-    );
+    await _precacheFallbackCover(tester);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await expectLater(
@@ -398,12 +372,7 @@ void main() {
         ),
       ),
     );
-    await tester.runAsync(
-      () => precacheImage(
-        const AssetImage('assets/images/resonance_fallback_cover.png'),
-        tester.element(find.byType(MaterialApp)),
-      ),
-    );
+    await _precacheFallbackCover(tester);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await expectLater(
@@ -489,6 +458,21 @@ LyricsDocument _sampleLyrics() => LyricsDocument(
     LyricLine(text: 'До рассвета ещё далеко', start: Duration(seconds: 48)),
   ],
   sourceUrl: Uri.parse('https://lrclib.net'),
+);
+
+/// Заглушка обложки декодируется по корзинам размера (ResizeImage), поэтому
+/// прогреваем каждую корзину, чтобы снимок не ловил кадр до декодирования.
+Future<void> _precacheFallbackCover(WidgetTester tester) => tester.runAsync(
+  () => Future.wait([
+    for (final width in const [artworkThumbnailBucket, 320, 640, 1000, 1400])
+      precacheImage(
+        ResizeImage(
+          const AssetImage('assets/images/resonance_fallback_cover.webp'),
+          width: width,
+        ),
+        tester.element(find.byType(MaterialApp)),
+      ),
+  ]),
 );
 
 Widget _testApp({

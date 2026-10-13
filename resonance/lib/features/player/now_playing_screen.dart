@@ -671,7 +671,7 @@ class _GlowingArtwork extends ConsumerWidget {
         track: track,
         size: size,
         borderRadius: radius,
-        fallbackAsset: 'assets/images/resonance_fallback_cover.png',
+        fallbackAsset: 'assets/images/resonance_fallback_cover.webp',
       ),
     );
   }

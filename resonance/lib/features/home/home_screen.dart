@@ -479,7 +479,7 @@ class _FloatingCoverState extends State<_FloatingCover>
           track: widget.track,
           size: widget.size,
           borderRadius: radius,
-          fallbackAsset: 'assets/images/resonance_fallback_cover.png',
+          fallbackAsset: 'assets/images/resonance_fallback_cover.webp',
         ),
       ),
     );
@@ -487,19 +487,22 @@ class _FloatingCoverState extends State<_FloatingCover>
       onTap: () => unawaited(context.push('/player')),
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            final t = _controller.value * math.pi * 2;
-            return Transform.translate(
-              offset: Offset(0, math.sin(t) * 6),
-              child: Transform.rotate(
-                angle: math.sin(t + 1) * .018,
-                child: child,
-              ),
-            );
-          },
-          child: cover,
+        // Свой слой: покачивание обложки не перерисовывает всю главную.
+        child: RepaintBoundary(
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              final t = _controller.value * math.pi * 2;
+              return Transform.translate(
+                offset: Offset(0, math.sin(t) * 6),
+                child: Transform.rotate(
+                  angle: math.sin(t + 1) * .018,
+                  child: child,
+                ),
+              );
+            },
+            child: cover,
+          ),
         ),
       ),
     );
@@ -740,35 +743,39 @@ class _QuickTileState extends State<_QuickTile>
               fit: StackFit.expand,
               children: [
                 if (covers.isNotEmpty)
-                  ClipRect(
-                    child: AnimatedBuilder(
-                      animation: _drift,
-                      builder: (context, child) => Transform.translate(
-                        offset: Offset(-_drift.value * strip, 0),
-                        child: child,
-                      ),
-                      child: OverflowBox(
-                        alignment: Alignment.centerLeft,
-                        maxWidth: double.infinity,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (var i = 0; i < 3; i++)
-                              for (final track in covers)
-                                SizedBox(
-                                  width: _coverWidth,
-                                  height: _tileHeight,
-                                  child: CachedNetworkImage(
-                                    imageUrl: highQualityArtworkUrl(
-                                      track.artworkUrl!,
-                                      targetSize: 400,
+                  // Свой слой: дрейф обложек не перерисовывает плитку и сетку.
+                  RepaintBoundary(
+                    child: ClipRect(
+                      child: AnimatedBuilder(
+                        animation: _drift,
+                        builder: (context, child) => Transform.translate(
+                          offset: Offset(-_drift.value * strip, 0),
+                          child: child,
+                        ),
+                        child: OverflowBox(
+                          alignment: Alignment.centerLeft,
+                          maxWidth: double.infinity,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (var i = 0; i < 3; i++)
+                                for (final track in covers)
+                                  SizedBox(
+                                    width: _coverWidth,
+                                    height: _tileHeight,
+                                    child: CachedNetworkImage(
+                                      imageUrl: highQualityArtworkUrl(
+                                        track.artworkUrl!,
+                                        targetSize: 400,
+                                      ),
+                                      fit: BoxFit.cover,
+                                      memCacheWidth: 400,
+                                      errorWidget: (_, _, _) =>
+                                          const SizedBox(),
                                     ),
-                                    fit: BoxFit.cover,
-                                    memCacheWidth: 400,
-                                    errorWidget: (_, _, _) => const SizedBox(),
                                   ),
-                                ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -890,7 +897,7 @@ class _TrackCardState extends ConsumerState<_TrackCard> {
                         size: widget.size,
                         borderRadius: 14,
                         fallbackAsset:
-                            'assets/images/resonance_fallback_cover.png',
+                            'assets/images/resonance_fallback_cover.webp',
                       ),
                     ),
                     Positioned(
@@ -987,7 +994,8 @@ class _ArtistBubble extends StatelessWidget {
                     track: track,
                     size: size,
                     borderRadius: size / 2,
-                    fallbackAsset: 'assets/images/resonance_fallback_cover.png',
+                    fallbackAsset:
+                        'assets/images/resonance_fallback_cover.webp',
                   ),
                 ),
                 const SizedBox(height: 10),

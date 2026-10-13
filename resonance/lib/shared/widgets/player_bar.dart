@@ -107,7 +107,7 @@ class PlayerBar extends ConsumerWidget {
                                 size: compact ? 46 : 56,
                                 borderRadius: ResonanceRadii.sm,
                                 fallbackAsset:
-                                    'assets/images/resonance_fallback_cover.png',
+                                    'assets/images/resonance_fallback_cover.webp',
                               ),
                             ),
                           ),
