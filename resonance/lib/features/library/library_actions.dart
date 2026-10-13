@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_controller.dart';
+import 'package:resonance/features/platform/feature_views.dart';
+import 'package:resonance/features/playlists/collaborative_playlist.dart';
 
 Future<void> showAddToPlaylistDialog(
   BuildContext context,
@@ -9,6 +11,7 @@ Future<void> showAddToPlaylistDialog(
   UnifiedTrack track,
 ) async {
   final library = await ref.read(libraryControllerProvider.future);
+  final shared = await editableCollabPlaylists(ref);
   if (!context.mounted) return;
   final selection = await showDialog<String>(
     context: context,
@@ -25,6 +28,17 @@ Future<void> showAddToPlaylistDialog(
               subtitle: Text('${playlist.trackCount} треков'),
             ),
           ),
+        for (final playlist in shared)
+          SimpleDialogOption(
+            onPressed: () =>
+                Navigator.pop(dialogContext, 'collab:${playlist.id}'),
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.group_rounded),
+              title: Text(playlist.name),
+              subtitle: Text('Совместный · ${playlist.trackCount} треков'),
+            ),
+          ),
         SimpleDialogOption(
           onPressed: () => Navigator.pop(dialogContext, '__new__'),
           child: const ListTile(
@@ -37,6 +51,20 @@ Future<void> showAddToPlaylistDialog(
     ),
   );
   if (selection == null || !context.mounted) return;
+  if (selection.startsWith('collab:')) {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(collaborativePlaylistApiProvider)
+          .addTrack(selection.substring(7), track);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Трек добавлен в совместный плейлист')),
+      );
+    } on Object catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text(featureErrorText(error))));
+    }
+    return;
+  }
   var playlistId = selection;
   if (selection == '__new__') {
     final name = await showCreatePlaylistDialog(context);

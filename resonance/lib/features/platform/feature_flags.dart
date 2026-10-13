@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:resonance/app/providers.dart';
+import 'package:resonance/features/auth/account_controller.dart';
 import 'package:resonance/features/platform/feature_api.dart';
 
 /// Resonance 5 sections. Server-backed ones are shown only when their key is
@@ -84,11 +86,33 @@ final featureFlagsApiProvider = Provider<FeatureFlagsApi>(
   (ref) => FeatureFlagsApi(ref.watch(featureTransportProvider)),
 );
 
-/// Optional channel hint for anonymous requests (set by the changelog layer).
-final featureChannelHintProvider = StateProvider<String?>((ref) => null);
+/// Local key of the stable/beta choice (shared with the changelog layer).
+const updateChannelStorageKey = 'resonance.update.channel';
 
+/// Saved update channel, read at startup; invalidated when the user changes it.
+final storedUpdateChannelProvider = FutureProvider<String>((ref) async {
+  try {
+    final value = await ref
+        .watch(secureKeyValueStoreProvider)
+        .read(updateChannelStorageKey);
+    return value == 'beta' ? 'beta' : 'stable';
+  } on Object {
+    return 'stable';
+  }
+});
+
+/// Id of the signed-in Resonance account (null when signed out).
+final featureAccountIdProvider = Provider<String?>(
+  (ref) => ref.watch(
+    accountControllerProvider.select((state) => state.valueOrNull?.id),
+  ),
+);
+
+/// Re-evaluated on sign-in/out (the server takes the channel from the
+/// account) and when the saved channel changes.
 final featureFlagsProvider = FutureProvider<FeatureFlags>((ref) async {
-  final channel = ref.watch(featureChannelHintProvider);
+  ref.watch(featureAccountIdProvider);
+  final channel = await ref.watch(storedUpdateChannelProvider.future);
   try {
     return await ref.watch(featureFlagsApiProvider).fetch(channel: channel);
   } on Object {

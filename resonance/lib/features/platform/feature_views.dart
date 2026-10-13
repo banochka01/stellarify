@@ -127,20 +127,27 @@ class FeatureUnavailableView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final failure = error;
-    final auth = failure is FeatureUnavailableException && failure.authRequired;
+    final known = failure is FeatureUnavailableException ? failure : null;
+    final auth = known?.authRequired ?? false;
+    final title = auth
+        ? 'Войдите в аккаунт Resonance'
+        : known == null || known.missing
+        ? 'Раздел временно недоступен'
+        : known.userMessage;
     return FeatureCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            auth ? Icons.lock_outline_rounded : Icons.cloud_off_rounded,
+            auth
+                ? Icons.lock_outline_rounded
+                : known?.rateLimited ?? false
+                ? Icons.hourglass_top_rounded
+                : Icons.cloud_off_rounded,
             color: ResonanceColors.muted,
           ),
           const SizedBox(height: 10),
-          Text(
-            auth ? 'Войдите в аккаунт Resonance' : 'Раздел временно недоступен',
-            style: const TextStyle(fontWeight: FontWeight.w800),
-          ),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 4),
           const Text(
             'Остальные функции продолжают работать.',
@@ -215,3 +222,8 @@ void showFeatureSnack(BuildContext context, String text) {
     context,
   )?.showSnackBar(SnackBar(content: Text(text)));
 }
+
+/// User-facing text for any error thrown by a feature API.
+String featureErrorText(Object error) => error is FeatureUnavailableException
+    ? error.userMessage
+    : 'Что-то пошло не так';

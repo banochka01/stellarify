@@ -18,6 +18,7 @@ final class NowPlayingReporter {
   });
 
   static const path = '/api/v1/social/now-playing';
+  static const maxFieldLength = 200;
 
   final FeatureTransport transport;
   final Future<bool> Function() hasSession;
@@ -27,29 +28,46 @@ final class NowPlayingReporter {
   String? _lastReportedId;
 
   void onTrack(UnifiedTrack? track) {
-    if (track == null || track.id == _lastReportedId) return;
     _timer?.cancel();
-    _timer = Timer(debounce, () => unawaited(_report(track)));
+    if (track == null || track.id == _lastReportedId) return;
+    _timer = Timer(debounce, () => unawaited(report(track)));
   }
 
-  Future<void> _report(UnifiedTrack track) async {
+  static String _clip(String value) => value.length <= maxFieldLength
+      ? value
+      : value.substring(0, maxFieldLength);
+
+  Future<void> report(UnifiedTrack track) async {
     try {
       if (!await hasSession()) return;
-      _lastReportedId = track.id;
       final provider =
           track.preferredProvider ?? track.sources.firstOrNull?.provider;
       await transport.request(
         'PUT',
         path,
         body: {
-          'title': track.title,
-          'artist': track.artist,
+          'title': _clip(track.title),
+          'artist': _clip(track.artist),
           'provider': ?provider?.name,
-          'trackId': track.id,
+          'trackId': _clip(track.id),
         },
       );
+      _lastReportedId = track.id;
     } on Object {
-      // Social presence is best-effort.
+      // Social presence is best-effort; the next track change retries.
+    }
+  }
+
+  /// Clears the status (sign-out). Must run while the session is still valid.
+  Future<void> clear() async {
+    _timer?.cancel();
+    _lastReportedId = null;
+    try {
+      await transport
+          .request('DELETE', path)
+          .timeout(const Duration(seconds: 3));
+    } on Object {
+      // Expires on the server after 10 minutes anyway.
     }
   }
 
@@ -71,3 +89,20 @@ final nowPlayingReporterProvider = Provider<NowPlayingReporter?>((ref) {
     );
   return reporter;
 });
+
+/// Called by the account controller right before logout.
+Future<void> clearNowPlayingBeforeLogout(Ref ref) async {
+  final reporter = ref.read(nowPlayingReporterProvider);
+  if (reporter != null) {
+    await reporter.clear();
+    return;
+  }
+  try {
+    await ref
+        .read(featureTransportProvider)
+        .request('DELETE', NowPlayingReporter.path)
+        .timeout(const Duration(seconds: 3));
+  } on Object {
+    // Best-effort.
+  }
+}

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:resonance/core/database/app_database.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/music_graph/music_graph.dart';
@@ -51,6 +52,7 @@ final class CleanupSuggestion {
     required this.remove,
     this.replacement,
     this.reason,
+    this.reasonCode,
     this.local = false,
   });
 
@@ -73,6 +75,7 @@ final class CleanupSuggestion {
       keep: item,
       remove: [item],
       replacement: jsonTrack(json['suggestion']),
+      reasonCode: jsonOptString(json['reason']),
       reason: switch (json['reason']) {
         'no_sources' => 'нет источников',
         'provider_disabled' => 'сервис отключён',
@@ -88,6 +91,12 @@ final class CleanupSuggestion {
   final List<CleanupItem> remove;
   final UnifiedTrack? replacement;
   final String? reason;
+
+  /// Raw server reason (`no_sources`, `provider_disabled`, ...).
+  final String? reasonCode;
+
+  /// The user turned the provider off on purpose: never bulk-select it.
+  bool get bulkSelectable => applicable && reasonCode != 'provider_disabled';
 
   /// Computed on-device by Music Graph rather than by the server.
   final bool local;
@@ -118,11 +127,18 @@ final class LibraryCleanupApi {
 
   final FeatureTransport _transport;
 
-  Future<CleanupPlan> scan() async {
+  Future<CleanupPlan> scan({
+    List<String>? enabledProviders,
+    List<String> unavailableTrackIds = const [],
+  }) async {
     final json = await _transport.request(
       'POST',
       path,
-      body: const <String, dynamic>{},
+      body: {
+        'enabledProviders': ?enabledProviders,
+        if (unavailableTrackIds.isNotEmpty)
+          'unavailableTrackIds': unavailableTrackIds.take(500).toList(),
+      },
       providerTokens: true,
     );
     final suggestions = <CleanupSuggestion>[];
@@ -184,14 +200,24 @@ List<CleanupSuggestion> localDuplicateSuggestions(
 final cleanupPlanProvider = FutureProvider.autoDispose<CleanupPlan>((
   ref,
 ) async {
+  final library = await ref.watch(libraryControllerProvider.future);
   if (ref.watch(featureEnabledProvider(FeatureFlag.libraryCleanup))) {
     try {
-      return await ref.watch(libraryCleanupApiProvider).scan();
+      return await ref
+          .watch(libraryCleanupApiProvider)
+          .scan(
+            enabledProviders: await ref.watch(
+              enabledProviderNamesProvider.future,
+            ),
+            unavailableTrackIds: unavailableTrackIds({
+              ...library.favorites,
+              ...library.graphTracks,
+            }),
+          );
     } on Object {
       // Fall back to on-device duplicates.
     }
   }
-  final library = await ref.watch(libraryControllerProvider.future);
   return CleanupPlan(
     suggestions: localDuplicateSuggestions(library.graphTracks),
     fromServer: false,
@@ -215,9 +241,40 @@ class _LibraryCleanupScreenState extends ConsumerState<LibraryCleanupScreen> {
         .where((item) => item.applicable && selected.contains(item.id))
         .toList();
     if (chosen.isEmpty) return;
-    setState(() => _applying = true);
     final controller = ref.read(libraryControllerProvider.notifier);
+    final affected = {
+      for (final item in chosen)
+        if (item.kind == CleanupKind.replacement)
+          item.keep.trackId
+        else
+          ...item.remove.map((duplicate) => duplicate.trackId),
+    };
+    final counts = await controller.countOccurrences(affected);
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Применить чистку?'),
+        content: Text(
+          'Будет заменено ${counts.tracks} треков в ${counts.places} местах (избранное и плейлисты). Сразу после применения действие можно отменить.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            key: const ValueKey('cleanup-confirm'),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Применить'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _applying = true);
     try {
+      final before = await controller.snapshot();
       final local = chosen.where((item) => item.local).map((item) => item.id);
       if (local.isNotEmpty) {
         await controller.reconcileMusicGraph(onlyCanonicalIds: local.toSet());
@@ -232,24 +289,50 @@ class _LibraryCleanupScreenState extends ConsumerState<LibraryCleanupScreen> {
           track.id: track,
       };
       final replacements = <String, UnifiedTrack>{};
+      final duplicateIds = <String>{};
       for (final item in chosen.where((item) => !item.local)) {
         if (item.kind == CleanupKind.replacement) {
           replacements[item.keep.trackId] = item.replacement!;
         } else if (known[item.keep.trackId] case final keep?) {
           for (final duplicate in item.remove) {
             replacements[duplicate.trackId] = keep;
+            duplicateIds.add(duplicate.trackId);
           }
         }
       }
-      await controller.replaceTracks(replacements);
+      await controller.replaceTracks(replacements, duplicateIds: duplicateIds);
       if (!mounted) return;
-      showFeatureSnack(context, 'Применено: ${chosen.length}');
       setState(() => _selected = null);
       ref.invalidate(cleanupPlanProvider);
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 10),
+          content: Text('Применено: ${chosen.length}'),
+          action: SnackBarAction(
+            label: 'Отменить',
+            onPressed: () => unawaited(_undo(before)),
+          ),
+        ),
+      );
     } on Object catch (error) {
-      if (mounted) showFeatureSnack(context, 'Не удалось применить: $error');
+      if (mounted) {
+        showFeatureSnack(
+          context,
+          'Не удалось применить: ${featureErrorText(error)}',
+        );
+      }
     } finally {
       if (mounted) setState(() => _applying = false);
+    }
+  }
+
+  Future<void> _undo(LocalLibrarySnapshot before) async {
+    try {
+      await ref.read(libraryControllerProvider.notifier).restoreLibrary(before);
+      ref.invalidate(cleanupPlanProvider);
+      if (mounted) showFeatureSnack(context, 'Медиатека восстановлена');
+    } on Object {
+      if (mounted) showFeatureSnack(context, 'Не удалось отменить чистку');
     }
   }
 
@@ -269,7 +352,12 @@ class _LibraryCleanupScreenState extends ConsumerState<LibraryCleanupScreen> {
               .where((item) => item.applicable)
               .map((item) => item.id)
               .toSet();
-          final selected = _selected ??= {...applicable};
+          final bulk = value.suggestions
+              .where((item) => item.bulkSelectable)
+              .map((item) => item.id)
+              .toSet();
+          // Nothing is preselected: the user chooses explicitly.
+          final selected = _selected ??= <String>{};
           if (value.suggestions.isEmpty) {
             return const [
               FeatureEmpty(
@@ -284,7 +372,7 @@ class _LibraryCleanupScreenState extends ConsumerState<LibraryCleanupScreen> {
           final replacements = value.suggestions
               .where((item) => item.kind == CleanupKind.replacement)
               .toList();
-          final all = selected.length == applicable.length;
+          final all = bulk.isNotEmpty && selected.containsAll(bulk);
           return [
             Row(
               children: [
@@ -296,7 +384,7 @@ class _LibraryCleanupScreenState extends ConsumerState<LibraryCleanupScreen> {
                 ),
                 TextButton(
                   onPressed: () => setState(
-                    () => _selected = all ? <String>{} : {...applicable},
+                    () => _selected = all ? <String>{} : {...selected, ...bulk},
                   ),
                   child: Text(all ? 'Снять все' : 'Выбрать все'),
                 ),

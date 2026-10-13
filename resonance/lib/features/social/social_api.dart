@@ -11,6 +11,9 @@ abstract final class SocialPaths {
   static const friends = '/api/v1/social/friends';
   static const requests = '/api/v1/social/friends/requests';
   static const feed = '/api/v1/social/feed';
+  static const blocks = '/api/v1/social/blocks';
+  static const nowPlaying = '/api/v1/social/now-playing';
+  static String block(String userId) => '$blocks/${_id(userId)}';
   static String _id(String id) => Uri.encodeComponent(id);
   static String accept(String userId) => '$requests/${_id(userId)}/accept';
   static String request(String userId) => '$requests/${_id(userId)}';
@@ -89,6 +92,7 @@ final class SocialFriends {
     this.friends = const [],
     this.incoming = const [],
     this.outgoing = const [],
+    this.blocked = const [],
   });
 
   factory SocialFriends.fromJson(Map<String, dynamic> json) {
@@ -99,12 +103,14 @@ final class SocialFriends {
       friends: parse(json['friends'], SocialRelation.friends),
       incoming: parse(json['incoming'], SocialRelation.incoming),
       outgoing: parse(json['outgoing'], SocialRelation.outgoing),
+      blocked: parse(json['blocked'], SocialRelation.blocked),
     );
   }
 
   final List<PublicProfile> friends;
   final List<PublicProfile> incoming;
   final List<PublicProfile> outgoing;
+  final List<PublicProfile> blocked;
 }
 
 final class ListenEvent {
@@ -222,7 +228,9 @@ final class SocialApi {
     await _transport.request('GET', SocialPaths.profile),
   );
 
+  /// [handle] — `''` clears the handle (sent as `null`).
   Future<SocialProfile> updateProfile({
+    String? handle,
     String? displayName,
     bool? isPublic,
     bool? shareListening,
@@ -233,6 +241,7 @@ final class SocialApi {
       SocialPaths.profile,
       body: {
         'displayName': ?displayName,
+        if (handle != null) 'handle': handle.isEmpty ? null : handle,
         'isPublic': ?isPublic,
         'shareListening': ?shareListening,
         'shareRooms': ?shareRooms,
@@ -275,6 +284,12 @@ final class SocialApi {
   Future<void> removeFriend(String userId) =>
       _transport.request('DELETE', SocialPaths.friend(userId));
 
+  Future<void> block(String userId) =>
+      _transport.request('POST', SocialPaths.blocks, body: {'userId': userId});
+
+  Future<void> unblock(String userId) =>
+      _transport.request('DELETE', SocialPaths.block(userId));
+
   Future<List<FeedItem>> feed() async => jsonList(
     (await _transport.request('GET', SocialPaths.feed))['items'],
   ).map(FeedItem.fromJson).toList();
@@ -284,11 +299,17 @@ final class SocialApi {
         await _transport.request('GET', SocialPaths.compatibility(userId)),
       );
 
-  Future<BlendMix> blend(String userId) async => BlendMix.fromJson(
+  Future<BlendMix> blend(
+    String userId, {
+    List<String>? enabledProviders,
+  }) async => BlendMix.fromJson(
     await _transport.request(
       'POST',
       SocialPaths.blend(userId),
-      body: {'tzOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes},
+      body: {
+        'enabledProviders': ?enabledProviders,
+        'tzOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
+      },
       providerTokens: true,
     ),
   );

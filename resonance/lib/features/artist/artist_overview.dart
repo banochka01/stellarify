@@ -53,10 +53,19 @@ class _ArtistOverviewSectionState extends ConsumerState<ArtistOverviewSection> {
     } on Object catch (error) {
       if (mounted) {
         setState(() => _following = !next);
-        showFeatureSnack(context, error.toString());
+        showFeatureSnack(context, featureErrorText(error));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _markSeen() async {
+    try {
+      await ref.read(artistApiProvider).markSeen(widget.artist);
+      if (mounted) ref.invalidate(unreadReleasesProvider);
+    } on Object {
+      // The badge simply stays until the next successful visit.
     }
   }
 
@@ -86,9 +95,7 @@ class _ArtistOverviewSectionState extends ConsumerState<ArtistOverviewSection> {
       _markedSeen = true;
       // Opening the page marks this artist's releases as seen (badge stays
       // until the next visit).
-      unawaited(
-        ref.read(artistApiProvider).markSeen(widget.artist).catchError((_) {}),
-      );
+      unawaited(_markSeen());
     }
     final following = _following ?? value.following;
     final showConcerts = ref.watch(
@@ -282,6 +289,9 @@ class _ConcertTile extends StatelessWidget {
   );
 }
 
+/// Parallel catalog searches when resolving a set-list.
+const setlistSearchConcurrency = 4;
+
 /// Finds catalog matches for set-list songs using the connected providers.
 Future<List<UnifiedTrack>> resolveSetlist(
   WidgetRef ref,
@@ -298,21 +308,35 @@ Future<List<UnifiedTrack>> resolveSetlist(
       ?registry.catalogFor(provider),
   ];
   if (catalogs.isEmpty) return const [];
-  final results = await Future.wait([
-    for (final song in setlist.songs.where((song) => !song.tape))
-      () async {
-        for (final catalog in catalogs) {
-          try {
-            final found = await catalog
-                .searchTracks(song.query, limit: 1)
-                .timeout(const Duration(seconds: 10));
-            if (found.isNotEmpty) return found.first;
-          } on Object {
-            // Try the next provider.
-          }
-        }
-        return null;
-      }(),
+  final songs = setlist.songs.where((song) => !song.tape).toList();
+  final results = List<UnifiedTrack?>.filled(songs.length, null);
+
+  Future<UnifiedTrack?> find(SetlistSong song) async {
+    for (final catalog in catalogs) {
+      try {
+        final found = await catalog
+            .searchTracks(song.query, limit: 1)
+            .timeout(const Duration(seconds: 10));
+        if (found.isNotEmpty) return found.first;
+      } on Object {
+        // Try the next provider.
+      }
+    }
+    return null;
+  }
+
+  // A small worker pool keeps provider rate limits happy.
+  var next = 0;
+  Future<void> worker() async {
+    while (next < songs.length) {
+      final index = next++;
+      results[index] = await find(songs[index]);
+    }
+  }
+
+  await Future.wait([
+    for (var i = 0; i < setlistSearchConcurrency && i < songs.length; i++)
+      worker(),
   ]);
   return results.whereType<UnifiedTrack>().toList();
 }
@@ -343,7 +367,7 @@ class _SetlistTileState extends ConsumerState<_SetlistTile> {
         );
       }
     } on Object catch (error) {
-      if (mounted) showFeatureSnack(context, error.toString());
+      if (mounted) showFeatureSnack(context, featureErrorText(error));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -362,14 +386,17 @@ class _SetlistTileState extends ConsumerState<_SetlistTile> {
             [?setlist.tour, '${setlist.songs.length} песен'].join(' · '),
             style: const TextStyle(color: ResonanceColors.muted),
           ),
-          trailing: TextButton.icon(
-            onPressed: _loading || setlist.songs.isEmpty
-                ? null
-                : () => unawaited(_play()),
-            icon: const Icon(Icons.queue_music_rounded, size: 18),
-            label: const Text('Послушать сет-лист'),
-          ),
           children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _loading || setlist.songs.isEmpty
+                    ? null
+                    : () => unawaited(_play()),
+                icon: const Icon(Icons.queue_music_rounded, size: 18),
+                label: const Text('Послушать сет-лист'),
+              ),
+            ),
             for (final (index, song) in setlist.songs.indexed)
               ListTile(
                 dense: true,

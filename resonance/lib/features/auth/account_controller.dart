@@ -5,6 +5,7 @@ import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/database/app_database.dart';
 import 'package:resonance/features/auth/account_models.dart';
 import 'package:resonance/features/library/library_controller.dart';
+import 'package:resonance/features/social/now_playing_reporter.dart';
 
 final accountControllerProvider =
     AsyncNotifierProvider<AccountController, AccountUser?>(
@@ -75,6 +76,8 @@ class AccountController extends AsyncNotifier<AccountUser?> {
   Future<void> logout() async {
     final user = state.valueOrNull;
     state = const AsyncLoading();
+    // Friends must stop seeing the track once the session is gone.
+    if (user != null) await clearNowPlayingBeforeLogout(ref);
     await ref.read(accountApiProvider).logout();
     await ref.read(accountSessionRepositoryProvider).clear();
     await _completeLocalSignOut();

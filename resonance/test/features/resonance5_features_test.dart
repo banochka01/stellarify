@@ -141,10 +141,14 @@ void main() {
     final volumes = <double>[];
     var switchedAt = -1;
     await const DjCrossfader(steps: 4).run(
-      volume: 80,
+      volume: () => 80,
       duration: const Duration(seconds: 2),
-      setVolume: (value) async => volumes.add(value),
+      setVolume: (value) async {
+        volumes.add(value);
+        return true;
+      },
       switchTrack: () async => switchedAt = volumes.length,
+      restore: () async => volumes.add(80),
       wait: (_) async {},
     );
     expect(volumes.sublist(0, 4), [60, 40, 20, 0]);
@@ -247,6 +251,8 @@ void main() {
     );
     expect(find.text('Fresh'), findsOneWidget);
     expect(find.text('Новый релиз'), findsOneWidget);
+    await tester.tap(find.textContaining('Москва'));
+    await tester.pumpAndSettle();
     expect(find.text('Послушать сет-лист'), findsOneWidget);
     await tester.tap(find.text('Следить за релизами'));
     await tester.pumpAndSettle();
@@ -295,7 +301,7 @@ void main() {
     expect(find.textContaining('Keep'), findsOneWidget);
     expect(find.textContaining('Заменить на: New'), findsOneWidget);
     expect(find.textContaining('Замена не найдена'), findsOneWidget);
-    expect(find.textContaining('выбрано 2 из 2'), findsOneWidget);
+    expect(find.textContaining('выбрано 0 из 2'), findsOneWidget);
     await tester.tap(find.byType(Checkbox).first);
     await tester.pump();
     expect(find.textContaining('выбрано 1 из 2'), findsOneWidget);

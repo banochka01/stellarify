@@ -22,7 +22,7 @@ enum UpdateChannel {
 final class UpdateChannelPreferences {
   const UpdateChannelPreferences(this._store);
 
-  static const _key = 'resonance.update.channel';
+  static const _key = updateChannelStorageKey;
 
   final SecureKeyValueStore _store;
 
@@ -64,7 +64,6 @@ final class UpdateChannelController extends AsyncNotifier<UpdateChannel> {
     } on Object {
       // Anonymous or offline: keep the local choice.
     }
-    _publishHint(channel);
     return channel;
   }
 
@@ -78,14 +77,9 @@ final class UpdateChannelController extends AsyncNotifier<UpdateChannel> {
     } on Object {
       // The local choice still applies to anonymous flag requests.
     }
-    _publishHint(channel);
-    ref.invalidate(featureFlagsProvider);
-  }
-
-  void _publishHint(UpdateChannel channel) {
-    Future.microtask(
-      () => ref.read(featureChannelHintProvider.notifier).state = channel.name,
-    );
+    ref
+      ..invalidate(storedUpdateChannelProvider)
+      ..invalidate(featureFlagsProvider);
   }
 }
 

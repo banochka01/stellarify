@@ -10,7 +10,10 @@ final class FakeFeatureTransport implements FeatureTransport {
   FakeFeatureTransport(this.routes);
 
   final Map<String, FakeRoute> routes;
-  final List<({String method, String path, Object? body})> calls = [];
+  final List<
+    ({String method, String path, Object? body, Map<String, String>? query})
+  >
+  calls = [];
 
   @override
   Future<Map<String, dynamic>> request(
@@ -20,7 +23,7 @@ final class FakeFeatureTransport implements FeatureTransport {
     Object? body,
     bool providerTokens = false,
   }) async {
-    calls.add((method: method, path: path, body: body));
+    calls.add((method: method, path: path, body: body, query: query));
     final route = routes['$method $path'];
     if (route == null) {
       throw const FeatureUnavailableException('missing', statusCode: 404);

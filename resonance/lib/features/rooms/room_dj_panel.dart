@@ -6,6 +6,7 @@ import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/playback/playback_service.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/platform/feature_flags.dart';
+import 'package:resonance/features/platform/feature_views.dart';
 import 'package:resonance/features/rooms/dj_mode.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 
@@ -31,12 +32,20 @@ class _RoomDjPanelState extends ConsumerState<RoomDjPanel> {
       final PlaybackService service = await ref.read(
         playbackServiceProvider.future,
       );
+      if (service.isFading) {
+        // The sleep timer owns the volume: just switch the track.
+        await service.playTrack(track);
+        return;
+      }
       await const DjCrossfader().run(
-        volume: service.state.volume,
+        volume: () => service.state.volume,
         duration: Duration(milliseconds: (_fadeSeconds * 1000).round()),
-        setVolume: service.setVolume,
+        setVolume: service.setTransientVolume,
         switchTrack: () => service.playTrack(track),
+        restore: service.endTransientVolume,
       );
+    } on Object {
+      if (mounted) showFeatureSnack(context, 'Не удалось свести трек');
     } finally {
       if (mounted) setState(() => _fading = false);
     }
