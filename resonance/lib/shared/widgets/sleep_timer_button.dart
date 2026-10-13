@@ -60,7 +60,13 @@ class _SleepTimerButtonState extends ConsumerState<SleepTimerButton> {
 /// Короткая подпись для бейджа: «25», «⏵|» для конца трека, «…» во время затухания.
 String? sleepTimerLabel(SleepTimerState timer, DateTime now) {
   if (timer.fading) return '…';
-  if (timer.endOfTrack) return '1 тр';
+  if (timer.endOfTrack) {
+    return switch (timer.scope) {
+      SleepTimerScope.track => '1 тр',
+      SleepTimerScope.album => 'альб',
+      SleepTimerScope.queue => 'конец',
+    };
+  }
   if (timer.endsAt == null) return null;
   final minutes = (timer.remaining(now).inSeconds / 60).ceil();
   return '$minutes';
@@ -91,7 +97,14 @@ Future<void> showSleepTimerSheet(BuildContext context) {
                 const SizedBox(height: 4),
                 Text(
                   timer.endOfTrack
-                      ? 'Музыка остановится в конце этого трека'
+                      ? switch (timer.scope) {
+                          SleepTimerScope.track =>
+                            'Музыка остановится в конце этого трека',
+                          SleepTimerScope.album =>
+                            'Музыка остановится в конце альбома',
+                          SleepTimerScope.queue =>
+                            'Музыка остановится в конце плейлиста',
+                        }
                       : timer.endsAt != null
                       ? 'Осталось ${_formatRemaining(timer.remaining(now))}'
                       : 'Музыка мягко затихнет и встанет на паузу',
@@ -116,9 +129,33 @@ Future<void> showSleepTimerSheet(BuildContext context) {
                     ChoiceChip(
                       avatar: const Icon(Icons.last_page_rounded, size: 18),
                       label: const Text('В конце трека'),
-                      selected: timer.endOfTrack,
+                      selected:
+                          timer.endOfTrack &&
+                          timer.scope == SleepTimerScope.track,
                       onSelected: (_) {
                         unawaited(controller.startEndOfTrack());
+                        close();
+                      },
+                    ),
+                    ChoiceChip(
+                      avatar: const Icon(Icons.album_rounded, size: 18),
+                      label: const Text('В конце альбома'),
+                      selected:
+                          timer.endOfTrack &&
+                          timer.scope == SleepTimerScope.album,
+                      onSelected: (_) {
+                        unawaited(controller.startEndOf(SleepTimerScope.album));
+                        close();
+                      },
+                    ),
+                    ChoiceChip(
+                      avatar: const Icon(Icons.queue_music_rounded, size: 18),
+                      label: const Text('В конце плейлиста'),
+                      selected:
+                          timer.endOfTrack &&
+                          timer.scope == SleepTimerScope.queue,
+                      onSelected: (_) {
+                        unawaited(controller.startEndOf(SleepTimerScope.queue));
                         close();
                       },
                     ),

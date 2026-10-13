@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:resonance/core/playback/loudness_normalization.dart';
 import 'package:resonance/core/preferences/playback_flow_preferences.dart';
 import 'package:resonance/core/security/flutter_secure_token_repository.dart';
 
@@ -16,7 +17,7 @@ void main() {
     const changed = PlaybackFlowSettings(
       enabled: false,
       transitionMs: 4000,
-      normalizeLoudness: false,
+      normalization: LoudnessNormalizationMode.off,
       visualizer: false,
     );
     await preferences.write(changed);

@@ -95,6 +95,82 @@ void main() {
     await _waitUntil(() => playback.fades.isNotEmpty);
     expect(playback.fades.single, const Duration(seconds: 2));
   });
+
+  test('target track for album and queue scopes', () {
+    final a1 = demoTrack.copyWith(id: 'a1', album: 'A');
+    final a2 = demoTrack.copyWith(id: 'a2', album: 'A');
+    final b1 = demoTrack.copyWith(id: 'b1', album: 'B');
+    final state = ResonancePlaybackState(queue: [a1, a2, b1], currentIndex: 0);
+    expect(sleepTimerTargetTrackId(state, SleepTimerScope.track), 'a1');
+    expect(sleepTimerTargetTrackId(state, SleepTimerScope.album), 'a2');
+    expect(sleepTimerTargetTrackId(state, SleepTimerScope.queue), 'b1');
+    expect(
+      sleepTimerTargetTrackId(
+        const ResonancePlaybackState(),
+        SleepTimerScope.queue,
+      ),
+      isNull,
+    );
+  });
+
+  test('end of album waits for the last album track, then fades', () async {
+    final a1 = demoTrack.copyWith(id: 'a1', album: 'A');
+    final a2 = demoTrack.copyWith(id: 'a2', album: 'A');
+    final b1 = demoTrack.copyWith(id: 'b1', album: 'B');
+    ResonancePlaybackState at(int index, {Duration position = Duration.zero}) =>
+        ResonancePlaybackState(
+          queue: [a1, a2, b1],
+          currentIndex: index,
+          playing: true,
+          position: position,
+          duration: const Duration(minutes: 2),
+        );
+    final playback = _FakePlayback(at(0));
+    final timer = SleepTimerController(
+      () async => playback,
+      fadeDuration: const Duration(seconds: 12),
+    );
+    addTearDown(timer.dispose);
+
+    await timer.startEndOf(SleepTimerScope.album);
+    expect(timer.state.scope, SleepTimerScope.album);
+    expect(playback.stopAfterCurrent, isFalse);
+
+    // Первый трек альбома доигрывает — таймер не срабатывает.
+    playback.emit(at(0, position: const Duration(seconds: 118)));
+    playback.emit(at(1));
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(playback.fades, isEmpty);
+    expect(playback.stopAfterCurrent, isTrue);
+
+    playback.emit(at(1, position: const Duration(seconds: 115)));
+    await _waitUntil(() => playback.fades.isNotEmpty);
+    expect(playback.fades.single, const Duration(seconds: 5));
+  });
+
+  test('end of playlist stops at once if the last track was skipped', () async {
+    final a1 = demoTrack.copyWith(id: 'a1');
+    final a2 = demoTrack.copyWith(id: 'a2');
+    final playback = _FakePlayback(
+      ResonancePlaybackState(queue: [a1, a2], currentIndex: 0, playing: true),
+    );
+    final timer = SleepTimerController(() async => playback);
+    addTearDown(timer.dispose);
+
+    await timer.startEndOf(SleepTimerScope.queue);
+    playback.emit(
+      ResonancePlaybackState(
+        queue: [
+          a1,
+          a2,
+          a1.copyWith(id: 'x'),
+        ],
+        currentIndex: 2,
+        playing: true,
+      ),
+    );
+    await _waitUntil(() => playback.fades.isNotEmpty);
+  });
 }
 
 ResonancePlaybackState _playing(

@@ -14,6 +14,16 @@ abstract class ResolvedAudioSource with _$ResolvedAudioSource {
     required StreamProtocol protocol,
     String? codec,
     int? bitrate,
+
+    /// Частота дискретизации и разрядность, если провайдер их сообщил
+    /// (нужны для бейджа Hi-Res).
+    int? sampleRate,
+    int? bitDepth,
+
+    /// Интегральная громкость (LUFS) и истинный пик (dBTP) из метаданных
+    /// провайдера — для выравнивания громкости без анализа.
+    double? loudnessLufs,
+    double? truePeakDb,
     @Default(false) bool preview,
     DateTime? expiresAt,
     @Default(<String, String>{}) Map<String, String> headers,

@@ -146,6 +146,7 @@ class WaveController extends StateNotifier<WaveState> {
     String? roomCode,
     bool append = false,
     UnifiedTrack? radioSeed,
+    Iterable<String> seedQueries = const [],
   }) async {
     if (state.loading) return;
     state = state.copyWith(
@@ -156,8 +157,15 @@ class WaveController extends StateNotifier<WaveState> {
     );
     try {
       final seeds = <String>{
-        for (final track in taste) track.artist.trim(),
-      }.where((value) => value.isNotEmpty).take(5).toList(growable: false);
+        // Запросы контекста («Тренировка», «Фокус», «Дорога») идут первыми.
+        ...seedQueries
+            .map((query) => query.trim())
+            .where((query) => query.isNotEmpty)
+            .take(5),
+        ...{
+          for (final track in taste) track.artist.trim(),
+        }.where((value) => value.isNotEmpty).take(5),
+      }.toList(growable: false);
       final response = await _dio.postUri<Map<String, dynamic>>(
         _baseUri().resolve('/api/v1/wave/sessions'),
         data: {

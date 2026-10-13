@@ -116,6 +116,7 @@ final class AudioFilterSupport {
     this.equalizer = false,
     this.loudnorm = false,
     this.dynaudnorm = false,
+    this.ebur128 = false,
   });
 
   static const none = AudioFilterSupport();
@@ -124,7 +125,23 @@ final class AudioFilterSupport {
   final bool loudnorm;
   final bool dynaudnorm;
 
+  /// Измеритель громкости EBU R128: лёгкий онлайн-анализ уровня трека.
+  final bool ebur128;
+
   bool get normalization => loudnorm || dynaudnorm;
+}
+
+/// Интегральная громкость из `af-metadata/meter` (`lavfi.r128.I`).
+double? parseEbur128Integrated(Object? metadata) {
+  if (metadata == null) return null;
+  final match = RegExp(
+    r'lavfi\.r128\.I"?\s*[:=]\s*"?(-?\d+(?:\.\d+)?)',
+  ).firstMatch(metadata.toString());
+  final value = double.tryParse(match?.group(1) ?? '');
+  if (value == null || !value.isFinite || value <= -70 || value >= 0) {
+    return null;
+  }
+  return value;
 }
 
 /// Цепочка для свойства `af` libmpv. Пустая строка — фильтров нет.
@@ -132,8 +149,13 @@ String buildAudioFilterChain({
   required AudioFilterSupport support,
   List<double>? equalizerGains,
   bool normalize = false,
+  bool measure = false,
 }) {
-  final filters = <String>[];
+  final filters = <String>[
+    // Измеритель стоит первым: он видит исходный уровень трека, до
+    // эквалайзера и динамической нормализации.
+    if (measure && support.ebur128) '@meter:ebur128=metadata=1',
+  ];
   if (support.equalizer && equalizerGains != null) {
     for (
       var i = 0;

@@ -9,6 +9,7 @@ import 'package:resonance/features/library/library_actions.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/music_graph/music_graph.dart';
 import 'package:resonance/features/player/track_action.dart';
+import 'package:resonance/features/recognize/recognize_button.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/features/wave/wave_track_actions.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
@@ -132,6 +133,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     ),
                   ),
                   Spacer(),
+                  RecognizeButton(),
                   _LivePill(),
                 ],
               ),

@@ -23,6 +23,7 @@ import { createMigrationRouter } from "./migration-api.js";
 import { MigrationService } from "./migration.js";
 import { MigrationStore } from "./migration-store.js";
 import { LyricsError, LyricsService, LyricsTranslator } from "./lyrics.js";
+import { RecognitionService, createRecognizeRouter } from "./recognize.js";
 import { ClipService, createClipRouter, youtubeStreamFromEnvironment } from "./clips.js";
 import { ClipOffsetStore } from "./clip-embed.js";
 import { installProviderProxy } from "./outbound-proxy.js";
@@ -158,6 +159,11 @@ app.use("/api/v1/clips", createClipRouter(
 ));
 app.use("/api/v1/subscription", createLegacyAccessRouter(accessControl));
 app.use("/api/v1/account", createAccountRouter(accountStore));
+// Распознавание по микрофону: включается только AUDD_API_TOKEN, аудио не хранится.
+app.use("/api/v1/recognize", createRecognizeRouter(
+  RecognitionService.fromEnvironment(),
+  (token) => accountStore.authenticate(token)
+));
 // "Переезд": background whole-library migration into the Resonance ID library.
 const migrations = new MigrationService(
   new MigrationStore(

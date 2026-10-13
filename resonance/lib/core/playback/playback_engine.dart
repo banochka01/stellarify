@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:media_kit/media_kit.dart' as media_kit;
 import 'package:resonance/core/playback/audio_effects.dart';
+import 'package:resonance/core/playback/loudness_normalization.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/resolved_audio_source.dart';
 
@@ -51,6 +54,21 @@ abstract interface class PlaybackEngine {
   Future<void> setRepeatMode(PlaybackRepeatMode mode);
   Future<void> setLoudnessNormalization(bool enabled);
 
+  /// Статический гейн выравнивания громкости, дБ; `null` — без гейна.
+  /// Применяется поверх громкости пользователя и не меняет её значение.
+  Future<void> setReplayGain(double? gainDb);
+
+  /// Интегральная громкость текущего трека по встроенному измерителю
+  /// (LUFS), если сборка плеера его поддерживает.
+  Future<double?> measuredLoudnessLufs();
+
+  /// Ставит [source] следующим в плейлист плеера для бесшовного перехода;
+  /// `null` убирает поставленный ранее.
+  Future<void> setQueuedNext(ResolvedAudioSource? source);
+
+  /// Плеер сам перешёл на источник, поставленный через [setQueuedNext].
+  Stream<void> get advancedToQueued;
+
   /// Усиление полос эквалайзера в дБ ([equalizerBands]); `null` — выключен.
   Future<void> setEqualizer(List<double>? gainsDb);
 
@@ -62,9 +80,26 @@ abstract interface class PlaybackEngine {
 
 final class MediaKitPlaybackEngine implements PlaybackEngine {
   MediaKitPlaybackEngine({media_kit.Player? player})
-    : player = player ?? media_kit.Player();
+    : player = player ?? media_kit.Player() {
+    _playlistSubscription = this.player.stream.playlist.listen((playlist) {
+      final queued = _queuedIndex;
+      if (queued != null && playlist.index == queued) {
+        _queuedIndex = null;
+        _advanced.add(null);
+      }
+    });
+  }
 
   final media_kit.Player player;
+  late final StreamSubscription<media_kit.Playlist> _playlistSubscription;
+  final _advanced = StreamController<void>.broadcast();
+  int? _queuedIndex;
+  bool _gaplessConfigured = false;
+  double _userVolume = 100;
+  double _gainFactor = 1;
+
+  /// Предел громкости libmpv по умолчанию (`volume-max`).
+  static const _maxVolume = 130.0;
 
   @override
   Stream<bool> get playing => player.stream.playing;
@@ -82,7 +117,12 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
   Stream<Duration> get duration => player.stream.duration;
 
   @override
-  Stream<double> get volume => player.stream.volume;
+  Stream<double> get volume => player.stream.volume.map(
+    (value) => _gainFactor == 1 ? value : value / _gainFactor,
+  );
+
+  @override
+  Stream<void> get advancedToQueued => _advanced.stream;
 
   @override
   Stream<String> get errors => player.stream.error;
@@ -122,7 +162,66 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
       httpHeaders: source.headers,
       start: start == Duration.zero ? null : start,
     );
+    _queuedIndex = null;
     return player.open(media, play: play);
+  }
+
+  @override
+  Future<void> setQueuedNext(ResolvedAudioSource? source) async {
+    try {
+      final queued = _queuedIndex;
+      if (queued != null) {
+        _queuedIndex = null;
+        if (queued < player.state.playlist.medias.length) {
+          await player.remove(queued);
+        }
+      }
+      if (source == null) return;
+      if (!_gaplessConfigured) {
+        final dynamic platform = player.platform;
+        await platform.setProperty('gapless-audio', 'weak');
+        await platform.setProperty('prefetch-playlist', 'yes');
+        _gaplessConfigured = true;
+      }
+      await player.add(
+        media_kit.Media(
+          source.streamUrl.toString(),
+          httpHeaders: source.headers,
+        ),
+      );
+      _queuedIndex = player.state.playlist.medias.length - 1;
+    } on Object {
+      // Без бесшовного режима переход просто пойдёт обычным путём.
+      _queuedIndex = null;
+    }
+  }
+
+  @override
+  Future<void> setReplayGain(double? gainDb) async {
+    _gainFactor = gainDbToVolumeFactor(gainDb);
+    await _applyVolume();
+    final useDynamic = gainDb == null;
+    if (_dynamicNormalize != useDynamic) {
+      _dynamicNormalize = useDynamic;
+      await _applyFilters();
+    }
+  }
+
+  Future<void> _applyVolume() => player.setVolume(
+    (_userVolume * _gainFactor).clamp(0, _maxVolume).toDouble(),
+  );
+
+  @override
+  Future<double?> measuredLoudnessLufs() async {
+    try {
+      final support = await audioFilterSupport();
+      if (!support.ebur128 || !_normalize) return null;
+      final dynamic platform = player.platform;
+      final value = await platform.getProperty('af-metadata/meter');
+      return parseEbur128Integrated(value);
+    } on Object {
+      return null;
+    }
   }
 
   @override
@@ -135,7 +234,10 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
   Future<void> seek(Duration position) => player.seek(position);
 
   @override
-  Future<void> setVolume(double volume) => player.setVolume(volume);
+  Future<void> setVolume(double volume) {
+    _userVolume = volume;
+    return _applyVolume();
+  }
 
   @override
   Future<void> setShuffle(bool enabled) => player.setShuffle(enabled);
@@ -151,6 +253,9 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
   }
 
   bool _normalize = false;
+
+  /// Динамический фильтр нужен, только пока нет статического гейна.
+  bool _dynamicNormalize = true;
   List<double>? _equalizer;
   Future<AudioFilterSupport>? _support;
 
@@ -187,6 +292,7 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
         equalizer: await probe('equalizer'),
         loudnorm: await probe('loudnorm'),
         dynaudnorm: await probe('dynaudnorm'),
+        ebur128: await probe('ebur128'),
       );
     } on Object {
       return AudioFilterSupport.none;
@@ -202,7 +308,8 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
         buildAudioFilterChain(
           support: support,
           equalizerGains: _equalizer,
-          normalize: _normalize,
+          normalize: _normalize && _dynamicNormalize,
+          measure: _normalize,
         ),
       );
     } on Object {
@@ -215,7 +322,11 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
       player.setAudioDevice(media_kit.AudioDevice(device.id, device.label));
 
   @override
-  Future<void> dispose() => player.dispose();
+  Future<void> dispose() async {
+    await _playlistSubscription.cancel();
+    await _advanced.close();
+    await player.dispose();
+  }
 
   static AudioOutputDevice _mapDevice(media_kit.AudioDevice device) =>
       AudioOutputDevice(

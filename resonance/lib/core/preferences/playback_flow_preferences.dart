@@ -1,18 +1,32 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:resonance/core/playback/loudness_normalization.dart';
+import 'package:resonance/core/playback/stream_quality.dart';
 import 'package:resonance/core/security/flutter_secure_token_repository.dart';
 
 final class PlaybackFlowSettings {
   const PlaybackFlowSettings({
     this.enabled = true,
     this.transitionMs = 1600,
-    this.normalizeLoudness = true,
+    this.normalization = LoudnessNormalizationMode.track,
     this.visualizer = true,
     this.smartTransitions = true,
+    this.gapless = true,
+    this.qualityMode = StreamQualityMode.auto,
   });
 
   final bool enabled;
   final int transitionMs;
-  final bool normalizeLoudness;
+
+  /// Выравнивание громкости: выкл / по треку / по альбому.
+  final LoudnessNormalizationMode normalization;
+  bool get normalizeLoudness => normalization != LoudnessNormalizationMode.off;
+
+  /// Бесшовный переход: следующий трек альбома заранее ставится в плеер
+  /// и начинается без паузы, когда затухание не нужно.
+  final bool gapless;
+
+  /// Авто / Высокое / Lossless.
+  final StreamQualityMode qualityMode;
   final bool visualizer;
 
   /// «Умный» переход: не режет концовки live/классики и не вставляет
@@ -25,14 +39,28 @@ final class PlaybackFlowSettings {
     bool? enabled,
     int? transitionMs,
     bool? normalizeLoudness,
+    LoudnessNormalizationMode? normalization,
     bool? visualizer,
     bool? smartTransitions,
+    bool? gapless,
+    StreamQualityMode? qualityMode,
   }) => PlaybackFlowSettings(
     enabled: enabled ?? this.enabled,
     transitionMs: transitionMs ?? this.transitionMs,
-    normalizeLoudness: normalizeLoudness ?? this.normalizeLoudness,
+    normalization:
+        normalization ??
+        switch (normalizeLoudness) {
+          null => this.normalization,
+          false => LoudnessNormalizationMode.off,
+          true =>
+            this.normalization == LoudnessNormalizationMode.off
+                ? LoudnessNormalizationMode.track
+                : this.normalization,
+        },
     visualizer: visualizer ?? this.visualizer,
     smartTransitions: smartTransitions ?? this.smartTransitions,
+    gapless: gapless ?? this.gapless,
+    qualityMode: qualityMode ?? this.qualityMode,
   );
 }
 
@@ -44,6 +72,9 @@ final class PlaybackFlowPreferences {
   static const _normalizeKey = 'resonance.flow.normalize';
   static const _visualizerKey = 'resonance.flow.visualizer';
   static const _smartKey = 'resonance.flow.smart';
+  static const _normalizeModeKey = 'resonance.flow.normalize_mode';
+  static const _gaplessKey = 'resonance.flow.gapless';
+  static const _qualityModeKey = 'resonance.playback.quality_mode';
   static const allowedTransitionMs = [
     0,
     800,
@@ -63,6 +94,9 @@ final class PlaybackFlowPreferences {
       _store.read(_normalizeKey),
       _store.read(_visualizerKey),
       _store.read(_smartKey),
+      _store.read(_normalizeModeKey),
+      _store.read(_gaplessKey),
+      _store.read(_qualityModeKey),
     ]);
     final parsedTransition = int.tryParse(values[1] ?? '');
     return PlaybackFlowSettings(
@@ -70,9 +104,14 @@ final class PlaybackFlowPreferences {
       transitionMs: allowedTransitionMs.contains(parsedTransition)
           ? parsedTransition!
           : 1600,
-      normalizeLoudness: values[2] != 'false',
+      // Старый флаг «нормализация» без режима означает режим «Трек».
+      normalization: values[2] == 'false'
+          ? LoudnessNormalizationMode.off
+          : LoudnessNormalizationMode.byName(values[5]),
       visualizer: values[3] != 'false',
       smartTransitions: values[4] != 'false',
+      gapless: values[6] != 'false',
+      qualityMode: StreamQualityMode.byName(values[7]),
     );
   }
 
@@ -82,6 +121,9 @@ final class PlaybackFlowPreferences {
     _store.write(_normalizeKey, value.normalizeLoudness.toString()),
     _store.write(_visualizerKey, value.visualizer.toString()),
     _store.write(_smartKey, value.smartTransitions.toString()),
+    _store.write(_normalizeModeKey, value.normalization.name),
+    _store.write(_gaplessKey, value.gapless.toString()),
+    _store.write(_qualityModeKey, value.qualityMode.name),
   ]);
 }
 
