@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#070706" />
+    <title>Resonance — нет сети</title>
+    <link rel="icon" href="/resonance.svg" type="image/svg+xml" />
+    <style>
+      :root { color-scheme: dark light; --bg: #070706; --text: #eee9de; --muted: #b3aea5; --accent: #f05a49; }
+      @media (prefers-color-scheme: light) { :root { --bg: #f6f3ec; --text: #15130f; --muted: #4f4a43; --accent: #c8372a; } }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; background: var(--bg); color: var(--text); font: 16px/1.6 Inter, system-ui, sans-serif; text-align: center; }
+      main { max-width: 420px; }
+      img { width: 96px; height: 96px; }
+      h1 { margin: 24px 0 8px; font-size: 32px; letter-spacing: -.03em; }
+      p { margin: 0 0 28px; color: var(--muted); }
+      button { min-height: 48px; padding: 0 22px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font: 600 15px Inter, system-ui, sans-serif; cursor: pointer; }
+      button:focus-visible { outline: 3px solid var(--text); outline-offset: 3px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/resonance.svg" alt="" width="96" height="96" />
+      <h1>Нет подключения</h1>
+      <p>Resonance не может связаться с сервером. Проверьте сеть — музыка продолжится, как только соединение восстановится.</p>
+      <button type="button" onclick="location.reload()">Повторить</button>
+    </main>
+  </body>
+</html>

@@ -59,7 +59,7 @@ export function ImportModal({
         <p className="eyebrow">Умный импорт</p>
         <h2 id="import-title">Добавьте музыку ссылкой</h2>
         <p className="modal-copy">
-          Вставьте одну или несколько ссылок. Stellarify определит площадку и
+          Вставьте одну или несколько ссылок. Resonance определит площадку и
           подготовит библиотеку, не копируя аудиофайлы.
         </p>
 
