@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Capability advertised to the Wear OS remote (resonance/android/wear). -->
+    <string-array name="android_wear_capabilities" translatable="false">
+        <item>resonance_phone_player</item>
+    </string-array>
+</resources>
