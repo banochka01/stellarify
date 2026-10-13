@@ -16,6 +16,8 @@ import 'package:resonance/features/lyrics/lyric_loop.dart';
 import 'package:resonance/features/lyrics/lyric_quote_card.dart';
 import 'package:resonance/features/lyrics/lyrics_follow.dart';
 import 'package:resonance/features/lyrics/lyrics_karaoke.dart';
+import 'package:resonance/features/player/audio_format_badge.dart';
+import 'package:resonance/features/player/cast_button.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/features/rooms/room_queue_panel.dart';
 import 'package:resonance/features/wave/wave_track_actions.dart';
@@ -302,6 +304,7 @@ class _Details extends ConsumerWidget {
                 ),
               ),
             ),
+            const CastButton(),
             OfflineDownloadButton(track: track),
             _FavoriteButton(track: track),
           ],
@@ -343,6 +346,7 @@ class _Details extends ConsumerWidget {
                       _time(Duration(milliseconds: positionMs)),
                       style: times,
                     ),
+                    AudioFormatBadgeChip(source: state.activeAudioSource),
                     Text(_time(duration), style: times),
                   ],
                 ),
