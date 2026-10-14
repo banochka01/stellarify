@@ -404,7 +404,7 @@ class _VerifyEmailDialogState extends ConsumerState<_VerifyEmailDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Код отправлен на ${widget.email} при регистрации. Если письма нет, проверьте «Спам» или запросите новый код.',
+              'Нажмите «Отправить код» — мы пришлём 6-значный код на ${widget.email}. Если код уже пришёл после регистрации, просто введите его.',
               style: const TextStyle(color: ResonanceColors.muted),
             ),
             const SizedBox(height: 16),
