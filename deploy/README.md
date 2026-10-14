@@ -37,6 +37,16 @@ working with the same account signals through its deterministic local ranker.
 Only track metadata and outcomes are sent for personalization; account IDs,
 provider credentials, stream URLs, and playlist names are not sent.
 
+Account mail (email verification, password reset codes, "password changed"
+notices) goes through the SMTP relay already used by WebCord Mail. Set
+`RESONANCE_SMTP_HOST`, `RESONANCE_SMTP_PORT` (587 STARTTLS or 465 TLS),
+`RESONANCE_SMTP_USERNAME`, `RESONANCE_SMTP_PASSWORD` and optionally
+`RESONANCE_MAIL_FROM` (default `Resonance <noreply@webcordes.ru>`) in
+`/opt/resonance/.env`. Without `RESONANCE_SMTP_HOST` the forgot/verify endpoints
+answer 503 and everything else keeps working. Delivery depends on the relay
+DKIM-signing for `webcordes.ru`: the domain publishes `SPF -all` and
+`DMARC p=reject`.
+
 Validate a release with:
 
 ```sh

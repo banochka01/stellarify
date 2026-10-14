@@ -47,6 +47,25 @@ class AccountController extends AsyncNotifier<AccountUser?> {
     () => ref.read(accountApiProvider).register(email, password),
   );
 
+  Future<void> resetPassword(String email, String code, String password) =>
+      _authenticate(
+        () => ref.read(accountApiProvider).resetPassword(email, code, password),
+      );
+
+  /// Throws [AccountApiException] so the dialog can show the reason in place.
+  Future<void> changePassword(String currentPassword, String password) async {
+    final session = await ref
+        .read(accountApiProvider)
+        .changePassword(currentPassword, password);
+    await ref.read(accountSessionRepositoryProvider).write(session);
+    state = AsyncData(session.user);
+  }
+
+  Future<void> verifyEmail(String code) async {
+    final user = await ref.read(accountApiProvider).verifyEmail(code);
+    state = AsyncData(user);
+  }
+
   Future<void> _authenticate(Future<AccountSession> Function() request) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {

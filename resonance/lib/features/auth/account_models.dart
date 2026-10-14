@@ -6,22 +6,27 @@ final class AccountUser {
     required this.id,
     required this.email,
     required this.createdAt,
+    this.emailVerified = true,
   });
 
   factory AccountUser.fromJson(Map<String, dynamic> json) => AccountUser(
     id: json['id'] as String,
     email: json['email'] as String,
     createdAt: DateTime.parse(json['createdAt'] as String).toUtc(),
+    // Servers before 5.0.3 do not report verification; do not nag those users.
+    emailVerified: json['emailVerified'] as bool? ?? true,
   );
 
   final String id;
   final String email;
   final DateTime createdAt;
+  final bool emailVerified;
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'email': email,
     'createdAt': createdAt.toIso8601String(),
+    'emailVerified': emailVerified,
   };
 }
 

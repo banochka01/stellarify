@@ -28,6 +28,71 @@ final class AccountApi implements AccountLibraryApi {
   Future<AccountSession> login(String email, String password) =>
       _credentials('/api/v1/account/login', email, password);
 
+  /// Always succeeds for well-formed mail: the server never reveals whether it is registered.
+  Future<void> requestPasswordReset(String email) async {
+    try {
+      await _dio.postUri<dynamic>(
+        _endpoint().resolve('/api/v1/account/password/forgot'),
+        data: {'email': email.trim()},
+      );
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
+  Future<AccountSession> resetPassword(
+    String email,
+    String code,
+    String password,
+  ) async {
+    try {
+      final response = await _dio.postUri<Map<String, dynamic>>(
+        _endpoint().resolve('/api/v1/account/password/reset'),
+        data: {
+          'email': email.trim(),
+          'code': code.trim(),
+          'password': password,
+          'deviceName': _deviceName,
+        },
+      );
+      return AccountSession.fromJson(response.data!);
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
+  /// Signs out every other device; the returned session replaces this one.
+  Future<AccountSession> changePassword(
+    String currentPassword,
+    String password,
+  ) async {
+    final response = await _authorized(
+      'POST',
+      '/api/v1/account/password/change',
+      data: {
+        'currentPassword': currentPassword,
+        'password': password,
+        'deviceName': _deviceName,
+      },
+    );
+    return AccountSession.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<void> sendEmailVerification() async {
+    await _authorized('POST', '/api/v1/account/email/verify/send');
+  }
+
+  Future<AccountUser> verifyEmail(String code) async {
+    final response = await _authorized(
+      'POST',
+      '/api/v1/account/email/verify',
+      data: {'code': code.trim()},
+    );
+    return AccountUser.fromJson(
+      (response.data as Map<String, dynamic>)['user'] as Map<String, dynamic>,
+    );
+  }
+
   Future<AccountUser> me() async {
     final response = await _authorized('GET', '/api/v1/account/me');
     return AccountUser.fromJson(

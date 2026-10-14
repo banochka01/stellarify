@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/features/auth/account_controller.dart';
+import 'package:resonance/features/auth/account_dialogs.dart';
 import 'package:resonance/features/auth/account_models.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
@@ -247,6 +248,13 @@ class _AccountForm extends StatelessWidget {
                 ),
                 label: Text(registering ? 'Создать аккаунт' : 'Войти'),
               ),
+              if (!registering)
+                TextButton(
+                  key: const ValueKey('account-forgot'),
+                  onPressed: () =>
+                      showPasswordResetDialog(context, emailController.text),
+                  child: const Text('Забыли пароль?'),
+                ),
               TextButton(
                 onPressed: onToggleMode,
                 child: Text(
@@ -294,6 +302,23 @@ class _ConnectedAccount extends ConsumerWidget {
               textAlign: TextAlign.center,
               style: TextStyle(color: ResonanceColors.muted),
             ),
+            if (!user.emailVerified) ...[
+              const SizedBox(height: 16),
+              Material(
+                color: ResonanceColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
+                child: ListTile(
+                  key: const ValueKey('account-verify'),
+                  leading: const Icon(Icons.mark_email_unread_rounded),
+                  title: const Text('Подтвердите почту'),
+                  subtitle: const Text(
+                    'Так вы сможете восстановить пароль, если забудете его.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => showVerifyEmailDialog(context, user.email),
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
             FilledButton.icon(
               key: const ValueKey('account-sync'),
@@ -301,6 +326,13 @@ class _ConnectedAccount extends ConsumerWidget {
                   ref.read(accountControllerProvider.notifier).synchronize(),
               icon: const Icon(Icons.sync_rounded),
               label: const Text('Синхронизировать сейчас'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              key: const ValueKey('account-change-password'),
+              onPressed: () => showChangePasswordDialog(context),
+              icon: const Icon(Icons.password_rounded),
+              label: const Text('Сменить пароль'),
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(

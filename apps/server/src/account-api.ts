@@ -7,6 +7,7 @@ import {
   type AccountUser,
   type LibraryOperation
 } from "./account-store.js";
+import { disabledMailer, passwordChangedMail, resetCodeMail, verifyCodeMail, type Mailer, type MailMessage } from "./mailer.js";
 
 const credentialsSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
@@ -18,6 +19,25 @@ const refreshSchema = z.object({
   refreshToken: z.string().min(40).max(256),
   deviceName: z.string().trim().min(1).max(80).default("Resonance")
 }).strict();
+
+const emailSchema = z.object({ email: z.string().trim().toLowerCase().email().max(254) }).strict();
+const codeSchema = z.string().trim().regex(/^\d{6}$/u);
+const newPasswordSchema = z.string().min(10).max(128);
+
+const resetSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+  code: codeSchema,
+  password: newPasswordSchema,
+  deviceName: z.string().trim().min(1).max(80).default("Resonance")
+}).strict();
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(128),
+  password: newPasswordSchema,
+  deviceName: z.string().trim().min(1).max(80).default("Resonance")
+}).strict();
+
+const verifySchema = z.object({ code: codeSchema }).strict();
 
 const logoutSchema = z.object({ refreshToken: z.string().min(40).max(256) }).strict();
 
@@ -84,8 +104,23 @@ const waveBlocksSchema = z.object({
   }).strict()).max(500)
 }).strict();
 
-export function createAccountRouter(store: AccountStore) {
+export function createAccountRouter(store: AccountStore, mailer: Mailer = disabledMailer) {
   const router = express.Router();
+  const mailLimiter = new SlidingWindowLimiter(5, 60 * 60 * 1_000);
+  const codeLimiter = new SlidingWindowLimiter(10, 15 * 60 * 1_000);
+  // Sent after the response so timing never reveals whether an address is registered.
+  const deliver = (message: MailMessage) => {
+    if (!mailer.enabled) return;
+    setImmediate(() => {
+      mailer.send(message).catch((error: unknown) => {
+        console.error("Account mail failed", error instanceof Error ? error.message : error);
+      });
+    });
+  };
+  const sendCode = (email: string, purpose: "reset" | "verify") => {
+    const issued = mailer.enabled ? store.issueEmailCode(email, purpose) : null;
+    if (issued) deliver(purpose === "reset" ? resetCodeMail(issued.email, issued.code) : verifyCodeMail(issued.email, issued.code));
+  };
   const identityLimiter = new SlidingWindowLimiter(10, 15 * 60 * 1_000);
   const ipLimiter = new SlidingWindowLimiter(30, 15 * 60 * 1_000);
   const syncLimiter = new SlidingWindowLimiter(60, 60 * 1_000);
@@ -100,7 +135,9 @@ export function createAccountRouter(store: AccountStore) {
     if (!input.success) return invalid(response, "Укажите корректную почту и пароль не короче 10 символов");
     if (!allowCredentialsAttempt(request, input.data.email, identityLimiter, ipLimiter)) return limited(response);
     try {
-      response.status(201).json(await store.register(input.data.email, input.data.password, input.data.deviceName));
+      const session = await store.register(input.data.email, input.data.password, input.data.deviceName);
+      response.status(201).json(session);
+      sendCode(session.user.email, "verify");
     } catch (error) {
       accountError(response, error);
     }
@@ -112,6 +149,32 @@ export function createAccountRouter(store: AccountStore) {
     if (!allowCredentialsAttempt(request, input.data.email, identityLimiter, ipLimiter)) return limited(response);
     try {
       response.json(await store.login(input.data.email, input.data.password, input.data.deviceName));
+    } catch (error) {
+      accountError(response, error);
+    }
+  });
+
+  router.post("/password/forgot", (request, response) => {
+    const input = emailSchema.safeParse(request.body);
+    if (!input.success) return invalid(response, "Укажите корректную почту");
+    if (!mailer.enabled) {
+      response.status(503).json({ error: { code: "MAIL_UNAVAILABLE", message: "Отправка писем временно недоступна" } });
+      return;
+    }
+    if (!allowCredentialsAttempt(request, input.data.email, mailLimiter, ipLimiter)) return limited(response);
+    sendCode(input.data.email, "reset");
+    // Same answer for known and unknown addresses.
+    response.status(202).json({ sent: true });
+  });
+
+  router.post("/password/reset", async (request, response) => {
+    const input = resetSchema.safeParse(request.body);
+    if (!input.success) return invalid(response, "Укажите почту, 6-значный код и пароль не короче 10 символов");
+    if (!allowCredentialsAttempt(request, input.data.email, codeLimiter, ipLimiter)) return limited(response);
+    try {
+      const session = await store.resetPassword(input.data.email, input.data.code, input.data.password, input.data.deviceName);
+      response.json(session);
+      deliver(passwordChangedMail(session.user.email));
     } catch (error) {
       accountError(response, error);
     }
@@ -150,6 +213,44 @@ export function createAccountRouter(store: AccountStore) {
 
   router.get("/me", (_request, response) => {
     response.json({ user: response.locals.accountUser as AccountUser });
+  });
+
+  router.post("/password/change", async (request, response) => {
+    const input = changePasswordSchema.safeParse(request.body);
+    if (!input.success) return invalid(response, "Новый пароль должен быть не короче 10 символов");
+    const user = response.locals.accountUser as AccountUser;
+    if (!allowCredentialsAttempt(request, user.email, identityLimiter, ipLimiter)) return limited(response);
+    try {
+      const session = await store.changePassword(user.id, input.data.currentPassword, input.data.password, input.data.deviceName);
+      response.json(session);
+      deliver(passwordChangedMail(session.user.email));
+    } catch (error) {
+      accountError(response, error);
+    }
+  });
+
+  router.post("/email/verify/send", (request, response) => {
+    const user = response.locals.accountUser as AccountUser;
+    if (user.emailVerified) return void response.json({ user });
+    if (!mailer.enabled) {
+      response.status(503).json({ error: { code: "MAIL_UNAVAILABLE", message: "Отправка писем временно недоступна" } });
+      return;
+    }
+    if (!allowCredentialsAttempt(request, user.email, mailLimiter, ipLimiter)) return limited(response);
+    sendCode(user.email, "verify");
+    response.status(202).json({ sent: true });
+  });
+
+  router.post("/email/verify", (request, response) => {
+    const input = verifySchema.safeParse(request.body);
+    if (!input.success) return invalid(response, "Введите 6-значный код из письма");
+    const user = response.locals.accountUser as AccountUser;
+    if (!codeLimiter.allow(user.id)) return limited(response);
+    try {
+      response.json({ user: store.verifyEmail(user.id, input.data.code) });
+    } catch (error) {
+      accountError(response, error);
+    }
   });
 
   router.get("/wave/blocks", (_request, response) => {

@@ -9,6 +9,7 @@ import { Server } from "socket.io";
 import { z } from "zod";
 import { createAccountRouter } from "./account-api.js";
 import { AccountStore } from "./account-store.js";
+import { createMailer } from "./mailer.js";
 import { AccountError } from "./account-store.js";
 import {
   AccessControl,
@@ -158,7 +159,7 @@ app.use("/api/v1/clips", createClipRouter(
   { service: youtubeStreamFromEnvironment(), publicUrl: absoluteRelayUrl }
 ));
 app.use("/api/v1/subscription", createLegacyAccessRouter(accessControl));
-app.use("/api/v1/account", createAccountRouter(accountStore));
+app.use("/api/v1/account", createAccountRouter(accountStore, createMailer()));
 // Распознавание по микрофону: включается только AUDD_API_TOKEN, аудио не хранится.
 app.use("/api/v1/recognize", createRecognizeRouter(
   RecognitionService.fromEnvironment(),

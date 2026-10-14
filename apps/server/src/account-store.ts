@@ -1,6 +1,7 @@
 import {
   createHash,
   randomBytes,
+  randomInt,
   randomUUID,
   scrypt as nodeScrypt,
   timingSafeEqual
@@ -11,10 +12,16 @@ import { DatabaseSync } from "node:sqlite";
 
 const accessLifetimeMs = 60 * 60 * 1_000;
 const refreshLifetimeMs = 30 * 24 * 60 * 60 * 1_000;
+const emailCodeLifetimeMs = { reset: 15 * 60 * 1_000, verify: 24 * 60 * 60 * 1_000 } as const;
+const emailCodeResendMs = 60 * 1_000;
+const emailCodeMaxAttempts = 5;
+
+export type EmailCodePurpose = keyof typeof emailCodeLifetimeMs;
 
 export type AccountUser = {
   id: string;
   email: string;
+  emailVerified: boolean;
   createdAt: string;
 };
 
@@ -67,7 +74,7 @@ export type WaveBlock = {
 
 export class AccountError extends Error {
   constructor(
-    readonly code: "EMAIL_TAKEN" | "INVALID_CREDENTIALS" | "INVALID_SESSION" | "LIBRARY_LIMIT",
+    readonly code: "EMAIL_TAKEN" | "INVALID_CREDENTIALS" | "INVALID_SESSION" | "LIBRARY_LIMIT" | "INVALID_CODE",
     message: string,
     readonly status: number
   ) {
@@ -161,7 +168,20 @@ export class AccountStore {
         updated_at INTEGER NOT NULL,
         PRIMARY KEY (user_id, kind, block_key)
       );
+      CREATE TABLE IF NOT EXISTS account_email_codes (
+        user_id TEXT NOT NULL REFERENCES account_users(id) ON DELETE CASCADE,
+        purpose TEXT NOT NULL,
+        code_hash TEXT NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        expires_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (user_id, purpose)
+      );
     `);
+    const columns = this.#database.prepare("PRAGMA table_info(account_users)").all() as { name: string }[];
+    if (!columns.some((column) => column.name === "email_verified_at")) {
+      this.#database.exec("ALTER TABLE account_users ADD COLUMN email_verified_at INTEGER");
+    }
   }
 
   close() {
@@ -179,7 +199,7 @@ export class AccountStore {
           INSERT INTO account_users (id, email, password_hash, password_salt, created_at)
           VALUES (?, ?, ?, ?, ?)
         `).run(id, email, passwordHash, salt, now);
-        return this.#issueSession({ id, email, created_at: now }, deviceName);
+        return this.#issueSession({ id, email, created_at: now, email_verified_at: null }, deviceName);
       });
     } catch (error) {
       if (String(error).includes("UNIQUE constraint failed")) {
@@ -191,7 +211,7 @@ export class AccountStore {
 
   async login(email: string, password: string, deviceName: string) {
     const row = this.#database.prepare(`
-      SELECT id, email, password_hash, password_salt, created_at
+      SELECT id, email, password_hash, password_salt, created_at, email_verified_at
       FROM account_users WHERE email = ?
     `).get(email) as UserPasswordRow | undefined;
     const fallbackSalt = randomBytes(16).toString("base64url");
@@ -206,7 +226,7 @@ export class AccountStore {
   authenticate(accessToken: string) {
     const now = Date.now();
     const row = this.#database.prepare(`
-      SELECT u.id, u.email, u.created_at
+      SELECT u.id, u.email, u.created_at, u.email_verified_at
       FROM account_sessions s
       JOIN account_users u ON u.id = s.user_id
       WHERE s.access_hash = ? AND s.access_expires_at > ? AND s.refresh_expires_at > ?
@@ -218,7 +238,7 @@ export class AccountStore {
   refresh(refreshToken: string, deviceName: string) {
     const now = Date.now();
     const row = this.#database.prepare(`
-      SELECT s.id AS session_id, u.id, u.email, u.created_at
+      SELECT s.id AS session_id, u.id, u.email, u.created_at, u.email_verified_at
       FROM account_sessions s
       JOIN account_users u ON u.id = s.user_id
       WHERE s.refresh_hash = ? AND s.refresh_expires_at > ?
@@ -228,6 +248,79 @@ export class AccountStore {
       this.#database.prepare("DELETE FROM account_sessions WHERE id = ?").run(row.session_id);
       return this.#issueSession(row, deviceName);
     });
+  }
+
+  /**
+   * Issues a fresh 6-digit code, replacing any previous one for the purpose.
+   * Returns null for unknown addresses, already verified mail, or within the resend cooldown,
+   * so callers answer identically either way.
+   */
+  issueEmailCode(email: string, purpose: EmailCodePurpose): { email: string; code: string } | null {
+    const user = this.#userByEmail(email);
+    if (!user) return null;
+    if (purpose === "verify" && user.email_verified_at != null) return null;
+    const now = Date.now();
+    const previous = this.#database.prepare(
+      "SELECT created_at FROM account_email_codes WHERE user_id = ? AND purpose = ?"
+    ).get(user.id, purpose) as { created_at: number } | undefined;
+    if (previous && now - previous.created_at < emailCodeResendMs) return null;
+    const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+    this.#database.prepare(`
+      INSERT INTO account_email_codes (user_id, purpose, code_hash, attempts, expires_at, created_at)
+      VALUES (?, ?, ?, 0, ?, ?)
+      ON CONFLICT (user_id, purpose) DO UPDATE SET
+        code_hash = excluded.code_hash, attempts = 0,
+        expires_at = excluded.expires_at, created_at = excluded.created_at
+    `).run(user.id, purpose, this.#codeHash(user.id, purpose, code), now + emailCodeLifetimeMs[purpose], now);
+    return { email: user.email, code };
+  }
+
+  async resetPassword(email: string, code: string, password: string, deviceName: string) {
+    const user = this.#userByEmail(email);
+    if (!user) throw invalidCode();
+    this.#consumeEmailCode(user.id, "reset", code);
+    const salt = randomBytes(16).toString("base64url");
+    const passwordHash = await this.#hashPassword(password, salt);
+    const verifiedAt = user.email_verified_at ?? Date.now();
+    return this.#transaction(() => {
+      // Receiving the code proves mailbox ownership, so the address counts as verified too.
+      this.#database.prepare(`
+        UPDATE account_users SET password_hash = ?, password_salt = ?, email_verified_at = ?
+        WHERE id = ?
+      `).run(passwordHash, salt, verifiedAt, user.id);
+      this.#database.prepare("DELETE FROM account_sessions WHERE user_id = ?").run(user.id);
+      return this.#issueSession({ ...user, email_verified_at: verifiedAt }, deviceName);
+    });
+  }
+
+  async changePassword(userId: string, currentPassword: string, password: string, deviceName: string) {
+    const user = this.#database.prepare(`
+      SELECT id, email, password_hash, password_salt, created_at, email_verified_at
+      FROM account_users WHERE id = ?
+    `).get(userId) as UserPasswordRow | undefined;
+    if (!user) throw new AccountError("INVALID_SESSION", "Сессия истекла", 401);
+    const actual = await this.#hashPassword(currentPassword, user.password_salt);
+    if (!safeEqual(actual, user.password_hash)) {
+      throw new AccountError("INVALID_CREDENTIALS", "Текущий пароль указан неверно", 401);
+    }
+    const salt = randomBytes(16).toString("base64url");
+    const passwordHash = await this.#hashPassword(password, salt);
+    return this.#transaction(() => {
+      this.#database.prepare("UPDATE account_users SET password_hash = ?, password_salt = ? WHERE id = ?")
+        .run(passwordHash, salt, user.id);
+      this.#database.prepare("DELETE FROM account_sessions WHERE user_id = ?").run(user.id);
+      return this.#issueSession(user, deviceName);
+    });
+  }
+
+  verifyEmail(userId: string, code: string): AccountUser {
+    this.#consumeEmailCode(userId, "verify", code);
+    this.#database.prepare("UPDATE account_users SET email_verified_at = COALESCE(email_verified_at, ?) WHERE id = ?")
+      .run(Date.now(), userId);
+    const row = this.#database.prepare(
+      "SELECT id, email, created_at, email_verified_at FROM account_users WHERE id = ?"
+    ).get(userId) as UserRow;
+    return publicUser(row);
   }
 
   logout(refreshToken: string) {
@@ -544,6 +637,30 @@ export class AccountStore {
     }
   }
 
+  #userByEmail(email: string) {
+    return this.#database.prepare(
+      "SELECT id, email, created_at, email_verified_at FROM account_users WHERE email = ?"
+    ).get(email) as UserRow | undefined;
+  }
+
+  #codeHash(userId: string, purpose: EmailCodePurpose, code: string) {
+    return createHash("sha256").update(`${userId}:${purpose}:${code}:${this.#pepper}`).digest("hex");
+  }
+
+  /** Single-use: a matching code is deleted, a wrong one burns an attempt. */
+  #consumeEmailCode(userId: string, purpose: EmailCodePurpose, code: string) {
+    const row = this.#database.prepare(`
+      SELECT code_hash, attempts, expires_at FROM account_email_codes WHERE user_id = ? AND purpose = ?
+    `).get(userId, purpose) as { code_hash: string; attempts: number; expires_at: number } | undefined;
+    if (!row || row.expires_at <= Date.now() || row.attempts >= emailCodeMaxAttempts) throw invalidCode();
+    if (!safeEqual(this.#codeHash(userId, purpose, code), row.code_hash)) {
+      this.#database.prepare("UPDATE account_email_codes SET attempts = attempts + 1 WHERE user_id = ? AND purpose = ?")
+        .run(userId, purpose);
+      throw invalidCode();
+    }
+    this.#database.prepare("DELETE FROM account_email_codes WHERE user_id = ? AND purpose = ?").run(userId, purpose);
+  }
+
   async #hashPassword(password: string, salt: string) {
     return new Promise<string>((resolve, reject) => {
       nodeScrypt(
@@ -597,7 +714,7 @@ export class AccountStore {
   }
 }
 
-type UserRow = { id: string; email: string; created_at: number };
+type UserRow = { id: string; email: string; created_at: number; email_verified_at: number | null };
 type UserPasswordRow = UserRow & { password_hash: string; password_salt: string };
 type RefreshRow = UserRow & { session_id: string };
 type PlaylistRow = { id: string; name: string; created_at: number; updated_at: number };
@@ -615,8 +732,11 @@ type WaveFeedbackRow = {
 const publicUser = (row: UserRow): AccountUser => ({
   id: row.id,
   email: row.email,
+  emailVerified: row.email_verified_at != null,
   createdAt: new Date(row.created_at).toISOString()
 });
+
+const invalidCode = () => new AccountError("INVALID_CODE", "Неверный или устаревший код", 400);
 
 const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
 
