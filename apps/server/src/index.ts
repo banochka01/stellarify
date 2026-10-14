@@ -190,7 +190,7 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "5.0.3",
+    version: process.env.CLIENT_VERSION || "5.0.4",
     notes: process.env.CLIENT_RELEASE_NOTES ||
       "Resonance 5.0 «Граф»: друзья и совместимость вкусов, Blend на двоих, музыкальный граф и радио по пути, страницы артистов с концертами и сет-листами, совместные плейлисты, чистка медиатеки, нормализация громкости, gapless и lossless, трансляция на Chromecast и DLNA, Android Auto, Wear OS и Android TV, новый дизайн.",
     downloads: {
@@ -581,6 +581,24 @@ app.get("/api/v1/wave/profile", (request, response) => {
         discoveries: week.filter((item) => item.type === "liked").length,
         minutes: Math.round(week.reduce((total, item) => total + item.playedDurationMs, 0) / 60_000)
       }
+    });
+  } catch (error) { sendWaveError(response, error); }
+});
+
+/** "Итоги года": collects all year, opens from December (WRAPPED_OPEN_AT overrides). */
+app.get("/api/v1/wrapped", (request, response) => {
+  try {
+    const identity = accessControl.fromRequest(request);
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const openAt = Date.parse(process.env.WRAPPED_OPEN_AT ?? "") || Date.UTC(year, 11, 1);
+    const open = now.getTime() >= openAt;
+    response.json({
+      year,
+      status: open ? "ready" : "collecting",
+      opensAt: new Date(openAt).toISOString(),
+      signedIn: Boolean(identity.userId),
+      stats: open && identity.userId ? accountStore.yearStats(identity.userId, year) : null
     });
   } catch (error) { sendWaveError(response, error); }
 });

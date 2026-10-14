@@ -15,6 +15,17 @@ export type ChangelogEntry = {
 /** Public changelog, newest first. Beta entries are only shown to the beta channel. */
 export const changelog: ChangelogEntry[] = [
   {
+    version: "5.0.4",
+    date: "2026-10-15",
+    channel: "stable",
+    title: "Resonance 5.0.4",
+    highlights: [
+      "Итоги: новая вкладка «Год» — ждём вас в декабре",
+      "Статистика прослушиваний копится весь год для будущих итогов",
+      "Сброс профиля Волны больше не стирает годовую статистику"
+    ]
+  },
+  {
     version: "5.0.3",
     date: "2026-10-14",
     channel: "stable",

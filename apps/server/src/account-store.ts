@@ -159,6 +159,16 @@ export class AccountStore {
       );
       CREATE INDEX IF NOT EXISTS idx_account_wave_feedback_recent
         ON account_wave_feedback(user_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS account_year_stats (
+        user_id TEXT NOT NULL REFERENCES account_users(id) ON DELETE CASCADE,
+        year INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        item_key TEXT NOT NULL,
+        label TEXT NOT NULL,
+        plays INTEGER NOT NULL DEFAULT 0,
+        played_ms INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (user_id, year, kind, item_key)
+      );
       CREATE TABLE IF NOT EXISTS account_wave_blocks (
         user_id TEXT NOT NULL REFERENCES account_users(id) ON DELETE CASCADE,
         kind TEXT NOT NULL,
@@ -389,7 +399,7 @@ export class AccountStore {
     track: WaveTrackSignal
   ) {
     const now = Date.now();
-    this.#database.prepare(`
+    const inserted = this.#database.prepare(`
       INSERT OR IGNORE INTO account_wave_feedback (
         user_id, event_id, type, provider, track_id, title, artist, album, played_duration_ms, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -405,6 +415,7 @@ export class AccountStore {
       Math.max(0, Math.trunc(event.playedDurationMs)),
       now
     );
+    if (inserted.changes > 0) this.#recordYearStats(userId, event, track, now);
     this.#database.prepare(`
       DELETE FROM account_wave_feedback
       WHERE user_id = ? AND event_id NOT IN (
@@ -412,6 +423,62 @@ export class AccountStore {
         WHERE user_id = ? ORDER BY created_at DESC LIMIT 2000
       )
     `).run(userId, userId);
+  }
+
+  /**
+   * Year-long aggregates for "Итоги года". Kept apart from wave feedback, which is
+   * capped and pruned, and not reset with the wave profile.
+   */
+  #recordYearStats(
+    userId: string,
+    event: { type: WaveListeningSignal["type"]; playedDurationMs: number },
+    track: WaveTrackSignal,
+    now: number
+  ) {
+    if (event.type === "liked" || event.type === "disliked") return;
+    const playedMs = Math.max(0, Math.min(Math.trunc(event.playedDurationMs), 60 * 60 * 1_000));
+    const counted = event.type === "finished" || (event.type === "skipped" && playedMs >= 30_000);
+    if (!counted && playedMs === 0) return;
+    const date = new Date(now);
+    const year = date.getUTCFullYear();
+    const plays = counted ? 1 : 0;
+    const artist = track.artist.trim();
+    const title = track.title.trim();
+    const items: Array<[string, string, string]> = [
+      ["total", "", ""],
+      ["month", String(date.getUTCMonth() + 1), String(date.getUTCMonth() + 1)]
+    ];
+    if (artist) items.push(["artist", artist.toLowerCase(), artist]);
+    if (artist && title) items.push(["track", `${artist}::${title}`.toLowerCase(), `${artist} — ${title}`]);
+    if (artist && track.album?.trim()) items.push(["album", `${artist}::${track.album.trim()}`.toLowerCase(), `${artist} — ${track.album.trim()}`]);
+    const upsert = this.#database.prepare(`
+      INSERT INTO account_year_stats (user_id, year, kind, item_key, label, plays, played_ms)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(user_id, year, kind, item_key) DO UPDATE SET
+        plays = plays + excluded.plays, played_ms = played_ms + excluded.played_ms, label = excluded.label
+    `);
+    for (const [kind, key, label] of items) upsert.run(userId, year, kind, key.slice(0, 400), label.slice(0, 400), plays, playedMs);
+  }
+
+  /** Aggregated listening for one year; "total" and "month" rows plus top items. */
+  yearStats(userId: string, year: number, top = 10) {
+    const rows = (kind: string, limit: number) => this.#database.prepare(`
+      SELECT label, plays, played_ms FROM account_year_stats
+      WHERE user_id = ? AND year = ? AND kind = ? ORDER BY plays DESC, played_ms DESC LIMIT ?
+    `).all(userId, year, kind, limit).map((raw) => {
+      const row = raw as { label: string; plays: number; played_ms: number };
+      return { label: row.label, plays: row.plays, minutes: Math.round(row.played_ms / 60_000) };
+    });
+    const total = rows("total", 1)[0] ?? { label: "", plays: 0, minutes: 0 };
+    return {
+      year,
+      plays: total.plays,
+      minutes: total.minutes,
+      months: rows("month", 12),
+      artists: rows("artist", top),
+      tracks: rows("track", top),
+      albums: rows("album", top)
+    };
   }
 
   clearWaveFeedback(userId: string) {

@@ -28,6 +28,7 @@ class RecapScreen extends ConsumerStatefulWidget {
 class _RecapScreenState extends ConsumerState<RecapScreen> {
   final _cardKey = GlobalKey();
   RecapPeriod _period = RecapPeriod.week;
+  bool _year = false;
   bool _saving = false;
 
   Future<void> _saveImage(ListeningRecap recap) async {
@@ -114,7 +115,7 @@ class _RecapScreenState extends ConsumerState<RecapScreen> {
                                 ?.copyWith(fontWeight: FontWeight.w800),
                           ),
                         ),
-                        SegmentedButton<RecapPeriod>(
+                        SegmentedButton<RecapPeriod?>(
                           showSelectedIcon: false,
                           segments: [
                             for (final period in RecapPeriod.values)
@@ -122,10 +123,18 @@ class _RecapScreenState extends ConsumerState<RecapScreen> {
                                 value: period,
                                 label: Text(period.label),
                               ),
+                            const ButtonSegment(
+                              value: null,
+                              label: Text('Год'),
+                            ),
                           ],
-                          selected: {_period},
-                          onSelectionChanged: (value) =>
-                              setState(() => _period = value.first),
+                          selected: {_year ? null : _period},
+                          onSelectionChanged: (value) => setState(() {
+                            _year = value.first == null;
+                            if (value.first case final period?) {
+                              _period = period;
+                            }
+                          }),
                         ),
                       ],
                     ),
@@ -140,7 +149,12 @@ class _RecapScreenState extends ConsumerState<RecapScreen> {
                     child: Center(
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 1080),
-                        child: recap.when(
+                        child: _year
+                            ? const ResonanceEntrance(
+                                key: ValueKey('year'),
+                                child: WrappedTeaser(),
+                              )
+                            : recap.when(
                           loading: () => const Padding(
                             padding: EdgeInsets.all(80),
                             child: Center(child: CircularProgressIndicator()),
@@ -689,6 +703,52 @@ class _StatTile extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// «Итоги года»: статистика копится на сервере весь год, а сами итоги
+/// откроются в декабре.
+class WrappedTeaser extends StatelessWidget {
+  const WrappedTeaser({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final year = DateTime.now().year;
+    final theme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 64, horizontal: 8),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.auto_awesome_rounded,
+            size: 56,
+            color: ResonanceColors.primary,
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Итоги $year',
+            textAlign: TextAlign.center,
+            style: theme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Ждём вас в декабре :)',
+            textAlign: TextAlign.center,
+            style: theme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 16),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: const Text(
+              'Мы уже собираем ваших любимых артистов, треки и минуты '
+              'прослушивания. Слушайте больше — итоги будут интереснее.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: ResonanceColors.muted, fontSize: 16),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _RecapEmpty extends StatelessWidget {
