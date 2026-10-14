@@ -33,12 +33,15 @@ import {
 } from "lucide-react";
 import { GraphHero } from "./components/GraphHero";
 import { Modal } from "./components/Modal";
+import { detectOs, downloads, formatDate, formatSize, useRelease, type DownloadKey, type VisitorOs } from "./release";
 
-const downloads = {
-  windows: "/downloads/windows",
-  windowsPortable: "/downloads/windows-portable",
-  android: "/downloads/android",
-  ios: "/downloads/ios"
+const heroDownload: Record<VisitorOs, { key: DownloadKey | null; label: string; kind: string }> = {
+  windows: { key: "windows", label: "Скачать для Windows", kind: "EXE" },
+  windowsPortable: { key: "windowsPortable", label: "Скачать для Windows", kind: "ZIP" },
+  android: { key: "android", label: "Скачать для Android", kind: "APK" },
+  ios: { key: "ios", label: "Скачать для iOS", kind: "IPA · без подписи" },
+  mac: { key: null, label: "macOS — скоро", kind: "" },
+  linux: { key: null, label: "Linux — скоро", kind: "" }
 };
 
 type Theme = "dark" | "light";
@@ -82,13 +85,13 @@ const features5 = [
   { id: "beta", icon: FlaskConical, title: "Бета-канал", teaser: "Новое — раньше всех.", text: "Получай новые возможности раньше всех и помогай найти ошибки. Переключение в настройках, вернуться можно в любой момент." }
 ];
 
-const platforms = [
-  { icon: Monitor, name: "Windows", note: "Setup EXE · x64", href: downloads.windows, cta: "Скачать EXE" },
-  { icon: Monitor, name: "Windows Portable", note: "ZIP без установки", href: downloads.windowsPortable, cta: "Скачать ZIP" },
-  { icon: Smartphone, name: "Android", note: "APK · Android Auto, Wear OS, TV", href: downloads.android, cta: "Скачать APK" },
-  { icon: Apple, name: "iOS", note: "Unsigned IPA · нужна своя подпись", href: downloads.ios, cta: "Скачать IPA" },
-  { icon: Laptop, name: "macOS", note: "Сборка готовится", href: null, cta: "Скоро" },
-  { icon: Laptop, name: "Linux", note: "Сборка готовится", href: null, cta: "Скоро" }
+const platforms: { icon: typeof Monitor; name: string; note: string; key: DownloadKey | null; os: VisitorOs; cta: string }[] = [
+  { icon: Monitor, name: "Windows", note: "Setup EXE · x64", key: "windows", os: "windows", cta: "Скачать EXE" },
+  { icon: Monitor, name: "Windows Portable", note: "ZIP без установки", key: "windowsPortable", os: "windowsPortable", cta: "Скачать ZIP" },
+  { icon: Smartphone, name: "Android", note: "APK · Android Auto, Wear OS, TV", key: "android", os: "android", cta: "Скачать APK" },
+  { icon: Apple, name: "iOS", note: "Unsigned IPA · нужна своя подпись", key: "ios", os: "ios", cta: "Скачать IPA" },
+  { icon: Laptop, name: "macOS", note: "Сборка готовится", key: null, os: "mac", cta: "Скоро" },
+  { icon: Laptop, name: "Linux", note: "Сборка готовится", key: null, os: "linux", cta: "Скоро" }
 ];
 
 /* Heavy demo components are split into chunks and fetched only when their tab opens. */
@@ -182,6 +185,10 @@ function Accordion({ summary, children }: { summary: ReactNode; children: ReactN
 
 function App() {
   const { theme, toggle } = useTheme();
+  const release = useRelease();
+  const [os] = useState<VisitorOs>(detectOs);
+  const hero = heroDownload[os];
+  const heroMeta = [release.version && `v${release.version}`, hero.kind, hero.key && formatSize(release.sizes[hero.key])].filter(Boolean).join(" · ");
   const [tab, setTab] = useState<TabKey>("search");
   const [info, setInfo] = useState<InfoKey | null>(null);
   const [feature, setFeature] = useState<string | null>(null);
@@ -248,6 +255,7 @@ function App() {
           <a href="#features">Возможности</a>
           <a href="#rooms">Комнаты</a>
           <a href="#download">Скачать</a>
+          <a href="#changelog">Обновления</a>
           <a href="#faq">FAQ</a>
         </nav>
         <div className="header-actions">
@@ -283,14 +291,23 @@ function App() {
               <span className="provider-chip"><img src="/assets/logos/vk.svg" alt="" width={16} height={16} />VK Музыка</span>
             </div>
             <div className="hero-actions">
-              <a className="button button-primary" href={downloads.windows}>
-                <Download size={18} /> Скачать для Windows
-              </a>
+              {hero.key ? (
+                <a className="button button-primary" href={downloads[hero.key]}>
+                  <Download size={18} /> {hero.label}
+                </a>
+              ) : (
+                <a className="button button-primary" href={downloads.windows}>
+                  <Download size={18} /> Скачать для Windows
+                </a>
+              )}
               <a className="button button-secondary" href="#download">
                 Все платформы <ArrowRight size={17} />
               </a>
             </div>
-            <p className="release-note">Windows · Android · iOS сейчас, macOS и Linux — скоро.</p>
+            <p className="release-note">
+              {hero.key ? heroMeta : `${hero.label}. Пока доступны Windows, Android и iOS.`}
+              {hero.key && release.version ? <> · <a href="#changelog">что изменилось</a></> : null}
+            </p>
           </div>
           <div className="hero-visual">
             <GraphHero />
@@ -485,15 +502,15 @@ function App() {
             </p>
           </div>
           <ul className="platform-grid">
-            {platforms.map(({ icon: Icon, name, note, href, cta }) => (
-              <li key={name} className={href ? "platform-card" : "platform-card platform-soon"}>
+            {platforms.map(({ icon: Icon, name, note, key, os: cardOs, cta }) => (
+              <li key={name} className={`platform-card${key ? "" : " platform-soon"}${cardOs === os ? " platform-current" : ""}`}>
                 <Icon size={24} aria-hidden />
                 <div>
-                  <h3>{name}</h3>
-                  <p>{note}</p>
+                  <h3>{name}{cardOs === os ? <span className="current-badge">Ваша система</span> : null}</h3>
+                  <p>{[note, key && formatSize(release.sizes[key])].filter(Boolean).join(" · ")}</p>
                 </div>
-                {href ? (
-                  <a className="button button-primary" href={href}><Download size={16} aria-hidden /> {cta}</a>
+                {key ? (
+                  <a className="button button-primary" href={downloads[key]}><Download size={16} aria-hidden /> {cta}</a>
                 ) : (
                   <span className="soon-badge">{cta}</span>
                 )}
@@ -501,6 +518,34 @@ function App() {
             ))}
           </ul>
         </section>
+
+        {release.changelog.length > 0 ? (
+          <section className="changelog-section compact-section" id="changelog" aria-labelledby="changelog-title">
+            <div className="compact-heading">
+              <div>
+                <p className="eyebrow">История версий</p>
+                <h2 id="changelog-title">Что <em>изменилось</em>.</h2>
+              </div>
+              <p>Стабильные релизы, новые сверху. Приложение обновляется по тем же ссылкам.</p>
+            </div>
+            <ol className="changelog-list">
+              {release.changelog.map((entry, index) => (
+                <li key={entry.version} className="changelog-entry">
+                  <details open={index === 0}>
+                    <summary>
+                      <span className="changelog-version">v{entry.version}</span>
+                      <span className="changelog-title">{entry.title}</span>
+                      <time dateTime={entry.date}>{formatDate(entry.date)}</time>
+                    </summary>
+                    <ul>
+                      {entry.highlights.map((item) => <li key={item}>{item}</li>)}
+                    </ul>
+                  </details>
+                </li>
+              ))}
+            </ol>
+          </section>
+        ) : null}
       </main>
 
       <footer>
@@ -512,6 +557,7 @@ function App() {
           <a href="#rooms">Комнаты</a>
           <a href="#demo">Демо</a>
           <a href="#download">Скачать</a>
+          <a href="#changelog">Обновления</a>
           <a href="#free">Бесплатно</a>
           <a href="#privacy">Приватность</a>
           <a href="#knowledge">База знаний</a>

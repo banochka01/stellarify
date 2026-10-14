@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /downloads/
+
+Sitemap: https://music.webcordes.ru/sitemap.xml
