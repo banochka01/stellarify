@@ -81,7 +81,11 @@ void main() {
       );
       expect(full, contains('@eq0:equalizer=f=31:t=o:w=1:g=6.0'));
       expect(full, isNot(contains('@eq4')));
-      expect(full, endsWith('@norm:loudnorm=I=-16:TP=-1.5:LRA=11'));
+      expect(
+        full,
+        endsWith('@norm:loudnorm=I=-16:TP=-1.5:LRA=11,@normrate:aresample=48000'),
+        reason: 'loudnorm upsamples to 192 kHz, which iOS output plays silently',
+      );
 
       final mobile = buildAudioFilterChain(
         support: const AudioFilterSupport(equalizer: true),

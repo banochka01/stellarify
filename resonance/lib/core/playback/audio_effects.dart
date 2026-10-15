@@ -174,7 +174,12 @@ String buildAudioFilterChain({
   }
   if (normalize) {
     if (support.loudnorm) {
-      filters.add('@norm:loudnorm=I=-16:TP=-1.5:LRA=11');
+      // Динамический loudnorm отдаёт 192 кГц. Аудиовывод iOS такой поток
+      // молча не играет (время идёт, звука нет), поэтому сразу возвращаем
+      // обычную частоту.
+      filters
+        ..add('@norm:loudnorm=I=-16:TP=-1.5:LRA=11')
+        ..add('@normrate:aresample=48000');
     } else if (support.dynaudnorm) {
       filters.add('@norm:dynaudnorm=f=250:g=15:p=0.9');
     }
