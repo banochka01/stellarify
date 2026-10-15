@@ -15,6 +15,15 @@ export type ChangelogEntry = {
 /** Public changelog, newest first. Beta entries are only shown to the beta channel. */
 export const changelog: ChangelogEntry[] = [
   {
+    version: "5.0.6",
+    date: "2026-10-15",
+    channel: "stable",
+    title: "Resonance 5.0.6",
+    highlights: [
+      "iPhone: плеер снова сам включает режим музыки — после распознавания трека звук пропадал"
+    ]
+  },
+  {
     version: "5.0.5",
     date: "2026-10-15",
     channel: "stable",

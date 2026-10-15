@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:resonance/app/providers.dart';
+import 'package:resonance/core/playback/audio_focus_coordinator.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_controller.dart';
@@ -65,8 +66,25 @@ class _RecognizeSheetState extends ConsumerState<_RecognizeSheet> {
 
   @override
   void dispose() {
-    unawaited(_recorder.dispose());
+    unawaited(_releaseMicrophone());
     super.dispose();
+  }
+
+  /// Запись переводит сессию iOS в `playAndRecord`; без возврата в режим
+  /// музыки плеер дальше играет беззвучно.
+  Future<void> _releaseMicrophone() async {
+    try {
+      await _recorder.dispose();
+    } on Object {
+      // Рекордер уже остановлен.
+    }
+    if (Platform.isIOS) {
+      try {
+        await AudioFocusCoordinator.reassertPlayback();
+      } on Object {
+        // Сессию вернёт следующий старт воспроизведения.
+      }
+    }
   }
 
   void _fail(String message) {
@@ -106,6 +124,9 @@ class _RecognizeSheetState extends ConsumerState<_RecognizeSheet> {
         return;
       }
       final path = await _recorder.stop();
+      if (Platform.isIOS) {
+        unawaited(AudioFocusCoordinator.reassertPlayback().catchError((_) {}));
+      }
       setState(() => _stage = _Stage.sending);
       final recorded = File(path ?? file.path);
       final bytes = await recorded.readAsBytes();
