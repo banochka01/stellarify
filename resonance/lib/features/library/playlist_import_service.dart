@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:resonance/core/errors/app_exception.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
@@ -47,13 +49,33 @@ class PlaylistImportService {
   final Uri Function() _baseUri;
   final SecureTokenRepository _tokens;
 
+  /// Dotify share pages wrap the original provider link in a
+  /// `dotify://…/<base64>` deep link; unwrap it so the right provider token
+  /// is attached. The server unwraps it too, as a fallback.
+  Future<Uri> _resolveDotify(Uri uri) async {
+    try {
+      final response = await _dio.getUri<String>(
+        uri,
+        options: Options(responseType: ResponseType.plain),
+      );
+      final target = decodeDotifyDeepLink(response.data ?? '');
+      if (target != null) return target;
+    } on DioException {
+      return uri;
+    }
+    throw const ProviderUnavailableException(
+      'В ссылке Dotify не найден плейлист.',
+    );
+  }
+
   Future<ImportedPlaylist> importUrl(String rawUrl) async {
-    final uri = Uri.tryParse(rawUrl.trim());
+    var uri = Uri.tryParse(rawUrl.trim());
     if (uri == null || !uri.isScheme('https')) {
       throw const ProviderUnavailableException(
         'Нужна HTTPS-ссылка на плейлист.',
       );
     }
+    if (isDotifyHost(uri.host)) uri = await _resolveDotify(uri);
     final provider = uri.host.contains('youtube.com')
         ? MusicProvider.youtube
         : uri.host.contains('yandex.')
@@ -208,3 +230,31 @@ String _providerTitle(MusicProvider provider) => switch (provider) {
   MusicProvider.soundcloud => 'SoundCloud',
   MusicProvider.youtube => 'YouTube Music',
 };
+
+bool isDotifyHost(String host) {
+  final value = host.toLowerCase();
+  return value == 'dotify.fun' || value.endsWith('.dotify.fun');
+}
+
+/// Finds the wrapped provider URL inside a Dotify share page. The base64
+/// payload may itself contain `/`, so every path suffix is tried.
+Uri? decodeDotifyDeepLink(String html) {
+  for (final match in RegExp(r'''dotify://[^"'\s<>]+''').allMatches(html)) {
+    final parts = match.group(0)!.substring('dotify://'.length).split('/');
+    for (var start = 0; start < parts.length; start++) {
+      final payload = parts.sublist(start).join('/');
+      try {
+        final normalized = base64.normalize(
+          payload.replaceAll('-', '+').replaceAll('_', '/'),
+        );
+        final target = Uri.parse(utf8.decode(base64.decode(normalized)));
+        if (target.isScheme('https') && !isDotifyHost(target.host)) {
+          return target;
+        }
+      } on FormatException {
+        continue;
+      }
+    }
+  }
+  return null;
+}

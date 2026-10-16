@@ -38,3 +38,17 @@ test("imports VK playlists by parsing the playlist reference from the URL", asyn
   assert.deepEqual(received, { owner: "1", playlist: "2" });
   assert.equal(result.title, "VK плейлист 1_2");
 });
+
+test("unwraps a Dotify share link into the wrapped provider URL", async () => {
+  const references: unknown[] = [];
+  const yandex = { importPlaylist: async (reference: unknown) => { references.push(reference); return { provider: "yandex", externalId: "x", title: "Мне нравится", tracks: [] }; } };
+  const target = "https://music.yandex.ru/playlists/lk.5e6c5a06-205e-4504-ad23-accef83c8a50?utm_medium=copy_link";
+  const html = `<a href="dotify://playlist/library/${Buffer.from(target).toString("base64")}">Открыть</a>`;
+  let fetched = "";
+  const fetcher = (async (url: string) => { fetched = url; return new Response(html); }) as unknown as typeof fetch;
+  const service = new PlaylistImportService(yandex as never, {} as never, undefined, undefined, fetcher);
+  const result = await service.importUrl("https://share.dotify.fun/KnhitFbw");
+  assert.equal(fetched, "https://share.dotify.fun/KnhitFbw");
+  assert.deepEqual(references, [{ uuid: "lk.5e6c5a06-205e-4504-ad23-accef83c8a50" }]);
+  assert.equal(result.title, "Мне нравится");
+});

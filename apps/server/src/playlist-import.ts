@@ -14,13 +14,18 @@ export class PlaylistImportService {
     private readonly yandex: YandexAdapter,
     private readonly youtube: YouTubeAdapter,
     private readonly spotify?: SpotifyAdapter,
-    private readonly vk?: VkAdapter
+    private readonly vk?: VkAdapter,
+    private readonly fetcher: typeof fetch = fetch
   ) {}
 
-  async importUrl(value: string, access?: ProviderAccess): Promise<ImportedPlaylist> {
+  async importUrl(value: string, access?: ProviderAccess, depth = 0): Promise<ImportedPlaylist> {
     let url: URL;
     try { url = new URL(value); } catch { throw new ProviderGatewayError("TRACK_NOT_FOUND", "Invalid playlist URL", 400); }
     const host = url.hostname.toLowerCase();
+    if (isDotifyHost(host)) {
+      if (depth > 0) throw new ProviderGatewayError("TRACK_NOT_FOUND", "Ссылка Dotify ведёт на другую ссылку Dotify", 400);
+      return this.importUrl(await resolveDotifyShareUrl(url, this.fetcher), access, depth + 1);
+    }
     if (host === "music.youtube.com" || host === "youtube.com" || host === "www.youtube.com") {
       const id = url.searchParams.get("list");
       if (!id) throw new ProviderGatewayError("TRACK_NOT_FOUND", "YouTube playlist URL must include list", 400);
@@ -101,4 +106,40 @@ function capImportedLibrary(library: ImportedProviderLibrary): ImportedProviderL
     return { ...playlist, tracks };
   });
   return { ...library, playlists, truncated };
+}
+
+function isDotifyHost(host: string): boolean {
+  return host === "dotify.fun" || host.endsWith(".dotify.fun");
+}
+
+/** Extracts the original provider URL that a Dotify share page wraps in its `dotify://…/<base64>` deep link. */
+export function decodeDotifyDeepLink(html: string): string | undefined {
+  for (const match of html.matchAll(/dotify:\/\/[^"'\s<>]+/g)) {
+    const parts = match[0].slice("dotify://".length).split("/");
+    // The base64 payload may itself contain "/", so try every path suffix.
+    for (let start = 0; start < parts.length; start++) {
+      const payload = parts.slice(start).join("/");
+      try {
+        const target = new URL(Buffer.from(payload.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8"));
+        if ((target.protocol === "https:" || target.protocol === "http:") && !isDotifyHost(target.hostname)) return target.toString();
+      } catch { /* try next candidate */ }
+    }
+  }
+  return undefined;
+}
+
+async function resolveDotifyShareUrl(url: URL, fetcher: typeof fetch): Promise<string> {
+  let html: string;
+  try {
+    const response = await fetcher(url.toString(), { redirect: "follow", signal: AbortSignal.timeout(10_000) });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    html = (await response.text()).slice(0, 512_000);
+  } catch {
+    throw new ProviderGatewayError("UPSTREAM_ERROR", "Не удалось открыть ссылку Dotify", 502);
+  }
+  const target = decodeDotifyDeepLink(html);
+  if (!target) {
+    throw new ProviderGatewayError("TRACK_NOT_FOUND", "В ссылке Dotify не найден плейлист", 400);
+  }
+  return target;
 }
