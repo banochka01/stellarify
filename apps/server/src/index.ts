@@ -1,4 +1,5 @@
 import { dirname, join } from "node:path";
+import { dotifyFileSchema, importDotifyFile } from "./dotify-file.js";
 import "dotenv/config";
 import { createServer } from "node:http";
 import { createHash } from "node:crypto";
@@ -138,7 +139,11 @@ try {
 app.disable("x-powered-by");
 app.use(cors({ origin: webOrigin }));
 app.use("/api/v1/auth/spotify", createSpotifyOAuthRouter(spotifyOAuth));
-app.use(express.json({ limit: "512kb" }));
+const jsonBody = express.json({ limit: "512kb" });
+// Dotify playlist files carry thousands of tracks; that route parses its own larger body.
+app.use((request, response, next) =>
+  request.path === "/api/v1/playlists/import-dotify" ? next() : jsonBody(request, response, next)
+);
 // Crowd sync offsets are optional: a broken store must not take the API down.
 let clipOffsets: ClipOffsetStore | undefined;
 try {
@@ -743,6 +748,20 @@ app.post("/api/v1/playlists/import", async (request, response) => {
   }
   try {
     const playlist = await playlistImports.importUrl(result.data.url, providerAccess(request));
+    response.json({ playlist });
+  } catch (error) {
+    sendGatewayError(response, error);
+  }
+});
+
+app.post("/api/v1/playlists/import-dotify", express.json({ limit: "4mb" }), async (request, response) => {
+  const result = dotifyFileSchema.safeParse(request.body?.file);
+  if (!result.success) {
+    response.status(400).json({ error: { code: "INVALID_REQUEST", message: "Это не файл плейлиста Dotify" } });
+    return;
+  }
+  try {
+    const playlist = await importDotifyFile(result.data, soundCloud, providerAccess(request));
     response.json({ playlist });
   } catch (error) {
     sendGatewayError(response, error);

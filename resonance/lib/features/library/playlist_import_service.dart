@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:resonance/core/errors/app_exception.dart';
@@ -126,6 +127,88 @@ class PlaylistImportService {
           : null;
       throw ProviderUnavailableException(
         message ?? 'Не удалось импортировать плейлист.',
+        cause: error,
+      );
+    } on FormatException catch (error) {
+      throw ProviderUnavailableException(
+        'Сервер вернул некорректный плейлист.',
+        cause: error,
+      );
+    }
+  }
+
+  /// Imports a `.dotifyplaylist` export: JSON with every track and its source
+  /// service. The server maps playable sources by id and matches the rest
+  /// (e.g. Apple Music) on SoundCloud.
+  Future<ImportedPlaylist> importDotifyFile(String filePath) async {
+    final Object? file;
+    try {
+      file = jsonDecode(await File(filePath).readAsString());
+    } on Object catch (error) {
+      throw ProviderUnavailableException(
+        'Не удалось прочитать файл плейлиста Dotify.',
+        cause: error,
+      );
+    }
+    if (file is! Map || file['tracks'] is! List) {
+      throw const ProviderUnavailableException('Это не файл плейлиста Dotify.');
+    }
+    const fields = {
+      'id',
+      'title',
+      'artist',
+      'album',
+      'duration',
+      'cover_art',
+      'source',
+    };
+    final payload = {
+      'id': file['id'],
+      'title': file['title'],
+      'tracks': [
+        for (final track in (file['tracks'] as List).whereType<Map>())
+          {
+            for (final entry in track.entries)
+              if (fields.contains(entry.key)) entry.key: entry.value,
+          },
+      ],
+    };
+    try {
+      final response = await _dio.postUri<Map<String, dynamic>>(
+        _baseUri().resolve('/api/v1/playlists/import-dotify'),
+        data: {'file': payload},
+      );
+      final data = response.data?['playlist'];
+      if (data is! Map) throw const FormatException('Missing playlist');
+      final rawTracks = data['tracks'];
+      if (rawTracks is! List) throw const FormatException('Missing tracks');
+      final tracks = <UnifiedTrack>[];
+      for (final raw in rawTracks.whereType<Map>()) {
+        final json = Map<String, dynamic>.from(raw);
+        final provider = MusicProvider.values
+            .where((item) => item.name == json['provider'])
+            .firstOrNull;
+        if (provider == null) continue;
+        tracks.add(switch (provider) {
+          MusicProvider.youtube => youtubeTrackFromJson(json),
+          MusicProvider.yandex => yandexTrackFromJson(json),
+          _ => tokenTrackFromJson(provider, json),
+        });
+      }
+      return ImportedPlaylist(
+        name: data['title'] as String? ?? 'Плейлист Dotify',
+        provider:
+            tracks.firstOrNull?.preferredProvider ?? MusicProvider.soundcloud,
+        tracks: tracks,
+        externalId: data['externalId']?.toString(),
+      );
+    } on DioException catch (error) {
+      final body = error.response?.data;
+      final message = body is Map && body['error'] is Map
+          ? (body['error'] as Map)['message']?.toString()
+          : null;
+      throw ProviderUnavailableException(
+        message ?? 'Не удалось импортировать плейлист Dotify.',
         cause: error,
       );
     } on FormatException catch (error) {

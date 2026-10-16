@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -207,9 +208,10 @@ class LibraryScreen extends ConsumerWidget {
       barrierDismissible: false,
       builder: (_) => PlaylistImportProgressDialog(
         run: () async {
-          final imported = await ref
-              .read(playlistImportServiceProvider)
-              .importUrl(url);
+          final service = ref.read(playlistImportServiceProvider);
+          final imported = url.startsWith('file:')
+              ? await service.importDotifyFile(Uri.parse(url).toFilePath())
+              : await service.importUrl(url);
           await ref
               .read(libraryControllerProvider.notifier)
               .importPlaylist(imported);
@@ -880,6 +882,17 @@ class _ImportPlaylistDialogState extends State<ImportPlaylistDialog> {
     super.dispose();
   }
 
+  /// Dotify exports keep the whole track list in a `.dotifyplaylist` file;
+  /// the dialog hands its path back as a `file:` URI.
+  Future<void> _pickDotifyFile() async {
+    final file = await FilePicker.pickFile(
+      dialogTitle: 'Файл плейлиста Dotify',
+    );
+    final path = file?.path;
+    if (path == null || !mounted) return;
+    Navigator.pop(context, Uri.file(path).toString());
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -899,6 +912,11 @@ class _ImportPlaylistDialogState extends State<ImportPlaylistDialog> {
         ),
       ),
       actions: [
+        TextButton.icon(
+          onPressed: _pickDotifyFile,
+          icon: const Icon(Icons.upload_file_rounded),
+          label: const Text('Файл .dotifyplaylist'),
+        ),
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Отмена'),
