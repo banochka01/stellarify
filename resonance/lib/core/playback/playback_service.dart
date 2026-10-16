@@ -161,6 +161,9 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
   })?
   _gapless;
   Timer? _gaplessWatchdog;
+  // Bumped on every open: a gapless entry prepared for an older open must not
+  // be queued behind the track that is playing now.
+  int _openGeneration = 0;
   bool _preparingGapless = false;
   double? _currentGainDb;
 
@@ -676,7 +679,11 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
         duration == Duration.zero ||
         !_state.playing) {
       _emit(_state.copyWith(currentIndex: index));
-      await _openCurrent(play: true);
+      try {
+        await _openCurrent(play: true);
+      } on Object {
+        // _openCurrent already reported the failure in the state.
+      }
       return;
     }
     _transitioning = true;
@@ -1082,6 +1089,7 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     String? recoveryReason,
   }) async {
     final previous = _state.activeTrackSource;
+    _openGeneration++;
     await _captureLoudness();
     _gapless = null;
     _gaplessWatchdog?.cancel();
@@ -1166,6 +1174,13 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
 
   Future<void> _prepareGapless(int index, UnifiedTrack next) async {
     final currentId = _state.currentTrack?.id;
+    final generation = _openGeneration;
+    bool stale() =>
+        _disposed ||
+        generation != _openGeneration ||
+        _state.currentTrack?.id != currentId ||
+        _sequentialNextIndex() != index ||
+        _state.queue[index].id != next.id;
     ({TrackSource source, ResolvedAudioSource resolved})? prepared;
     final local = await _offlineDownloads?.localSource(next);
     final localSource = _offlineDownloads?.downloadedSource(next.id);
@@ -1188,16 +1203,16 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
         }
       }
     }
-    if (prepared == null ||
-        _disposed ||
-        _state.currentTrack?.id != currentId ||
-        _sequentialNextIndex() != index ||
-        _state.queue[index].id != next.id) {
-      return;
-    }
+    if (prepared == null || stale()) return;
     final gain = await _gainFor(next, prepared.resolved);
+    // The user may have switched tracks while the gain was computed.
+    if (stale()) return;
     final queued = await _engine.setQueuedNext(prepared.resolved, gainDb: gain);
     if (!queued || _disposed) return;
+    if (stale()) {
+      await _engine.setQueuedNext(null);
+      return;
+    }
     _gapless = (
       index: index,
       trackId: next.id,
@@ -1219,7 +1234,14 @@ final class PlaybackService implements SleepTimerPlayback, LyricLoopPlayback {
     _gaplessWatchdog?.cancel();
     final prepared = _gapless;
     _gapless = null;
-    if (prepared == null || _disposed) return;
+    if (_disposed) return;
+    if (prepared == null) {
+      // The player moved on to an entry the queue no longer expects (e.g. the
+      // current stream failed and it fell through to a stale queued track):
+      // reopen what the UI shows instead of playing something else under it.
+      await _openCurrent(play: true);
+      return;
+    }
     final finished = _state.currentTrack;
     if (finished != null && _flowSettings.normalizeLoudness) {
       _rememberLoudness(finished, previousLufs);

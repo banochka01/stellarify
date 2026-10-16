@@ -50,6 +50,29 @@ void main() {
     await service.dispose();
   });
 
+  test(
+    'reopens the shown track when the player falls through to a stale queued entry',
+    () async {
+      final resolver = _FakeResolver(MusicProvider.soundcloud);
+      final service = _createService(engine, persistence, [resolver]);
+      final first = _track('first', [MusicProvider.soundcloud]);
+      final second = _track('second', [MusicProvider.soundcloud]);
+
+      await service.setQueue([first, second], autoplay: true);
+      expect(engine.openedSources, hasLength(1));
+
+      // No gapless entry is pending, yet the player reports it moved on.
+      engine.emitAdvancedToQueued();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(service.state.currentTrack, first);
+      expect(engine.openedSources, hasLength(2));
+      expect(engine.openedSources.last, engine.openedSources.first);
+      await service.dispose();
+    },
+  );
+
   test('falls back when preferred provider cannot resolve', () async {
     final youtube = _FakeResolver(
       MusicProvider.youtube,
@@ -343,10 +366,7 @@ void main() {
       _track('broken', [MusicProvider.youtube]),
     ], autoplay: true);
     await service.setVolume(64);
-    await expectLater(
-      service.next(),
-      throwsA(isA<PlaybackFailedException>()),
-    );
+    await expectLater(service.next(), throwsA(isA<PlaybackFailedException>()));
     expect(engine.currentVolume, 64);
     expect(service.state.volume, 64);
     await service.dispose();

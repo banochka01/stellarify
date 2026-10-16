@@ -133,6 +133,9 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
   final _advanced = StreamController<double?>.broadcast();
   int? _queuedIndex;
   double? _queuedGainDb;
+  // An open() that lands while setQueuedNext awaits replaces the playlist;
+  // the late add must then be undone, or it would play after the new track.
+  int _openGeneration = 0;
   bool _meterDirty = false;
   double _engineVolume = -1;
   bool _gaplessConfigured = false;
@@ -212,6 +215,7 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
     );
     _queuedIndex = null;
     _queuedGainDb = null;
+    _openGeneration++;
     return _openFresh(media, play);
   }
 
@@ -246,12 +250,18 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
         await platform.setProperty('prefetch-playlist', 'yes');
         _gaplessConfigured = true;
       }
+      final generation = _openGeneration;
       await player.add(
         media_kit.Media(
           source.streamUrl.toString(),
           httpHeaders: source.headers,
         ),
       );
+      if (generation != _openGeneration) {
+        final medias = player.state.playlist.medias;
+        if (medias.length > 1) await player.remove(medias.length - 1);
+        return false;
+      }
       _queuedGainDb = gainDb;
       _queuedIndex = player.state.playlist.medias.length - 1;
       return true;
