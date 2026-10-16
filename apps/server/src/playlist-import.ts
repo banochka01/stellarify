@@ -4,6 +4,7 @@ import {
   type ProviderAccess,
   type ProviderName
 } from "./provider-gateway.js";
+import type { SoundCloudAdapter } from "./soundcloud.js";
 import { SpotifyAdapter } from "./spotify.js";
 import { VkAdapter, parseVkPlaylistReference } from "./vk.js";
 import { YandexAdapter } from "./yandex.js";
@@ -15,7 +16,8 @@ export class PlaylistImportService {
     private readonly youtube: YouTubeAdapter,
     private readonly spotify?: SpotifyAdapter,
     private readonly vk?: VkAdapter,
-    private readonly fetcher: typeof fetch = fetch
+    private readonly fetcher: typeof fetch = fetch,
+    private readonly soundcloud?: Pick<SoundCloudAdapter, "searchTracks">
   ) {}
 
   async importUrl(value: string, access?: ProviderAccess, depth = 0): Promise<ImportedPlaylist> {
@@ -24,7 +26,10 @@ export class PlaylistImportService {
     const host = url.hostname.toLowerCase();
     if (isDotifyHost(host)) {
       if (depth > 0) throw new ProviderGatewayError("TRACK_NOT_FOUND", "Ссылка Dotify ведёт на другую ссылку Dotify", 400);
-      return this.importUrl(await resolveDotifyShareUrl(url, this.fetcher), access, depth + 1);
+      const page = await fetchDotifyShare(url, this.fetcher);
+      const target = decodeDotifyDeepLink(page.html);
+      if (target) return this.importUrl(target, access, depth + 1);
+      return this.importDotifyTracks(url, page.html, access);
     }
     if (host === "music.youtube.com" || host === "youtube.com" || host === "www.youtube.com") {
       const id = url.searchParams.get("list");
@@ -71,6 +76,30 @@ export class PlaylistImportService {
       return this.vk.importPlaylist(reference, access);
     }
     throw new ProviderGatewayError("PROVIDER_NOT_SUPPORTED", "This playlist provider is not supported", 400);
+  }
+
+  /** Playlists that live only inside Dotify expose just a short public track preview; match it on SoundCloud by name. */
+  private async importDotifyTracks(url: URL, html: string, access?: ProviderAccess): Promise<ImportedPlaylist> {
+    const entries = parseDotifyTracks(html);
+    if (!entries.length || !this.soundcloud) {
+      throw new ProviderGatewayError("TRACK_NOT_FOUND", "В ссылке Dotify не найден плейлист", 400);
+    }
+    const tracks = [];
+    for (const entry of entries) {
+      try {
+        const [match] = await this.soundcloud.searchTracks(`${entry.artist} ${entry.title}`.trim(), 1, access);
+        if (match) tracks.push(match);
+      } catch { /* skip tracks SoundCloud cannot find */ }
+    }
+    if (!tracks.length) {
+      throw new ProviderGatewayError("TRACK_NOT_FOUND", "Треки из ссылки Dotify не найдены в SoundCloud", 404);
+    }
+    return {
+      provider: "soundcloud",
+      externalId: `dotify:${url.pathname.split("/").filter(Boolean).pop() ?? ""}`,
+      title: decodeHtml(html.match(/<h2 class="title">([^<]*)<\/h2>/)?.[1] ?? "") || "Плейлист Dotify",
+      tracks
+    };
   }
 
   async importLibrary(provider: ProviderName, access?: ProviderAccess): Promise<ImportedProviderLibrary> {
@@ -128,18 +157,29 @@ export function decodeDotifyDeepLink(html: string): string | undefined {
   return undefined;
 }
 
-async function resolveDotifyShareUrl(url: URL, fetcher: typeof fetch): Promise<string> {
-  let html: string;
+async function fetchDotifyShare(url: URL, fetcher: typeof fetch): Promise<{ html: string }> {
   try {
     const response = await fetcher(url.toString(), { redirect: "follow", signal: AbortSignal.timeout(10_000) });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    html = (await response.text()).slice(0, 512_000);
+    return { html: (await response.text()).slice(0, 512_000) };
   } catch {
     throw new ProviderGatewayError("UPSTREAM_ERROR", "Не удалось открыть ссылку Dotify", 502);
   }
-  const target = decodeDotifyDeepLink(html);
-  if (!target) {
-    throw new ProviderGatewayError("TRACK_NOT_FOUND", "В ссылке Dotify не найден плейлист", 400);
+}
+
+export function parseDotifyTracks(html: string): Array<{ title: string; artist: string }> {
+  const tracks: Array<{ title: string; artist: string }> = [];
+  const pattern = /<div class="track-name">([^<]*)<\/div>\s*<div class="track-artist">([^<]*)<\/div>/g;
+  for (const match of html.matchAll(pattern)) {
+    const title = decodeHtml(match[1] ?? "").trim();
+    if (title) tracks.push({ title, artist: decodeHtml(match[2] ?? "").trim() });
   }
-  return target;
+  return tracks.slice(0, 200);
+}
+
+function decodeHtml(value: string): string {
+  return value
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code: string) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 }

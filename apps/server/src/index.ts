@@ -105,7 +105,7 @@ const gateway = new ProviderGateway([
   spotify,
   vk
 ]);
-const playlistImports = new PlaylistImportService(yandex, youtube, spotify, vk);
+const playlistImports = new PlaylistImportService(yandex, youtube, spotify, vk, fetch, soundCloud);
 const lyrics = LyricsService.fromEnvironment();
 const lyricsTranslator = LyricsTranslator.fromEnvironment();
 const accountStore = new AccountStore(

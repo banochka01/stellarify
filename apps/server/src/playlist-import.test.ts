@@ -52,3 +52,19 @@ test("unwraps a Dotify share link into the wrapped provider URL", async () => {
   assert.deepEqual(references, [{ uuid: "lk.5e6c5a06-205e-4504-ad23-accef83c8a50" }]);
   assert.equal(result.title, "Мне нравится");
 });
+
+test("matches the public track preview of a Dotify-only playlist on SoundCloud", async () => {
+  const html = `<h2 class="title">Мне нравится</h2>
+    <div class="track-name">VLNY - Танцы В Темноте</div>
+    <div class="track-artist">_sevase_</div>
+    <a href="dotify://playlist/library/99049705-b618-4a8d-a2a0-832dd7a6aabb">`;
+  const queries: string[] = [];
+  const soundcloud = { searchTracks: async (query: string) => { queries.push(query); return [{ id: "1", title: "Танцы" }]; } };
+  const fetcher = (async () => new Response(html)) as unknown as typeof fetch;
+  const service = new PlaylistImportService({} as never, {} as never, undefined, undefined, fetcher, soundcloud as never);
+  const result = await service.importUrl("https://share.dotify.fun/CSG6NPOx");
+  assert.deepEqual(queries, ["_sevase_ VLNY - Танцы В Темноте"]);
+  assert.equal(result.provider, "soundcloud");
+  assert.equal(result.title, "Мне нравится");
+  assert.equal(result.tracks.length, 1);
+});

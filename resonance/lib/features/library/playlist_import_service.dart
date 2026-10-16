@@ -51,21 +51,18 @@ class PlaylistImportService {
 
   /// Dotify share pages wrap the original provider link in a
   /// `dotify://…/<base64>` deep link; unwrap it so the right provider token
-  /// is attached. The server unwraps it too, as a fallback.
+  /// is attached. Dotify-only playlists stay as is: the server matches their
+  /// public track preview on SoundCloud.
   Future<Uri> _resolveDotify(Uri uri) async {
     try {
       final response = await _dio.getUri<String>(
         uri,
         options: Options(responseType: ResponseType.plain),
       );
-      final target = decodeDotifyDeepLink(response.data ?? '');
-      if (target != null) return target;
+      return decodeDotifyDeepLink(response.data ?? '') ?? uri;
     } on DioException {
       return uri;
     }
-    throw const ProviderUnavailableException(
-      'В ссылке Dotify не найден плейлист.',
-    );
   }
 
   Future<ImportedPlaylist> importUrl(String rawUrl) async {
