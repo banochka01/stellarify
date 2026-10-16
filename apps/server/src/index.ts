@@ -195,7 +195,7 @@ app.get("/api/health", (_request, response) => {
 
 app.get("/api/client-version", (_request, response) => {
   response.json({
-    version: process.env.CLIENT_VERSION || "5.0.6",
+    version: process.env.CLIENT_VERSION || "5.0.7",
     notes: process.env.CLIENT_RELEASE_NOTES ||
       "Resonance 5.0 «Граф»: друзья и совместимость вкусов, Blend на двоих, музыкальный граф и радио по пути, страницы артистов с концертами и сет-листами, совместные плейлисты, чистка медиатеки, нормализация громкости, gapless и lossless, трансляция на Chromecast и DLNA, Android Auto, Wear OS и Android TV, новый дизайн.",
     downloads: {
