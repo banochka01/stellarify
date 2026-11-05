@@ -248,7 +248,7 @@ class _StorageScreenState extends ConsumerState<StorageScreen> {
                       child: Text(
                         _limitLabel(steps[sliderValue.round()]),
                         textAlign: TextAlign.end,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+                        style: const TextStyle(fontWeight: FontWeight.w700, color: ResonanceColors.text),
                       ),
                     ),
                   ],
@@ -422,7 +422,7 @@ class _QualityCard extends StatelessWidget {
             children: [
               Icon(icon),
               const SizedBox(width: 10),
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text)),
             ],
           ),
           const SizedBox(height: 12),

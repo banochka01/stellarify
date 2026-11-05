@@ -109,7 +109,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 650;
-    final query = _controller.text.trim();
     return CustomScrollView(
       slivers: [
         SliverPadding(
@@ -121,34 +120,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ),
           sliver: SliverList.list(
             children: [
-              const Row(
+              Row(
                 children: [
-                  Text(
-                    'ПОИСК',
-                    style: TextStyle(
-                      color: ResonanceColors.primary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.8,
+                  Expanded(
+                    child: Text(
+                      'Поиск',
+                      style: Theme.of(context).textTheme.displaySmall,
                     ),
                   ),
-                  Spacer(),
-                  RecognizeButton(),
-                  _LivePill(),
+                  const RecognizeButton(),
                 ],
               ),
-              const SizedBox(height: 18),
-              Text(
-                query.isEmpty ? 'НАЙТИ МУЗЫКУ' : query.toUpperCase(),
-                maxLines: compact ? 2 : 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                  fontSize: compact ? 42 : 66,
-                  height: .9,
-                  letterSpacing: compact ? -2 : -3.2,
-                ),
-              ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 20),
               TextField(
                 controller: _controller,
                 autofocus: !compact,
@@ -320,7 +303,10 @@ class _TrackResult extends ConsumerWidget {
             track.title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w700),
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: ResonanceColors.text,
+            ),
           ),
           subtitle: Text(
             track.artist,
@@ -439,43 +425,15 @@ class _FilterPill extends StatelessWidget {
       selected: selected,
       onSelected: (_) => onTap(),
       avatar: provider == null
-          ? const Icon(Icons.grid_view_rounded, size: 16)
+          ? Icon(
+              Icons.grid_view_rounded,
+              size: 16,
+              color: selected
+                  ? Theme.of(context).colorScheme.onPrimary
+                  : ResonanceColors.text,
+            )
           : ProviderBadge(provider: provider!, compact: true),
       label: Text(label),
-    );
-  }
-}
-
-class _LivePill extends StatelessWidget {
-  const _LivePill();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.transparent,
-        border: Border.all(color: ResonanceColors.border),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox.square(
-            dimension: 6,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: ResonanceColors.primary,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          SizedBox(width: 8),
-          Text(
-            '2 ИСТОЧНИКА',
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
-          ),
-        ],
-      ),
     );
   }
 }

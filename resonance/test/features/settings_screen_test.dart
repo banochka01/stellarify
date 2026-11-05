@@ -47,6 +47,15 @@ void main() {
 
     expect(find.textContaining('Подписка'), findsNothing);
     expect(find.textContaining('промокод'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.widgetWithText(ChoiceChip, 'Звук'),
+      -300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'Звук'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Звук'));
+    await tester.pumpAndSettle();
     final outputPicker = find.byKey(const ValueKey('audio-output-picker'));
     await tester.scrollUntilVisible(
       outputPicker,
@@ -61,6 +70,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(playbackEngine.selectedAudioOutput.id, 'headphones');
 
+    await tester.scrollUntilVisible(
+      find.widgetWithText(ChoiceChip, 'Интеграции'),
+      -300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'Интеграции'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Интеграции'));
+    await tester.pumpAndSettle();
     final discordField = find.byKey(
       const ValueKey('discord-application-id-field'),
     );
@@ -91,6 +109,15 @@ void main() {
     );
     expect(find.text('Discord Application ID сохранён'), findsOneWidget);
 
+    await tester.scrollUntilVisible(
+      find.widgetWithText(ChoiceChip, 'Сервисы'),
+      -300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'Сервисы'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Сервисы'));
+    await tester.pumpAndSettle();
     final field = find.byKey(const ValueKey('soundcloud-token-field'));
     await tester.scrollUntilVisible(
       field,

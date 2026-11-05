@@ -75,8 +75,18 @@ abstract final class ResonanceTheme {
           surface: palette.surface,
         ).copyWith(
           primary: palette.primary,
+          onPrimary: palette.background,
           secondary: palette.secondary,
+          onSecondary: palette.background,
+          tertiary: palette.primary,
+          onTertiary: palette.background,
           surface: palette.surface,
+          onSurface: ResonanceColors.text,
+          onSurfaceVariant: ResonanceColors.muted,
+          primaryContainer: Color.lerp(palette.raised, palette.primary, .22),
+          onPrimaryContainer: ResonanceColors.text,
+          secondaryContainer: Color.lerp(palette.raised, palette.primary, .16),
+          onSecondaryContainer: ResonanceColors.text,
           surfaceContainerLowest: palette.background,
           surfaceContainerHigh: palette.raised,
           outline: palette.border,
@@ -160,7 +170,10 @@ abstract final class ResonanceTheme {
         titleSmall: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
         bodyLarge: TextStyle(height: 1.5),
         bodyMedium: TextStyle(color: ResonanceColors.muted, height: 1.5),
-        labelLarge: TextStyle(fontWeight: FontWeight.w700),
+        labelLarge: TextStyle(
+          fontWeight: FontWeight.w700,
+          color: ResonanceColors.text,
+        ),
         labelSmall: TextStyle(
           fontFamily: ResonanceFonts.mono,
           fontSize: 10,
@@ -245,22 +258,39 @@ abstract final class ResonanceTheme {
           minimumSize: const Size(48, 48),
         ),
       ),
+      // Подпись чипа всегда контрастна фону: тёмная на акценте, светлая на
+      // поверхности. Раньше цвет текста не зависел от состояния, и выбранные
+      // чипы становились светлым текстом на светлой сирени.
       chipTheme: ChipThemeData(
-        backgroundColor: ResonanceColors.surfaceHigh,
-        selectedColor: palette.primary,
-        disabledColor: ResonanceColors.surfaceHigh,
-        labelStyle: const TextStyle(
+        color: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return palette.raised.withValues(alpha: .5);
+          }
+          return states.contains(WidgetState.selected)
+              ? palette.primary
+              : palette.raised;
+        }),
+        labelStyle: WidgetStateTextStyle.resolveWith(
+          (states) => TextStyle(
+            fontFamily: ResonanceFonts.body,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: states.contains(WidgetState.selected)
+                ? palette.background
+                : ResonanceColors.text,
+          ),
+        ),
+        iconTheme: IconThemeData(size: 16, color: ResonanceColors.text),
+        checkmarkColor: palette.background,
+        secondaryLabelStyle: TextStyle(
           fontFamily: ResonanceFonts.body,
+          color: palette.background,
           fontWeight: FontWeight.w600,
         ),
-        secondaryLabelStyle: const TextStyle(
-          fontFamily: ResonanceFonts.body,
-          color: ResonanceColors.text,
-          fontWeight: FontWeight.w700,
-        ),
-        side: BorderSide.none,
+        side: BorderSide(color: palette.border.withValues(alpha: .6)),
         shape: const StadiumBorder(),
         showCheckmark: false,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,

@@ -833,7 +833,7 @@ class _ConnectionCard extends StatelessWidget {
                     children: [
                       Text(
                         _providerName(provider),
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                        style: const TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text),
                       ),
                       Text(
                         connected
@@ -983,7 +983,7 @@ class _FeaturePill extends StatelessWidget {
         children: [
           Icon(icon, size: 17, color: Theme.of(context).colorScheme.primary),
           const SizedBox(width: 8),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w700, color: ResonanceColors.text)),
         ],
       ),
     );

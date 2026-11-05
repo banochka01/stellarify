@@ -16,6 +16,7 @@ import 'package:resonance/features/social/now_playing_reporter.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/appearance_backdrop.dart';
 import 'package:resonance/shared/widgets/compact_player.dart';
+import 'package:resonance/shared/widgets/launch_curtain.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ResonanceApp extends ConsumerStatefulWidget {
@@ -100,16 +101,18 @@ class _ResonanceAppState extends ConsumerState<ResonanceApp> {
       debugShowCheckedModeBanner: false,
       theme: ResonanceTheme.forPreset(appearance.theme),
       routerConfig: resonanceRouter,
-      builder: (context, child) => Stack(
-        fit: StackFit.expand,
-        children: [
-          AppearanceBackdrop(settings: appearance),
-          Offstage(
-            offstage: compact,
-            child: OnboardingGate(child: child ?? const SizedBox.shrink()),
-          ),
-          if (compact) const CompactPlayer(),
-        ],
+      builder: (context, child) => LaunchCurtain(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            AppearanceBackdrop(settings: appearance),
+            Offstage(
+              offstage: compact,
+              child: OnboardingGate(child: child ?? const SizedBox.shrink()),
+            ),
+            if (compact) const CompactPlayer(),
+          ],
+        ),
       ),
     );
   }

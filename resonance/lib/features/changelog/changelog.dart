@@ -209,7 +209,7 @@ class _EntryCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             entry.title,
-            style: const TextStyle(fontWeight: FontWeight.w800),
+            style: const TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text),
           ),
         ],
         const SizedBox(height: 8),

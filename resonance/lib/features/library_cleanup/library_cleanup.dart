@@ -441,7 +441,7 @@ class _LibraryCleanupScreenState extends ConsumerState<LibraryCleanupScreen> {
             : null,
         title: Text(
           item.keep.label,
-          style: const TextStyle(fontWeight: FontWeight.w700),
+          style: const TextStyle(fontWeight: FontWeight.w700, color: ResonanceColors.text),
         ),
         subtitle: Text(
           [details, ?item.reason].join(' · '),

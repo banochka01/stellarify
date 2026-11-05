@@ -38,7 +38,7 @@ class OfflineModeBanner extends ConsumerWidget {
               child: Text(
                 'Только скачанное · нет сети · доступно $count',
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w700),
+                style: const TextStyle(fontWeight: FontWeight.w700, color: ResonanceColors.text),
               ),
             ),
           ],

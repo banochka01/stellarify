@@ -749,7 +749,7 @@ class _ItemTile extends StatelessWidget {
         children: [
           Text(
             '${item.source.artist} — ${item.source.title}',
-            style: const TextStyle(fontWeight: FontWeight.w700),
+            style: const TextStyle(fontWeight: FontWeight.w700, color: ResonanceColors.text),
           ),
           const SizedBox(height: 2),
           Text(
@@ -971,7 +971,7 @@ class _Route extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           migrationProviderTitle(provider),
-          style: const TextStyle(fontWeight: FontWeight.w700),
+          style: const TextStyle(fontWeight: FontWeight.w700, color: ResonanceColors.text),
         ),
       ],
     );

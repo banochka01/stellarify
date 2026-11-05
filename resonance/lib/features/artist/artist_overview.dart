@@ -206,7 +206,7 @@ class _ReleaseTile extends StatelessWidget {
                 release.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w800),
+                style: const TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text),
               ),
               Text(
                 [
@@ -270,7 +270,7 @@ class _ConcertTile extends StatelessWidget {
             children: [
               Text(
                 concert.place,
-                style: const TextStyle(fontWeight: FontWeight.w700),
+                style: const TextStyle(fontWeight: FontWeight.w700, color: ResonanceColors.text),
               ),
               Text(
                 formatShortDate(concert.date),

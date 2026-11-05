@@ -622,7 +622,7 @@ class _GraphMessage extends StatelessWidget {
         children: [
           Icon(icon, size: 52, color: ResonanceColors.muted),
           const SizedBox(height: 16),
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w900, color: ResonanceColors.text)),
           const SizedBox(height: 7),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),

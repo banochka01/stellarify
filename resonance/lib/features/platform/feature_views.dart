@@ -88,11 +88,10 @@ class FeatureSectionTitle extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(top: 18, bottom: 10),
     child: Text(
-      text.toUpperCase(),
+      text,
       style: const TextStyle(
-        fontSize: 10,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 1.5,
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
         color: ResonanceColors.muted,
       ),
     ),
@@ -157,7 +156,7 @@ class FeatureUnavailableView extends StatelessWidget {
             color: ResonanceColors.muted,
           ),
           const SizedBox(height: 10),
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text)),
           const SizedBox(height: 4),
           const Text(
             'Остальные функции продолжают работать.',

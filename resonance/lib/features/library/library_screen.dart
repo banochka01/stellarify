@@ -538,7 +538,7 @@ class _TrackShelf extends ConsumerWidget {
                       track.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
+                      style: const TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text),
                     ),
                     const SizedBox(height: 3),
                     Text(
@@ -580,7 +580,7 @@ class _FavoriteTrack extends ConsumerWidget {
           track.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w700),
+          style: const TextStyle(fontWeight: FontWeight.w700, color: ResonanceColors.text),
         ),
         subtitle: Text(
           track.artist,
@@ -658,7 +658,7 @@ class _PlaylistCard extends ConsumerWidget {
                         playlist.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                        style: const TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text),
                       ),
                       const SizedBox(height: 4),
                       Text(

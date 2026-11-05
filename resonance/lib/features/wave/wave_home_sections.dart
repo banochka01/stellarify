@@ -376,7 +376,7 @@ class _ReleaseCard extends ConsumerWidget {
               release.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w700),
+              style: const TextStyle(fontWeight: FontWeight.w700, color: ResonanceColors.text),
             ),
             Text(
               '${release.kindLabel} · ${release.artist}',

@@ -249,7 +249,10 @@ class _TrackInfo extends StatelessWidget {
           track.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w700),
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            color: ResonanceColors.text,
+          ),
         ),
         const SizedBox(height: 3),
         MouseRegion(

@@ -294,7 +294,7 @@ class _MusicGraphCanvasState extends ConsumerState<MusicGraphCanvas> {
                 Expanded(
                   child: Text(
                     selected.label,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
+                    style: const TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text),
                   ),
                 ),
                 if (selected.track != null)
@@ -504,7 +504,7 @@ class _GraphPathRadioPanelState extends ConsumerState<GraphPathRadioPanel> {
       children: [
         const Text(
           'Радио по пути A → B',
-          style: TextStyle(fontWeight: FontWeight.w800),
+          style: TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text),
         ),
         const SizedBox(height: 4),
         const Text(
@@ -563,7 +563,7 @@ class BlindSpotsPanel extends ConsumerWidget {
         children: [
           const Text(
             'Белые пятна',
-            style: TextStyle(fontWeight: FontWeight.w800),
+            style: TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text),
           ),
           const Text(
             'Рядом с вашей музыкой, но ещё не в медиатеке.',

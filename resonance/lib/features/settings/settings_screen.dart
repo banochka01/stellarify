@@ -25,6 +25,7 @@ import 'package:resonance/features/wave/wave_controller.dart';
 import 'package:resonance/features/wave/wave_home_sections.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
+import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 final Uri _supportTelegramUrl = Uri.parse('https://t.me/Itsbannochka');
@@ -37,6 +38,8 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  _SettingsSection _section = _SettingsSection.account;
+
   final _yandexTokenController = TextEditingController();
   final _soundCloudTokenController = TextEditingController();
   final _youtubeTokenController = TextEditingController();
@@ -365,14 +368,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       right: _obsRight,
     );
     final discord = ref.watch(discordPresenceControllerProvider);
-    return ListView(
-      padding: EdgeInsets.fromLTRB(
-        compact ? 18 : 34,
-        26,
-        compact ? 18 : 34,
-        130,
-      ),
-      children: [
+    final sections = <_SettingsSection, List<Widget>>{
+      _SettingsSection.account: [
         Text('Аккаунт', style: Theme.of(context).textTheme.displaySmall),
         const SizedBox(height: 8),
         const Text(
@@ -451,7 +448,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
         const SizedBox(height: 16),
         const WaveSettingsCards(),
-        const SizedBox(height: 34),
+      ],
+      _SettingsSection.playback: [
         Text(
           'Воспроизведение',
           style: Theme.of(context).textTheme.displaySmall,
@@ -465,16 +463,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
         const SizedBox(height: 16),
         const EqualizerCard(),
-        const SizedBox(height: 16),
-        Text('Интеграции', style: Theme.of(context).textTheme.displaySmall),
-        const SizedBox(height: 8),
-        const Text(
-          'Показывайте текущий трек друзьям и в эфире. Интеграции работают локально и не передают credentials.',
-          style: TextStyle(color: ResonanceColors.muted),
-        ),
-        const SizedBox(height: 18),
-        _DiscordPresenceCard(state: discord, compact: compact),
-        const SizedBox(height: 12),
         Card(
           margin: EdgeInsets.zero,
           child: Column(
@@ -497,7 +485,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   children: [
                     const Text(
                       'Длительность перехода',
-                      style: TextStyle(fontWeight: FontWeight.w800),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: ResonanceColors.text,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Wrap(
@@ -563,7 +554,162 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
+        Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.high_quality_rounded),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Качество по Wi‑Fi',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: ResonanceColors.text,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: AudioQuality.values
+                      .map((quality) {
+                        return ChoiceChip(
+                          label: Text(_qualityName(quality)),
+                          selected: _quality == quality,
+                          onSelected: _savingQuality
+                              ? null
+                              : (_) => _setQuality(quality),
+                        );
+                      })
+                      .toList(growable: false),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Применяется к следующему разрешению потока. Уже открытый трек не перезапускается.',
+                  style: TextStyle(color: ResonanceColors.muted, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+        Card(
+          margin: EdgeInsets.zero,
+          child: ListTile(
+            leading: const Icon(Icons.sd_storage_rounded),
+            title: const Text('Хранилище и офлайн'),
+            subtitle: const Text(
+              'Загрузки, автокэш, качество по мобильной сети',
+            ),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => context.go('/storage'),
+          ),
+        ),
+      ],
+      _SettingsSection.appearance: [
+        Text('Оформление', style: Theme.of(context).textTheme.displaySmall),
+        const SizedBox(height: 8),
+        const Text(
+          'Выберите тему и настройте собственный фон без потери читаемости.',
+          style: TextStyle(color: ResonanceColors.muted),
+        ),
+        const SizedBox(height: 18),
+        Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _ThemeSelector(
+                  compact: compact,
+                  selected: appearance.theme,
+                  onSelected: (theme) => unawaited(
+                    ref
+                        .read(appearanceControllerProvider.notifier)
+                        .setTheme(theme),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: () => unawaited(
+                        ref
+                            .read(appearanceControllerProvider.notifier)
+                            .chooseBackground(),
+                      ),
+                      icon: const Icon(Icons.add_photo_alternate_outlined),
+                      label: Text(
+                        appearance.backgroundPath == null
+                            ? 'Выбрать фон'
+                            : 'Заменить фон',
+                      ),
+                    ),
+                    if (appearance.backgroundPath != null)
+                      OutlinedButton.icon(
+                        onPressed: () => unawaited(
+                          ref
+                              .read(appearanceControllerProvider.notifier)
+                              .clearBackground(),
+                        ),
+                        icon: const Icon(Icons.hide_image_outlined),
+                        label: const Text('Убрать фон'),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                _AppearanceSlider(
+                  label: 'Размытие',
+                  value: appearance.blur,
+                  max: 30,
+                  valueLabel: '${appearance.blur.round()} px',
+                  onChanged: ref
+                      .read(appearanceControllerProvider.notifier)
+                      .previewBlur,
+                  onChangeEnd: (_) => unawaited(
+                    ref.read(appearanceControllerProvider.notifier).persist(),
+                  ),
+                ),
+                _AppearanceSlider(
+                  label: 'Затемнение',
+                  value: appearance.dim,
+                  max: .9,
+                  valueLabel: '${(appearance.dim * 100).round()}%',
+                  onChanged: ref
+                      .read(appearanceControllerProvider.notifier)
+                      .previewDim,
+                  onChangeEnd: (_) => unawaited(
+                    ref.read(appearanceControllerProvider.notifier).persist(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+      _SettingsSection.integrations: [
+        Text('Интеграции', style: Theme.of(context).textTheme.displaySmall),
+        const SizedBox(height: 8),
+        const Text(
+          'Показывайте текущий трек друзьям и в эфире. Интеграции работают локально и не передают credentials.',
+          style: TextStyle(color: ResonanceColors.muted),
+        ),
+        const SizedBox(height: 18),
+        _DiscordPresenceCard(state: discord, compact: compact),
+        const SizedBox(height: 12),
         Card(
           margin: EdgeInsets.zero,
           child: Column(
@@ -595,7 +741,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     children: [
                       const Text(
                         'Вид виджета',
-                        style: TextStyle(fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: ResonanceColors.text,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       Wrap(
@@ -719,148 +868,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 34),
-        Text('Оформление', style: Theme.of(context).textTheme.displaySmall),
-        const SizedBox(height: 8),
-        const Text(
-          'Выберите тему и настройте собственный фон без потери читаемости.',
-          style: TextStyle(color: ResonanceColors.muted),
-        ),
-        const SizedBox(height: 18),
-        Card(
-          margin: EdgeInsets.zero,
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _ThemeSelector(
-                  compact: compact,
-                  selected: appearance.theme,
-                  onSelected: (theme) => unawaited(
-                    ref
-                        .read(appearanceControllerProvider.notifier)
-                        .setTheme(theme),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    FilledButton.icon(
-                      onPressed: () => unawaited(
-                        ref
-                            .read(appearanceControllerProvider.notifier)
-                            .chooseBackground(),
-                      ),
-                      icon: const Icon(Icons.add_photo_alternate_outlined),
-                      label: Text(
-                        appearance.backgroundPath == null
-                            ? 'Выбрать фон'
-                            : 'Заменить фон',
-                      ),
-                    ),
-                    if (appearance.backgroundPath != null)
-                      OutlinedButton.icon(
-                        onPressed: () => unawaited(
-                          ref
-                              .read(appearanceControllerProvider.notifier)
-                              .clearBackground(),
-                        ),
-                        icon: const Icon(Icons.hide_image_outlined),
-                        label: const Text('Убрать фон'),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                _AppearanceSlider(
-                  label: 'Размытие',
-                  value: appearance.blur,
-                  max: 30,
-                  valueLabel: '${appearance.blur.round()} px',
-                  onChanged: ref
-                      .read(appearanceControllerProvider.notifier)
-                      .previewBlur,
-                  onChangeEnd: (_) => unawaited(
-                    ref.read(appearanceControllerProvider.notifier).persist(),
-                  ),
-                ),
-                _AppearanceSlider(
-                  label: 'Затемнение',
-                  value: appearance.dim,
-                  max: .9,
-                  valueLabel: '${(appearance.dim * 100).round()}%',
-                  onChanged: ref
-                      .read(appearanceControllerProvider.notifier)
-                      .previewDim,
-                  onChangeEnd: (_) => unawaited(
-                    ref.read(appearanceControllerProvider.notifier).persist(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        Card(
-          margin: EdgeInsets.zero,
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.high_quality_rounded),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Качество по Wi‑Fi',
-                        style: TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: AudioQuality.values
-                      .map((quality) {
-                        return ChoiceChip(
-                          label: Text(_qualityName(quality)),
-                          selected: _quality == quality,
-                          onSelected: _savingQuality
-                              ? null
-                              : (_) => _setQuality(quality),
-                        );
-                      })
-                      .toList(growable: false),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Применяется к следующему разрешению потока. Уже открытый трек не перезапускается.',
-                  style: TextStyle(color: ResonanceColors.muted, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        Card(
-          margin: EdgeInsets.zero,
-          child: ListTile(
-            leading: const Icon(Icons.sd_storage_rounded),
-            title: const Text('Хранилище и офлайн'),
-            subtitle: const Text(
-              'Загрузки, автокэш, качество по мобильной сети',
-            ),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => context.go('/storage'),
-          ),
-        ),
-        const SizedBox(height: 34),
+      ],
+      _SettingsSection.connections: [
         Text('Подключения', style: Theme.of(context).textTheme.displaySmall),
         const SizedBox(height: 8),
         const Text(
@@ -923,7 +932,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 28),
+      ],
+      _SettingsSection.system: [
         Text('Система', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 12),
         Card(
@@ -1032,6 +1042,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
             ],
+          ),
+        ),
+      ],
+    };
+    return ListView(
+      padding: EdgeInsets.fromLTRB(
+        compact ? 16 : 32,
+        24,
+        compact ? 16 : 32,
+        128,
+      ),
+      children: [
+        Text('Настройки', style: Theme.of(context).textTheme.displaySmall),
+        const SizedBox(height: 16),
+        _SectionTabs(
+          selected: _section,
+          onSelected: (section) => setState(() => _section = section),
+        ),
+        const SizedBox(height: 24),
+        AnimatedSwitcher(
+          duration: ResonanceMotion.durationOf(
+            context,
+            ResonanceMotion.standard,
+          ),
+          switchInCurve: ResonanceMotion.curve,
+          switchOutCurve: ResonanceMotion.curve,
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween(
+                begin: const Offset(0, .015),
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            ),
+          ),
+          layoutBuilder: (current, previous) => Stack(
+            alignment: Alignment.topCenter,
+            children: [...previous, ?current],
+          ),
+          child: Column(
+            key: ValueKey(_section),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: sections[_section]!,
           ),
         ),
       ],
@@ -1202,7 +1256,10 @@ final class _AudioOutputCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Устройство вывода',
-                  style: TextStyle(fontWeight: FontWeight.w800),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: ResonanceColors.text,
+                  ),
                 ),
               ),
             ],
@@ -1655,7 +1712,10 @@ class _ConnectionCard extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: ResonanceColors.text,
+                        ),
                       ),
                       const SizedBox(height: 3),
                       Text(
@@ -1720,4 +1780,52 @@ String obsOverlayUrl(
     if (right) 'align': 'right',
   };
   return base.replace(queryParameters: query.isEmpty ? null : query).toString();
+}
+
+enum _SettingsSection {
+  account('Аккаунт', Icons.person_outline_rounded),
+  playback('Звук', Icons.graphic_eq_rounded),
+  appearance('Вид', Icons.palette_outlined),
+  integrations('Интеграции', Icons.cast_connected_rounded),
+  connections('Сервисы', Icons.key_rounded),
+  system('Система', Icons.tune_rounded);
+
+  const _SettingsSection(this.label, this.icon);
+  final String label;
+  final IconData icon;
+}
+
+class _SectionTabs extends StatelessWidget {
+  const _SectionTabs({required this.selected, required this.onSelected});
+
+  final _SettingsSection selected;
+  final ValueChanged<_SettingsSection> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none,
+      child: Row(
+        children: [
+          for (final section in _SettingsSection.values) ...[
+            ChoiceChip(
+              selected: section == selected,
+              onSelected: (_) => onSelected(section),
+              avatar: Icon(
+                section.icon,
+                size: 16,
+                color: section == selected
+                    ? scheme.onPrimary
+                    : ResonanceColors.muted,
+              ),
+              label: Text(section.label),
+            ),
+            const SizedBox(width: 8),
+          ],
+        ],
+      ),
+    );
+  }
 }

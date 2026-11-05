@@ -340,7 +340,7 @@ class ResonanceSectionLabel extends StatelessWidget {
       children: [
         Flexible(
           child: Text(
-            text.toUpperCase(),
+            text,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: ResonanceType.overline.copyWith(color: tokens.textMuted),

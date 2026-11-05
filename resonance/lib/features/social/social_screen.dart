@@ -171,7 +171,7 @@ class FeedItemTile extends ConsumerWidget {
                   children: [
                     Text(
                       item.friend.displayName,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
+                      style: const TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text),
                     ),
                     if (playing != null)
                       Text(
@@ -550,7 +550,7 @@ class _PersonTile extends StatelessWidget {
             children: [
               Text(
                 person.displayName,
-                style: const TextStyle(fontWeight: FontWeight.w800),
+                style: const TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text),
               ),
               if (person.handle != null)
                 Text(

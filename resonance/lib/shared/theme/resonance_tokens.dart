@@ -106,12 +106,7 @@ abstract final class ResonanceType {
   static const subtitle = TextStyle(fontSize: 15, fontWeight: FontWeight.w600);
   static const body = TextStyle(fontSize: 14, height: 1.5);
   static const caption = TextStyle(fontSize: 12, height: 1.4);
-  static const overline = TextStyle(
-    fontFamily: 'JetBrainsMono',
-    fontSize: 11,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 1.2,
-  );
+  static const overline = TextStyle(fontSize: 13, fontWeight: FontWeight.w600);
 }
 
 /// Breakpoints shared by every adaptive layout.
