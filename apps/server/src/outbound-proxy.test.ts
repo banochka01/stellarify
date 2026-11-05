@@ -29,7 +29,7 @@ test("global fetch sends provider hosts through the proxy and others directly", 
   const previous = getGlobalDispatcher();
   try {
     const proxyPort = (proxy.address() as { port: number }).port;
-    const hosts = installProviderProxy({ PROVIDER_PROXY_URL: `http://127.0.0.1:${proxyPort}` });
+    const hosts = installProviderProxy({ PROVIDER_PROXY_URL: `http://127.0.0.1:${proxyPort}`, PROVIDER_PROXY_PROBE: "off" });
     assert.ok(hosts?.includes("spotify.com"));
     for (const url of ["http://api.spotify.com/v1/me", "http://api-v2.soundcloud.com/search", "http://www.youtube.com/youtubei/v1/search"]) {
       assert.equal(await (await fetch(url)).text(), "via-proxy", url);

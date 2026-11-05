@@ -25,7 +25,11 @@ export class HostRoutingDispatcher extends Dispatcher {
     private readonly hosts: readonly string[]
   ) { super(); }
 
+  /** False while the proxy is unreachable; provider hosts then go direct. */
+  proxyHealthy = true;
+
   route(origin: string | URL | undefined) {
+    if (!this.proxyHealthy) return this.direct;
     try {
       return origin && hostMatches(new URL(String(origin)).hostname, this.hosts) ? this.proxy : this.direct;
     } catch { return this.direct; }
@@ -65,6 +69,28 @@ export function installProviderProxy(env = process.env) {
   const hosts = env.PROVIDER_PROXY_HOSTS
     ? env.PROVIDER_PROXY_HOSTS.split(",").map((host) => host.trim().toLowerCase()).filter(Boolean)
     : DEFAULT_PROXIED_HOSTS;
-  setGlobalDispatcher(new HostRoutingDispatcher(new ProxyAgent(url), new Agent(), hosts));
+  const proxy = new ProxyAgent(url);
+  const dispatcher = new HostRoutingDispatcher(proxy, new Agent(), hosts);
+  setGlobalDispatcher(dispatcher);
+  // A dead proxy must not take every provider down with it: probe it and route
+  // provider hosts directly while it cannot connect.
+  const probe = async () => {
+    try {
+      await fetch("https://api-v2.soundcloud.com/", {
+        method: "HEAD",
+        signal: AbortSignal.timeout(8_000),
+        dispatcher: proxy
+      } as RequestInit);
+      if (!dispatcher.proxyHealthy) console.info("provider proxy reachable again");
+      dispatcher.proxyHealthy = true;
+    } catch {
+      if (dispatcher.proxyHealthy) console.warn("provider proxy unreachable; routing providers directly");
+      dispatcher.proxyHealthy = false;
+    }
+  };
+  if (env.PROVIDER_PROXY_PROBE !== "off") {
+    void probe();
+    setInterval(() => void probe(), 60_000).unref();
+  }
   return hosts;
 }

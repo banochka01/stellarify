@@ -1,6 +1,6 @@
 import { isIP } from "node:net";
 import { z } from "zod";
-import { ProxyAgent, type Dispatcher } from "undici";
+import { Agent, ProxyAgent, type Dispatcher } from "undici";
 import {
   type AudioQuality,
   type MusicProviderAdapter,
@@ -48,6 +48,8 @@ interface SoundCloudCredentials {
   clientId?: string;
   proxyUrl?: string;
 }
+
+const directAgent = new Agent();
 
 type RequestInitWithDispatcher = RequestInit & { dispatcher?: Dispatcher };
 type RequestFunction = (
@@ -270,7 +272,23 @@ export class SoundCloudAdapter implements MusicProviderAdapter {
         signal: AbortSignal.timeout(8_000),
         ...(access?.useProxy ? { dispatcher: this.proxyAgent } : {})
       });
-    } catch (error) {
+    } catch (proxyError) {
+      // The proxy route is a preference: when it cannot connect, go direct.
+      let error: unknown = proxyError;
+      const proxyTimedOut = proxyError instanceof Error && proxyError.name === "TimeoutError";
+      if (access?.useProxy && !proxyTimedOut) {
+        try {
+          response = await this.request(url, {
+            headers,
+            signal: AbortSignal.timeout(8_000),
+            dispatcher: directAgent
+          } as RequestInit);
+          error = undefined;
+        } catch (directError) {
+          error = directError;
+        }
+      }
+      if (error === undefined) return this.handleResponse(response!);
       const timedOut = error instanceof Error && error.name === "TimeoutError";
       throw new ProviderGatewayError(
         timedOut
@@ -288,6 +306,10 @@ export class SoundCloudAdapter implements MusicProviderAdapter {
       );
     }
 
+    return this.handleResponse(response);
+  }
+
+  private async handleResponse(response: Response): Promise<unknown> {
     if (response.status === 401) {
       throw new ProviderGatewayError(
         "INVALID_PROVIDER_TOKEN",

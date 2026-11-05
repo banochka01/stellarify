@@ -1,8 +1,9 @@
 import { randomBytes } from "node:crypto";
-import { ProxyAgent, type Dispatcher } from "undici";
+import { Agent, ProxyAgent, type Dispatcher } from "undici";
 import { ProviderGatewayError, type ResolvedStream } from "./provider-gateway.js";
 import { assertAllowedStreamUrl, normalizeProxyUrl } from "./soundcloud.js";
 
+const directAgent = new Agent();
 type RequestInitWithDispatcher = RequestInit & { dispatcher?: Dispatcher };
 type RequestFunction = (
   input: string | URL,
@@ -153,13 +154,24 @@ export class SoundCloudAudioRelay {
           signal: controller.signal,
           dispatcher: this.proxyAgent
         });
-      } catch (error) {
-        throw new ProviderGatewayError(
-          "PROXY_CONNECTION_FAILED",
-          "The SoundCloud audio relay could not reach the provider",
-          502,
-          { cause: error }
-        );
+      } catch (proxyError) {
+        // Fall back to a direct connection when the proxy cannot connect.
+        try {
+          response = await this.request(url, {
+            method,
+            headers,
+            redirect: "manual",
+            signal: controller.signal,
+            dispatcher: directAgent
+          });
+        } catch {
+          throw new ProviderGatewayError(
+            "PROXY_CONNECTION_FAILED",
+            "The SoundCloud audio relay could not reach the provider",
+            502,
+            { cause: proxyError }
+          );
+        }
       } finally {
         clearTimeout(timeout);
       }
