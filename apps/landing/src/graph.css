@@ -12,7 +12,7 @@
   --graph-label-bg: rgba(16, 14, 12, .88);
   --graph-track: #f05a49;
   --graph-artist: #a795ff;
-  --graph-friend: #3effa2;
+  --graph-friend: var(--coral);
   --graph-genre: #ffd234;
   --focus: #ffd234;
 }
@@ -62,8 +62,6 @@
 .hero-graph .hero-lead { max-width: 440px; color: var(--text-2); }
 .hero-graph .release-note { color: var(--text-2); }
 .graph-hero { position: relative; margin: 0; aspect-ratio: 1.08; width: 100%; border: 1px solid var(--line); border-radius: 32px; overflow: hidden; background:
-  radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--graph-track) 16%, transparent), transparent 55%),
-  radial-gradient(circle at 85% 15%, color-mix(in srgb, var(--graph-artist) 14%, transparent), transparent 40%),
   var(--surface); }
 .graph-hero-canvas { display: block; width: 100%; height: 100%; touch-action: pan-y; }
 .graph-legend { position: absolute; left: 18px; right: 18px; bottom: 16px; display: flex; flex-wrap: wrap; gap: 8px 16px; color: var(--text-2); font-size: 12px; }
@@ -84,8 +82,8 @@
 .section-heading > p { color: var(--text-2); }
 .new-grid { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
 .new-card { scroll-margin-top: 90px; padding: 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); transition: border-color .25s ease, transform .25s ease; }
-.new-card:hover { border-color: color-mix(in srgb, var(--accent) 55%, transparent); transform: translateY(-3px); }
-.new-card:first-child { grid-column: span 2; background: radial-gradient(circle at 90% 0, color-mix(in srgb, var(--accent) 18%, transparent), transparent 60%), var(--surface); }
+.new-card:hover { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.new-card:first-child { grid-column: span 2; background: var(--surface); }
 .new-icon { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 13px; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .new-card h3 { margin: 26px 0 10px; font-size: 19px; font-weight: 620; letter-spacing: -.015em; color: var(--text); }
 .new-card p { margin: 0; color: var(--text-2); font-size: 14px; line-height: 1.65; }

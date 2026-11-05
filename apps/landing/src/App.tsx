@@ -1,8 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
-  ArrowDown,
   ArrowRight,
-  Apple,
   BookOpen,
   Car,
   Cast,
@@ -13,36 +11,19 @@ import {
   Laptop,
   Moon,
   Mic2,
-  Monitor,
-  Sparkles,
   Sun,
   Trash2,
-  Tv,
   UserPlus,
-  Watch,
   Waves,
   Download,
-  Heart,
   KeyRound,
   Network,
-  Plus,
-  ShieldCheck,
-  Smartphone,
-  Users,
-  Volume2
+  Plus
 } from "lucide-react";
+import { DownloadMenu } from "./components/DownloadMenu";
 import { GraphHero } from "./components/GraphHero";
 import { Modal } from "./components/Modal";
-import { detectOs, downloads, formatDate, formatSize, useRelease, type DownloadKey, type VisitorOs } from "./release";
-
-const heroDownload: Record<VisitorOs, { key: DownloadKey | null; label: string; kind: string }> = {
-  windows: { key: "windows", label: "Скачать для Windows", kind: "EXE" },
-  windowsPortable: { key: "windowsPortable", label: "Скачать для Windows", kind: "ZIP" },
-  android: { key: "android", label: "Скачать для Android", kind: "APK" },
-  ios: { key: "ios", label: "Скачать для iOS", kind: "IPA · без подписи" },
-  mac: { key: null, label: "macOS — скоро", kind: "" },
-  linux: { key: null, label: "Linux — скоро", kind: "" }
-};
+import { detectOs, formatDate, useRelease, type VisitorOs } from "./release";
 
 type Theme = "dark" | "light";
 
@@ -85,15 +66,6 @@ const features5 = [
   { id: "beta", icon: FlaskConical, title: "Бета-канал", teaser: "Новое — раньше всех.", text: "Получай новые возможности раньше всех и помогай найти ошибки. Переключение в настройках, вернуться можно в любой момент." }
 ];
 
-const platforms: { icon: typeof Monitor; name: string; note: string; key: DownloadKey | null; os: VisitorOs; cta: string }[] = [
-  { icon: Monitor, name: "Windows", note: "Setup EXE · x64", key: "windows", os: "windows", cta: "Скачать EXE" },
-  { icon: Monitor, name: "Windows Portable", note: "ZIP без установки", key: "windowsPortable", os: "windowsPortable", cta: "Скачать ZIP" },
-  { icon: Smartphone, name: "Android", note: "APK · Android Auto, Wear OS, TV", key: "android", os: "android", cta: "Скачать APK" },
-  { icon: Apple, name: "iOS", note: "Unsigned IPA · нужна своя подпись", key: "ios", os: "ios", cta: "Скачать IPA" },
-  { icon: Laptop, name: "macOS", note: "Сборка готовится", key: null, os: "mac", cta: "Скоро" },
-  { icon: Laptop, name: "Linux", note: "Сборка готовится", key: null, os: "linux", cta: "Скоро" }
-];
-
 /* Heavy demo components are split into chunks and fetched only when their tab opens. */
 const tabs = [
   { key: "search", label: "Поиск", load: lazy(() => import("./panels/SearchPanel")) },
@@ -109,7 +81,6 @@ function scrollTo(id: string) {
 }
 
 type TabKey = (typeof tabs)[number]["key"];
-type InfoKey = "free" | "privacy";
 
 /** Anchor → what to open. Old section anchors keep working after the redesign. */
 const tabAnchors: Record<string, TabKey> = {
@@ -187,10 +158,7 @@ function App() {
   const { theme, toggle } = useTheme();
   const release = useRelease();
   const [os] = useState<VisitorOs>(detectOs);
-  const hero = heroDownload[os];
-  const heroMeta = [release.version && `v${release.version}`, hero.kind, hero.key && formatSize(release.sizes[hero.key])].filter(Boolean).join(" · ");
   const [tab, setTab] = useState<TabKey>("search");
-  const [info, setInfo] = useState<InfoKey | null>(null);
   const [feature, setFeature] = useState<string | null>(null);
 
   /** Applies a hash route. Returns true when it was handled here (vs. a plain anchor). */
@@ -198,15 +166,13 @@ function App() {
     const id = decodeURIComponent(hash.replace(/^#/, ""));
     const isFeature = features5.some((item) => item.id === id);
     if (!isFeature) setFeature(null);
-    if (id !== "free" && id !== "privacy") setInfo(null);
     if (tabAnchors[id]) {
       setTab(tabAnchors[id]);
       requestAnimationFrame(() => scrollTo("features"));
       return true;
     }
     if (id === "free" || id === "privacy") {
-      scrollTo(id);
-      setInfo(id);
+      scrollTo("faq");
       return true;
     }
     if (isFeature) {
@@ -240,6 +206,24 @@ function App() {
     };
   }, [route]);
 
+  useEffect(() => {
+    const sections = Array.from(document.querySelectorAll<HTMLElement>("main .compact-section"));
+    if (!("IntersectionObserver" in window)) return;
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        }
+      }
+    }, { rootMargin: "0px 0px -12% 0px" });
+    for (const section of sections) {
+      section.classList.add("reveal");
+      observer.observe(section);
+    }
+    return () => observer.disconnect();
+  }, [release.changelog.length]);
+
   const openFeature = features5.find((item) => item.id === feature);
 
   return (
@@ -251,12 +235,9 @@ function App() {
           <span>Resonance</span>
         </a>
         <nav aria-label="Основная навигация">
-          <a href="#new">Что нового</a>
           <a href="#features">Возможности</a>
-          <a href="#rooms">Комнаты</a>
-          <a href="#download">Скачать</a>
+          <a href="#faq">Вопросы</a>
           <a href="#changelog">Обновления</a>
-          <a href="#faq">FAQ</a>
         </nav>
         <div className="header-actions">
           <button
@@ -267,54 +248,33 @@ function App() {
           >
             {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
           </button>
-          <a className="header-download" href="#download">
-            <Download size={16} /> Скачать
-          </a>
+          <DownloadMenu os={os} release={release} compact />
         </div>
       </header>
 
       <main id="main">
         <section className="hero hero-graph" id="top">
           <div className="hero-copy">
-            <p className="eyebrow"><Sparkles size={13} aria-hidden /> Resonance 5.0 · Graph</p>
+            <p className="eyebrow">Resonance 5.0 · Graph</p>
             <h1>Музыка —<br />это <em>связи</em>.</h1>
             <p className="hero-lead">
-              Resonance 5.0 превращает медиатеку в живой граф: треки, артисты,
-              друзья и общие вкусы. Слушай вместе в DJ-комнатах, собирай Blend
-              и включай музыку на ТВ, в машине и на часах. Бесплатно.
+              Один плеер для Яндекс Музыки, SoundCloud, YouTube, Spotify и VK.
+              Общий поиск, медиатека и комнаты, где друзья слушают синхронно.
             </p>
-            <div className="provider-chips">
-              <span className="provider-chip"><img src="/assets/logos/yandex-music.svg" alt="" width={16} height={16} />Яндекс Музыка</span>
-              <span className="provider-chip"><img src="/assets/logos/soundcloud.svg" alt="" width={16} height={16} />SoundCloud</span>
-              <span className="provider-chip"><img src="/assets/logos/youtube.svg" alt="" width={16} height={16} />YouTube</span>
-              <span className="provider-chip"><img src="/assets/logos/spotify.svg" alt="" width={16} height={16} />Spotify</span>
-              <span className="provider-chip"><img src="/assets/logos/vk.svg" alt="" width={16} height={16} />VK Музыка</span>
-            </div>
             <div className="hero-actions">
-              {hero.key ? (
-                <a className="button button-primary" href={downloads[hero.key]}>
-                  <Download size={18} /> {hero.label}
-                </a>
-              ) : (
-                <a className="button button-primary" href={downloads.windows}>
-                  <Download size={18} /> Скачать для Windows
-                </a>
-              )}
-              <a className="button button-secondary" href="#download">
-                Все платформы <ArrowRight size={17} />
+              <DownloadMenu os={os} release={release} />
+              <a className="button button-secondary" href="#features">
+                Возможности <ArrowRight size={17} aria-hidden />
               </a>
             </div>
             <p className="release-note">
-              {hero.key ? heroMeta : `${hero.label}. Пока доступны Windows, Android и iOS.`}
-              {hero.key && release.version ? <> · <a href="#changelog">что изменилось</a></> : null}
+              {[release.version && `Версия ${release.version}`, "бесплатно, без подписки"].filter(Boolean).join(" · ")}
+              {release.version ? <> · <a href="#changelog">что изменилось</a></> : null}
             </p>
           </div>
           <div className="hero-visual">
             <GraphHero />
           </div>
-          <a className="scroll-cue" href="#new" aria-label="К новым возможностям">
-            <ArrowDown size={26} />
-          </a>
         </section>
 
         <section className="new-section compact-section" id="new" aria-labelledby="new-title">
@@ -323,14 +283,10 @@ function App() {
               <p className="eyebrow">Что нового в 5.0</p>
               <h2 id="new-title">Всё вокруг <em>одного графа.</em></h2>
             </div>
-            <p>
-              Пятая версия связывает твою музыку, друзей и устройства. Каждая
-              возможность доступна бесплатно с аккаунтом Resonance — открой
-              карточку, чтобы узнать подробности.
-            </p>
+            <p>Музыка, друзья и устройства в одном аккаунте. Открой карточку, чтобы узнать подробности</p>
           </div>
           <ul className="new-grid">
-            {features5.map(({ id, icon: Icon, title, teaser }) => (
+            {features5.slice(0, 6).map(({ id, icon: Icon, title, teaser }) => (
               <li key={id} id={id}>
                 <button type="button" className="new-card" aria-haspopup="dialog" onClick={() => setFeature(id)}>
                   <span className="new-icon"><Icon size={20} aria-hidden /></span>
@@ -342,16 +298,6 @@ function App() {
                 </button>
               </li>
             ))}
-          </ul>
-          <ul className="devices-strip" aria-label="Поддерживаемые устройства">
-            <li><Monitor size={18} aria-hidden />Windows</li>
-            <li><Laptop size={18} aria-hidden />macOS</li>
-            <li><Laptop size={18} aria-hidden />Linux</li>
-            <li><Smartphone size={18} aria-hidden />Android</li>
-            <li><Apple size={18} aria-hidden />iOS</li>
-            <li><Car size={18} aria-hidden />Android Auto · CarPlay</li>
-            <li><Watch size={18} aria-hidden />Wear OS</li>
-            <li><Tv size={18} aria-hidden />Android TV</li>
           </ul>
         </section>
 
@@ -367,31 +313,6 @@ function App() {
             </p>
           </div>
           <FeatureTabs active={tab} onChange={setTab} />
-        </section>
-
-        <section className="info-strip compact-section" aria-label="Бесплатно и приватно">
-          <article className="info-card info-card-accent" id="free">
-            <Heart size={24} aria-hidden />
-            <div>
-              <p className="eyebrow">Проект получил финансирование</p>
-              <h2>Все возможности. <em>Бесплатно.</em></h2>
-              <p>Без платных уровней, пробного периода и промокодов.</p>
-            </div>
-            <button type="button" className="button button-secondary" aria-haspopup="dialog" onClick={() => setInfo("free")}>
-              Подробнее <ArrowRight size={16} aria-hidden />
-            </button>
-          </article>
-          <article className="info-card" id="privacy">
-            <ShieldCheck size={24} aria-hidden />
-            <div>
-              <p className="eyebrow">Приватность по архитектуре</p>
-              <h2>Прокси остаётся <em>на сервере.</em></h2>
-              <p>Адрес, логин и пароль прокси не попадают в приложение.</p>
-            </div>
-            <button type="button" className="button button-secondary" aria-haspopup="dialog" onClick={() => setInfo("privacy")}>
-              Подробнее <ArrowRight size={16} aria-hidden />
-            </button>
-          </article>
         </section>
 
         <section className="help-section compact-section" id="start" aria-labelledby="start-title">
@@ -496,27 +417,9 @@ function App() {
               <p className="eyebrow">Загрузки</p>
               <h2 id="download-title">Твои сервисы. <em>Один Resonance.</em></h2>
             </div>
-            <p>
-              Ссылки всегда ведут на актуальный релиз. iOS-сборка не подписана —
-              её нужно подписать своим сертификатом.
-            </p>
+            <p>Ссылки всегда ведут на актуальный релиз. Сборка для iOS не подписана, её нужно подписать своим сертификатом</p>
           </div>
-          <ul className="platform-grid">
-            {platforms.map(({ icon: Icon, name, note, key, os: cardOs, cta }) => (
-              <li key={name} className={`platform-card${key ? "" : " platform-soon"}${cardOs === os ? " platform-current" : ""}`}>
-                <Icon size={24} aria-hidden />
-                <div>
-                  <h3>{name}{cardOs === os ? <span className="current-badge">Ваша система</span> : null}</h3>
-                  <p>{[note, key && formatSize(release.sizes[key])].filter(Boolean).join(" · ")}</p>
-                </div>
-                {key ? (
-                  <a className="button button-primary" href={downloads[key]}><Download size={16} aria-hidden /> {cta}</a>
-                ) : (
-                  <span className="soon-badge">{cta}</span>
-                )}
-              </li>
-            ))}
-          </ul>
+          <DownloadMenu os={os} release={release} />
         </section>
 
         {release.changelog.length > 0 ? (
@@ -551,17 +454,11 @@ function App() {
       <footer>
         <a className="brand" href="#top" aria-label="Resonance — наверх"><span className="brand-mark"><img src="/assets/resonance-mark.png" alt="" width={22} height={22} /></span>Resonance</a>
         <nav className="footer-nav" aria-label="Разделы лендинга">
-          <a href="#new">Что нового</a>
-          <a href="#features">Поиск</a>
-          <a href="#library">Медиатека</a>
-          <a href="#rooms">Комнаты</a>
-          <a href="#demo">Демо</a>
+          <a href="#features">Возможности</a>
           <a href="#download">Скачать</a>
           <a href="#changelog">Обновления</a>
-          <a href="#free">Бесплатно</a>
-          <a href="#privacy">Приватность</a>
-          <a href="#knowledge">База знаний</a>
-          <a href="#faq">FAQ</a>
+          <a href="#knowledge">Подключение сервисов</a>
+          <a href="#faq">Вопросы</a>
         </nav>
         <span>© 2026 WebCord</span>
         <span>Windows · Android · iOS · macOS и Linux скоро</span>
@@ -595,41 +492,6 @@ function App() {
         ) : null}
       </Modal>
 
-      <Modal open={info === "free"} onClose={() => setInfo(null)} eyebrow="Проект получил финансирование" title={<>Все возможности. <em>Бесплатно.</em></>}>
-        <p className="drawer-lead">
-          У Resonance больше нет платных уровней, пробного периода и
-          промокодов. Скачивай приложение и используй все функции без оплаты.
-        </p>
-        <div className="info-grid">
-          <article>
-            <Volume2 size={22} aria-hidden />
-            <h3>Полный плеер</h3>
-            <p>Все поддерживаемые источники, единый поиск, импорт, тексты и Music Graph без ограничений Resonance.</p>
-          </article>
-          <article>
-            <Heart size={22} aria-hidden />
-            <h3>Wave без уровней</h3>
-            <p>Персональные подборки, музыкальная память и управление очередью обычным языком доступны всем.</p>
-          </article>
-          <article>
-            <Users size={22} aria-hidden />
-            <h3>Комнаты для всех</h3>
-            <p>Создавай комнаты, приглашай друзей и слушай синхронно. Для общей сессии нужен только бесплатный аккаунт.</p>
-          </article>
-        </div>
-        <p className="drawer-note">Некоторые музыкальные сервисы могут требовать собственный аккаунт, токен или подписку по правилам самого источника. Resonance за доступ к своим функциям плату не берёт.</p>
-      </Modal>
-
-      <Modal open={info === "privacy"} onClose={() => setInfo(null)} eyebrow="Приватность по архитектуре" title={<>Прокси остаётся <em>на сервере.</em></>}>
-        <p className="drawer-lead">
-          Клиент передаёт только переключатель «использовать прокси».
-          Адрес, логин и пароль не попадают в приложение и не выдаются API.
-        </p>
-        <p className="drawer-lead">
-          Токены сервисов хранятся в защищённом хранилище устройства и
-          отправляются только для выполнения запроса.
-        </p>
-      </Modal>
     </div>
   );
 }

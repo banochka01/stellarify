@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
-import { Check, Link2, Music, Pause, Play, SkipBack, SkipForward, Sparkles } from "lucide-react";
+import { Check, Link2, Music, Pause, Play, SkipBack, SkipForward, RefreshCw } from "lucide-react";
 import { SESSION_TRACKS, type SessionTrack } from "../session";
 
 type Track = SessionTrack;
@@ -193,7 +193,7 @@ export function DemoSandbox() {
               aria-label="Запрос для Wave"
             />
             <button className="demo-rebuild" type="submit">
-              <Sparkles size={15} /> Пересобрать
+              <RefreshCw size={16} /> Пересобрать
             </button>
           </form>
           <div className="demo-chips">

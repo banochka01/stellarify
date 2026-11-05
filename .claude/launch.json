@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "landing", "runtimeExecutable": "npx", "runtimeArgs": ["vite", "preview", "--port", "4317", "--strictPort"], "cwd": "apps/landing", "port": 4317 }
+  ]
+}

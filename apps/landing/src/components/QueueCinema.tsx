@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { Music, Sparkles } from "lucide-react";
+import { Music } from "lucide-react";
 import { SESSION_TRACKS, type SessionTrack } from "../session";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -81,10 +81,10 @@ export function QueueCinema() {
           <p className="eyebrow">Живая очередь</p>
           <div className="queue-panel">
             <div className="queue-head">
-              <Sparkles size={15} /> Wave · очередь
+              Wave · очередь
             </div>
             <p className="queue-prompt">
-              <Sparkles size={16} />
+              <Music size={16} />
               <span className="queue-prompt-text">{PROMPT}</span>
             </p>
             <div className="queue-list">

@@ -1,4 +1,4 @@
-import { Album, ArrowRight, Check, Heart, Music2, Sparkles } from "lucide-react";
+import { Album, ArrowRight, Check, Heart, Music2 } from "lucide-react";
 
 const tracks = [
   { title: "Tadow", artist: "Masego, FKJ", tone: "ember", initials: "MF" },
@@ -24,7 +24,7 @@ export function LibraryCinema() {
       <div className="library-cinema" data-reveal>
         <div className="transfer-story">
           <div className="transfer-story-top">
-            <span className="transfer-glyph"><Sparkles size={20} /></span>
+            <span className="transfer-glyph"><Music2 size={20} /></span>
             <span>RESONANCE TRANSFER</span>
             <span className="transfer-live"><i /> идёт перенос</span>
           </div>
@@ -54,7 +54,7 @@ export function LibraryCinema() {
             <div className="library-story-metric"><Heart size={16} /><b>346</b><small>любимых</small></div>
             <div className="library-story-metric"><Music2 size={16} /><b>28</b><small>плейлистов</small></div>
           </div>
-          <p className="library-shelf-label"><Sparkles size={15} /> Недавно добавлено</p>
+          <p className="library-shelf-label">Недавно добавлено</p>
           <div className="library-track-grid">
             {tracks.map((track) => (
               <article key={track.title}>
