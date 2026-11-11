@@ -9,11 +9,11 @@ const tracks = [
 
 export function LibraryCinema() {
   return (
-    <section className="library-section" id="library">
-      <div className="section-heading" data-reveal>
+    <div className="panel-stack">
+      <div className="panel-head">
         <div>
-          <p className="eyebrow">Resonance Library</p>
-          <h2>Забери всё.<br /><em>Музыка</em><br />останется.</h2>
+          <p className="eyebrow">Перенос медиатеки</p>
+          <h3 className="panel-title">Забери всё. <em>Музыка</em> останется.</h3>
         </div>
         <p>
           Один перенос забирает любимые треки и плейлисты из Яндекс Музыки,
@@ -21,14 +21,18 @@ export function LibraryCinema() {
         </p>
       </div>
 
-      <div className="library-cinema" data-reveal>
-        <div className="transfer-story">
+      <div
+        className="library-cinema stage"
+        role="img"
+        aria-label="Пример: перенос медиатеки из Яндекс Музыки выполнен на 94%. В единой медиатеке 1 284 трека, 346 любимых и 28 плейлистов."
+      >
+        <div className="transfer-story" aria-hidden>
           <div className="transfer-story-top">
             <span className="transfer-glyph"><Music2 size={20} /></span>
-            <span>RESONANCE TRANSFER</span>
+            <span>Перенос</span>
             <span className="transfer-live"><i /> идёт перенос</span>
           </div>
-          <h3>Твоя музыка.<br />Теперь здесь.</h3>
+          <p className="transfer-title">Твоя музыка.<br />Теперь здесь.</p>
           <div className="transfer-provider-row">
             <span className="is-active"><i className="provider-yandex" /> Яндекс</span>
             <span><i className="provider-spotify" /> Spotify</span>
@@ -45,31 +49,31 @@ export function LibraryCinema() {
           </ul>
         </div>
 
-        <div className="library-story">
+        <div className="library-story" aria-hidden>
           <div className="library-story-head">
             <div>
-              <span>ЕДИНАЯ МЕДИАТЕКА</span>
-              <h3>1 284 трека.<br />Один дом.</h3>
+              <span className="library-kicker">Единая медиатека</span>
+              <p className="library-count">1 284 трека.<br />Один дом.</p>
             </div>
             <div className="library-story-metric"><Heart size={16} /><b>346</b><small>любимых</small></div>
             <div className="library-story-metric"><Music2 size={16} /><b>28</b><small>плейлистов</small></div>
           </div>
-          <p className="library-shelf-label">Недавно добавлено</p>
+          <p className="library-kicker library-shelf-label">Недавно добавлено</p>
           <div className="library-track-grid">
             {tracks.map((track) => (
-              <article key={track.title}>
+              <div key={track.title}>
                 <div className={`library-cover ${track.tone}`}><span>{track.initials}</span></div>
                 <b>{track.title}</b><small>{track.artist}</small>
-              </article>
+              </div>
             ))}
           </div>
           <div className="library-bottom-row">
             <span><Album size={16} /> 176 альбомов</span>
             <span>92 исполнителя</span>
-            <a href="#top">Открыть Resonance <ArrowRight size={15} /></a>
           </div>
         </div>
       </div>
-    </section>
+      <a className="panel-link" href="#download">Перенести свою медиатеку <ArrowRight size={17} aria-hidden /></a>
+    </div>
   );
 }

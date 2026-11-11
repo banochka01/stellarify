@@ -14,24 +14,24 @@ export default function RoomsPanel() {
             где бы вы ни находились.
           </p>
         </div>
-        <div className="feature-row feature-row-stack">
-          <article>
-            <span><Radio size={24} /></span>
-            <h3>Живая синхронизация</h3>
+        <ul className="point-list">
+          <li>
+            <span className="point-icon"><Radio size={22} aria-hidden /></span>
+            <h4>Живая синхронизация</h4>
             <p>Пауза, перемотка и смена трека мгновенно применяются у всех участников комнаты.</p>
-          </article>
-          <article>
-            <span><Link2 size={24} /></span>
-            <h3>Приглашение ссылкой</h3>
+          </li>
+          <li>
+            <span className="point-icon"><Link2 size={22} aria-hidden /></span>
+            <h4>Приглашение ссылкой</h4>
             <p>Создатель комнаты делится ссылкой — друзья присоединяются в один клик.</p>
-          </article>
-          <article>
-            <span><ListMusic size={24} /></span>
-            <h3>Общая очередь</h3>
+          </li>
+          <li>
+            <span className="point-icon"><ListMusic size={22} aria-hidden /></span>
+            <h4>Общая очередь</h4>
             <p>Очередь одна на всех: добавляйте треки из любого подключённого источника.</p>
-          </article>
-        </div>
-        <p className="rooms-note">Комнаты доступны бесплатно всем пользователям с аккаунтом Resonance.</p>
+          </li>
+        </ul>
+        <p className="panel-note">Комнаты доступны бесплатно всем пользователям с аккаунтом Resonance.</p>
       </div>
       <RoomsCinema />
     </div>

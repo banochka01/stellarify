@@ -15,6 +15,28 @@ export type ChangelogEntry = {
 /** Public changelog, newest first. Beta entries are only shown to the beta channel. */
 export const changelog: ChangelogEntry[] = [
   {
+    version: "5.0.8",
+    date: "2026-11-05",
+    channel: "stable",
+    title: "Resonance 5.0.8",
+    highlights: [
+      "Читаемые чипы и название трека в плеере",
+      "Настройки разбиты на разделы",
+      "Анимация запуска приложения",
+      "SoundCloud продолжает работать, когда серверный прокси недоступен"
+    ]
+  },
+  {
+    version: "5.0.7",
+    date: "2026-10-16",
+    channel: "stable",
+    title: "Resonance 5.0.7",
+    highlights: [
+      "Импорт плейлистов из Dotify: по ссылке и из файлов .dotifyplaylist",
+      "Gapless больше не играет другой трек под названием текущего"
+    ]
+  },
+  {
     version: "5.0.6",
     date: "2026-10-15",
     channel: "stable",

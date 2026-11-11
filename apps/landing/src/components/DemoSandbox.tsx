@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { Check, Link2, Music, Pause, Play, SkipBack, SkipForward, RefreshCw } from "lucide-react";
 import { SESSION_TRACKS, type SessionTrack } from "../session";
 
@@ -151,6 +151,15 @@ export function DemoSandbox() {
     setProgress(ratio);
   };
 
+  const seekByKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    const step = event.key === "ArrowRight" ? 0.05 : event.key === "ArrowLeft" ? -0.05 : 0;
+    if (!step) return;
+    event.preventDefault();
+    const ratio = Math.min(1, Math.max(0, progressRef.current + step));
+    progressRef.current = ratio;
+    setProgress(ratio);
+  };
+
   const copyInvite = async () => {
     try {
       await navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}#demo`);
@@ -169,20 +178,20 @@ export function DemoSandbox() {
   }
 
   return (
-    <section className="demo-section" id="demo">
-      <div className="demo-heading" data-reveal>
+    <div className="panel-stack">
+      <div className="panel-head">
         <div>
           <p className="eyebrow">Живое демо</p>
-          <h2>Попробуй Wave.<br /><em>Прямо здесь.</em></h2>
+          <h3 className="panel-title">Попробуй Wave. <em>Прямо здесь.</em></h3>
         </div>
         <p>
-          Мок-версия настоящего плеера: опиши настроение или нажми подсказку —
-          очередь пересоберётся. Настоящая Wave с твоей библиотекой ждёт внутри
+          Демо-версия плеера: опиши настроение или нажми подсказку —
+          очередь пересоберётся. Настоящая Wave с твоей медиатекой ждёт внутри
           Resonance.
         </p>
       </div>
 
-      <div className="demo-layout" data-reveal>
+      <div className="demo-layout">
         <div className="demo-pane">
           <form className="demo-form" onSubmit={onSubmit}>
             <input
@@ -193,7 +202,7 @@ export function DemoSandbox() {
               aria-label="Запрос для Wave"
             />
             <button className="demo-rebuild" type="submit">
-              <RefreshCw size={16} /> Пересобрать
+              <RefreshCw size={16} aria-hidden /> Пересобрать
             </button>
           </form>
           <div className="demo-chips">
@@ -214,6 +223,7 @@ export function DemoSandbox() {
                 key={`${regen}-${item.title}`}
                 type="button"
                 className={`demo-row${i === current ? " is-current" : ""}`}
+                aria-current={i === current ? "true" : undefined}
                 style={{ animationDelay: `${i * 60}ms` }}
                 onClick={() => selectRow(i)}
               >
@@ -225,11 +235,11 @@ export function DemoSandbox() {
                   )}
                 </span>
                 {item.cover ? (
-                  <img className="queue-row-cover queue-row-cover-img" src={item.cover} alt="" loading="lazy" />
+                  <img className="queue-row-cover" src={item.cover} alt="" width={44} height={44} loading="lazy" decoding="async" />
                 ) : (
                   <span className="queue-row-cover" style={{ background: item.tint }}><Music size={17} /></span>
                 )}
-                <span>
+                <span className="queue-row-text">
                   <span className="queue-row-title">{item.title}</span>
                   <span className="queue-row-artist">{item.artist}</span>
                 </span>
@@ -277,7 +287,18 @@ export function DemoSandbox() {
               <SkipForward size={18} />
             </button>
           </div>
-          <div className="demo-progress" onClick={seek} role="presentation">
+          <div
+            className="demo-progress"
+            role="slider"
+            tabIndex={0}
+            aria-label="Позиция в треке"
+            aria-valuemin={0}
+            aria-valuemax={Math.round(track.duration)}
+            aria-valuenow={Math.round(progress * track.duration)}
+            aria-valuetext={`${formatTime(progress * track.duration)} из ${formatTime(track.duration)}`}
+            onClick={seek}
+            onKeyDown={seekByKey}
+          >
             <span style={{ width: `${progress * 100}%` }} />
           </div>
           <div className="demo-times">
@@ -297,6 +318,6 @@ export function DemoSandbox() {
           </button>
         </div>
       </div>
-    </section>
+    </div>
   );
 }

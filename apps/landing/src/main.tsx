@@ -1,13 +1,15 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import "@fontsource/inter/400.css";
-import "@fontsource/inter/500.css";
-import "@fontsource/inter/600.css";
-import "@fontsource-variable/roboto-flex";
+import "@fontsource/inter/latin-400.css";
+import "@fontsource/inter/latin-500.css";
+import "@fontsource/inter/latin-600.css";
+import "@fontsource/inter/cyrillic-400.css";
+import "@fontsource/inter/cyrillic-500.css";
+import "@fontsource/inter/cyrillic-600.css";
+// Weight + width axes: the display headings are set slightly extended.
+import "@fontsource-variable/roboto-flex/wdth.css";
 import App from "./App";
 import "./styles.css";
-import "./graph.css";
-import "./sections.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

@@ -1,6 +1,8 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "landing", "runtimeExecutable": "npx", "runtimeArgs": ["vite", "preview", "--port", "4317", "--strictPort"], "cwd": "apps/landing", "port": 4317 }
+    { "name": "landing", "runtimeExecutable": "npx", "runtimeArgs": ["vite", "preview", "--port", "4317", "--strictPort"], "cwd": "apps/landing", "port": 4317 },
+    { "name": "landing-dev", "runtimeExecutable": "npx", "runtimeArgs": ["vite"], "cwd": "apps/landing", "port": 4173 },
+    { "name": "server", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev:server"], "port": 8787 }
   ]
 }

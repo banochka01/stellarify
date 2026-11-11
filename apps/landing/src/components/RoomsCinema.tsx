@@ -1,97 +1,58 @@
-import { useLayoutEffect, useRef } from "react";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useEffect, useState } from "react";
 import { Radio } from "lucide-react";
+import { useInView, useReducedMotion } from "../hooks";
 
-gsap.registerPlugin(ScrollTrigger);
+const TRACKS = [
+  { title: "так совпало", meta: "wavescale · Яндекс Музыка", cover: "/assets/covers/tak-sovpalo.jpg" },
+  { title: "Выходной", meta: "MONATIK · VK Музыка", cover: "/assets/covers/vyhodnoy.jpg" }
+];
 
+const TRACK_SECONDS = 7;
+
+/** Listening-room mock: listeners join, the shared track plays and hands over to the next one. */
 export function RoomsCinema() {
-  const root = useRef<HTMLDivElement>(null);
+  const [ref, inView] = useInView<HTMLDivElement>();
+  const reduce = useReducedMotion();
+  const [seen, setSeen] = useState(false);
+  const [current, setCurrent] = useState(0);
 
-  useLayoutEffect(() => {
-    const container = root.current;
-    if (!container) return;
-    const context = gsap.context(() => {
-      const media = gsap.matchMedia();
-      media.add(
-        { reduce: "(prefers-reduced-motion: reduce)" },
-        ({ conditions }) => {
-          const { reduce } = conditions as { reduce: boolean };
-          const stage = container.querySelector<HTMLElement>(".cinema-stage");
-          if (!stage) return;
-          const avatars = Array.from(container.querySelectorAll<HTMLElement>(".room-mock-avatars span"));
-          const progress = container.querySelector<HTMLElement>(".room-mock-progress span");
-          const trackA = container.querySelector<HTMLElement>(".room-track-a");
-          const trackB = container.querySelector<HTMLElement>(".room-track-b");
-          const badge = container.querySelector<HTMLElement>(".room-sync");
-          if (!progress || !trackA || !trackB || !badge) return;
-          if (reduce) {
-            gsap.set(avatars, { autoAlpha: 1, scale: 1 });
-            gsap.set(progress, { width: "62%" });
-            gsap.set(trackA, { autoAlpha: 0, y: -12 });
-            gsap.set(trackB, { autoAlpha: 1, y: 0 });
-            gsap.set(badge, { autoAlpha: 1, scale: 1 });
-            return;
-          }
-          gsap.set(avatars, { autoAlpha: 0, scale: 0.4 });
-          gsap.set(progress, { width: "0%" });
-          gsap.set(trackB, { autoAlpha: 0, y: 12 });
-          gsap.set(badge, { autoAlpha: 0, scale: 0.9 });
-          const timeline = gsap.timeline({ paused: true, defaults: { ease: "power2.out" } });
-          timeline.fromTo(avatars, { autoAlpha: 0, scale: 0.4 }, { autoAlpha: 1, scale: 1, duration: 0.5, stagger: 0.45, ease: "back.out(2)" }, 0.3);
-          timeline.fromTo(progress, { width: "0%" }, { width: "62%", duration: 2.2, ease: "none" }, 0.6);
-          timeline.to(trackA, { autoAlpha: 0, y: -12, duration: 0.5 }, 1.6);
-          timeline.fromTo(trackB, { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 0.5 }, 1.85);
-          timeline.fromTo(badge, { autoAlpha: 0, scale: 0.9 }, { autoAlpha: 1, scale: 1, duration: 0.45, ease: "back.out(1.8)" }, 2.6);
-          timeline.to({}, { duration: 0.6 });
-          // Embedded in a tab panel: play once when visible (no scroll pinning).
-          ScrollTrigger.create({
-              trigger: stage,
-              start: "top 74%",
-              once: true,
-              onEnter: () => timeline.play()
-            });
-        }
-      );
-      return () => media.revert();
-    }, root);
-    return () => context.revert();
-  }, []);
+  useEffect(() => {
+    if (inView) setSeen(true);
+  }, [inView]);
+
+  useEffect(() => {
+    if (!inView || reduce) return;
+    const timer = window.setInterval(() => setCurrent((index) => (index + 1) % TRACKS.length), TRACK_SECONDS * 1000);
+    return () => window.clearInterval(timer);
+  }, [inView, reduce]);
 
   return (
-    <div className="cinema-track cinema-track-rooms" ref={root}>
-      <div className="cinema-stage">
-        <div className="room-mock rooms-mock">
-          <div className="room-mock-head">
-            <span className="room-mock-live">В эфире</span>
-            <span className="room-mock-members">4 слушателя</span>
-          </div>
-          <div className="room-tracks">
-            <div className="room-track room-track-a">
-              <span className="room-mock-cover" style={{ backgroundImage: "url(/assets/covers/tak-sovpalo.jpg)", backgroundSize: "cover", backgroundPosition: "center" }} />
-              <div>
-                <p className="room-mock-title">так совпало</p>
-                <p className="room-mock-artist">wavescale · Яндекс Музыка</p>
-              </div>
-            </div>
-            <div className="room-track room-track-b">
-              <span className="room-mock-cover" style={{ backgroundImage: "url(/assets/covers/vyhodnoy.jpg)", backgroundSize: "cover", backgroundPosition: "center" }} />
-              <div>
-                <p className="room-mock-title">Выходной</p>
-                <p className="room-mock-artist">MONATIK · VK Музыка</p>
-              </div>
-            </div>
-          </div>
-          <div className="room-mock-progress"><span /></div>
-          <div className="room-mock-avatars">
-            <span>МК</span>
-            <span>АД</span>
-            <span>ЛС</span>
-            <span className="room-mock-you">Ты</span>
-          </div>
-          <p className="room-sync"><Radio size={15} /> Синхронизировано · задержка 12 мс</p>
-        </div>
+    <div className={`room-mock${seen ? " is-in" : ""}${inView ? "" : " is-paused"}`} ref={ref}>
+      <div className="room-mock-head">
+        <span className="room-mock-live">В эфире</span>
+        <span className="room-mock-members">4 слушателя</span>
       </div>
+      <div className="room-tracks" aria-live="off">
+        {TRACKS.map((track, index) => (
+          <div className={`room-track${index === current ? " is-current" : ""}`} key={track.title} aria-hidden={index !== current}>
+            <img className="room-mock-cover" src={track.cover} alt="" width={58} height={58} loading="lazy" decoding="async" />
+            <div>
+              <p className="room-mock-title">{track.title}</p>
+              <p className="room-mock-artist">{track.meta}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="room-mock-progress">
+        <span key={current} style={{ animationDuration: `${TRACK_SECONDS}s` }} />
+      </div>
+      <ul className="room-mock-avatars" aria-label="Слушатели">
+        <li>МК</li>
+        <li>АД</li>
+        <li>ЛС</li>
+        <li className="room-mock-you">Ты</li>
+      </ul>
+      <p className="room-sync"><Radio size={15} aria-hidden /> Синхронизировано · задержка 12 мс</p>
     </div>
   );
 }
