@@ -147,11 +147,12 @@ export class SoundCloudAdapter implements MusicProviderAdapter {
     const track = trackSchema.parse(
       await this.publicApiJson(trackUrl, clientId, access)
     );
-    const transcoding = selectTranscoding(
+    const candidates = rankTranscodings(
       track.media?.transcodings ?? [],
       access?.useProxy ? "high" : quality
     );
-    if (!transcoding) {
+    const first = candidates[0];
+    if (!first) {
       throw new ProviderGatewayError(
         "STREAM_UNAVAILABLE",
         "SoundCloud did not return a playable stream",
@@ -159,16 +160,37 @@ export class SoundCloudAdapter implements MusicProviderAdapter {
       );
     }
 
-    const streamEndpoint = new URL(transcoding.url);
-    if (track.track_authorization) {
-      streamEndpoint.searchParams.set(
-        "track_authorization",
-        track.track_authorization
-      );
+    // SoundCloud retires formats without notice (progressive MP3, then MP3
+    // HLS answered 404 while AAC HLS kept working): try every candidate.
+    let transcoding = first;
+    let resolved: z.infer<typeof publicStreamSchema> | undefined;
+    let lastError: unknown;
+    for (const candidate of candidates) {
+      const streamEndpoint = new URL(candidate.url);
+      if (track.track_authorization) {
+        streamEndpoint.searchParams.set(
+          "track_authorization",
+          track.track_authorization
+        );
+      }
+      try {
+        resolved = publicStreamSchema.parse(
+          await this.publicApiJson(streamEndpoint, clientId, access)
+        );
+        transcoding = candidate;
+        break;
+      } catch (error) {
+        if (
+          error instanceof ProviderGatewayError &&
+          (error.code === "TRACK_NOT_FOUND" || error.code === "UPSTREAM_ERROR")
+        ) {
+          lastError = error;
+          continue;
+        }
+        throw error;
+      }
     }
-    const resolved = publicStreamSchema.parse(
-      await this.publicApiJson(streamEndpoint, clientId, access)
-    );
+    if (!resolved) throw lastError;
     assertAllowedStreamUrl(resolved.url);
 
     return {
@@ -469,7 +491,7 @@ function normalizeTrackId(value: string) {
   return value.replace(/^soundcloud:tracks:/, "");
 }
 
-function selectTranscoding(
+function rankTranscodings(
   transcodings: SoundCloudTranscoding[],
   quality: AudioQuality
 ) {
@@ -492,16 +514,20 @@ function selectTranscoding(
             item.format.mime_type.includes("audio/mpeg"),
           (item: SoundCloudTranscoding) =>
             item.format.protocol === "progressive",
+          // AAC HLS (audio/mp4) is the format SoundCloud still serves widely.
           (item: SoundCloudTranscoding) =>
             item.format.protocol === "hls" &&
-            item.format.mime_type.includes("audio/mpeg"),
+            item.format.mime_type.includes("audio/mp4"),
           (item: SoundCloudTranscoding) => item.format.protocol === "hls"
         ];
+  const ranked: SoundCloudTranscoding[] = [];
   for (const predicate of priorities) {
-    const match = playable.find(predicate);
-    if (match) return match;
+    for (const item of playable) {
+      if (predicate(item) && !ranked.includes(item)) ranked.push(item);
+    }
   }
-  return playable[0];
+  for (const item of playable) if (!ranked.includes(item)) ranked.push(item);
+  return ranked;
 }
 
 function codecFromMimeType(value: string) {
