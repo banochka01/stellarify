@@ -166,7 +166,9 @@ abstract final class ResonanceContrast {
 class ResonanceTokens extends ThemeExtension<ResonanceTokens> {
   const ResonanceTokens({
     required this.background,
+    required this.chrome,
     required this.surface,
+    required this.surfaceHigh,
     required this.surfaceRaised,
     required this.border,
     required this.accent,
@@ -178,7 +180,14 @@ class ResonanceTokens extends ThemeExtension<ResonanceTokens> {
   });
 
   final Color background;
+
+  /// Window chrome: title bar, sidebar and player bar sit a step below
+  /// [background] so content reads as the lit area.
+  final Color chrome;
   final Color surface;
+
+  /// Between [surface] and [surfaceRaised]: artwork placeholders, wells.
+  final Color surfaceHigh;
   final Color surfaceRaised;
   final Color border;
   final Color accent;
@@ -197,7 +206,9 @@ class ResonanceTokens extends ThemeExtension<ResonanceTokens> {
 
   static const fallback = ResonanceTokens(
     background: Color(0xFF0E0B14),
+    chrome: Color(0xFF08060B),
     surface: Color(0xFF17121F),
+    surfaceHigh: Color(0xFF1C1626),
     surfaceRaised: Color(0xFF211A2C),
     border: Color(0xFF302640),
     accent: Color(0xFFB69CFF),
@@ -211,7 +222,9 @@ class ResonanceTokens extends ThemeExtension<ResonanceTokens> {
   @override
   ResonanceTokens copyWith({
     Color? background,
+    Color? chrome,
     Color? surface,
+    Color? surfaceHigh,
     Color? surfaceRaised,
     Color? border,
     Color? accent,
@@ -222,7 +235,9 @@ class ResonanceTokens extends ThemeExtension<ResonanceTokens> {
     Color? skeletonHighlight,
   }) => ResonanceTokens(
     background: background ?? this.background,
+    chrome: chrome ?? this.chrome,
     surface: surface ?? this.surface,
+    surfaceHigh: surfaceHigh ?? this.surfaceHigh,
     surfaceRaised: surfaceRaised ?? this.surfaceRaised,
     border: border ?? this.border,
     accent: accent ?? this.accent,
@@ -238,7 +253,9 @@ class ResonanceTokens extends ThemeExtension<ResonanceTokens> {
     if (other is! ResonanceTokens) return this;
     return ResonanceTokens(
       background: Color.lerp(background, other.background, t)!,
+      chrome: Color.lerp(chrome, other.chrome, t)!,
       surface: Color.lerp(surface, other.surface, t)!,
+      surfaceHigh: Color.lerp(surfaceHigh, other.surfaceHigh, t)!,
       surfaceRaised: Color.lerp(surfaceRaised, other.surfaceRaised, t)!,
       border: Color.lerp(border, other.border, t)!,
       accent: Color.lerp(accent, other.accent, t)!,
@@ -253,4 +270,10 @@ class ResonanceTokens extends ThemeExtension<ResonanceTokens> {
       )!,
     );
   }
+}
+
+/// `context.tokens.accent` instead of the fixed [ResonanceColors] constants,
+/// so every screen follows the selected theme preset.
+extension ResonanceTokensContext on BuildContext {
+  ResonanceTokens get tokens => ResonanceTokens.of(this);
 }

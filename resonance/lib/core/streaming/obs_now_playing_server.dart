@@ -136,9 +136,7 @@ final class ObsNowPlayingServer {
   /// Параметр `?reactions=0` отключает их на стороне OBS.
   void pushReaction(String emoji) {
     if (!obsReactionEmojis.contains(emoji)) return;
-    _broadcastRaw(
-      'event: reaction\ndata: ${jsonEncode({'emoji': emoji})}\n\n',
-    );
+    _broadcastRaw('event: reaction\ndata: ${jsonEncode({'emoji': emoji})}\n\n');
   }
 
   /// Синхронизированные строки текущего трека для режима `?lyrics=1`.

@@ -104,9 +104,9 @@ class _DesktopSidebar extends StatelessWidget {
     return Container(
       width: 224,
       padding: const EdgeInsets.fromLTRB(18, 26, 18, 20),
-      decoration: const BoxDecoration(
-        color: Color(0xFF08060B),
-        border: Border(right: BorderSide(color: ResonanceColors.border)),
+      decoration: BoxDecoration(
+        color: context.tokens.chrome,
+        border: Border(right: BorderSide(color: context.tokens.border)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -204,9 +204,11 @@ class _SourceItem extends StatelessWidget {
         Expanded(
           child: Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              color: Color(0xFFB2A8BB),
-              fontSize: 11,
+              color: ResonanceColors.muted,
+              fontSize: 12.5,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -259,73 +261,85 @@ class _SidebarItem extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Tooltip(
         message: label,
-        child: ResonancePressable(
-          hoverScale: 1.01,
-          hoverOffset: Offset.zero,
-          child: Material(
-            color: selected ? const Color(0xFF17111D) : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            child: InkWell(
+        // Подпись видна рядом с иконкой: подсказка нужна только тестам и
+        // скринридеру, всплывать при наведении ей незачем.
+        triggerMode: TooltipTriggerMode.manual,
+        excludeFromSemantics: true,
+        child: Semantics(
+          button: true,
+          selected: selected,
+          child: ResonancePressable(
+            hoverScale: 1.01,
+            hoverOffset: Offset.zero,
+            child: Material(
+              color: selected ? context.tokens.surface : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
-              onTap: onTap,
-              child: SizedBox(
-                height: 46,
-                child: Row(
-                  children: [
-                    AnimatedContainer(
-                      duration: ResonanceMotion.durationOf(
-                        context,
-                        ResonanceMotion.quick,
-                      ),
-                      curve: ResonanceMotion.curve,
-                      width: 3,
-                      height: selected ? 24 : 8,
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? Theme.of(context).colorScheme.primary
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    AnimatedSwitcher(
-                      duration: ResonanceMotion.durationOf(
-                        context,
-                        ResonanceMotion.quick,
-                      ),
-                      transitionBuilder: (child, animation) =>
-                          ScaleTransition(scale: animation, child: child),
-                      child: Icon(
-                        icon,
-                        key: ValueKey(selected),
-                        size: 20,
-                        color: selected
-                            ? Theme.of(context).colorScheme.primary
-                            : ResonanceColors.muted,
-                      ),
-                    ),
-                    const SizedBox(width: 11),
-                    Expanded(
-                      child: AnimatedDefaultTextStyle(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: onTap,
+                child: SizedBox(
+                  height: 46,
+                  child: Row(
+                    children: [
+                      AnimatedContainer(
                         duration: ResonanceMotion.durationOf(
                           context,
                           ResonanceMotion.quick,
                         ),
                         curve: ResonanceMotion.curve,
-                        style: TextStyle(
-                          fontFamily: 'Manrope',
+                        width: 3,
+                        height: selected ? 24 : 8,
+                        decoration: BoxDecoration(
                           color: selected
-                              ? ResonanceColors.text
-                              : ResonanceColors.muted,
-                          fontSize: 12,
-                          fontWeight: selected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(99),
                         ),
-                        child: Text(label),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 12),
+                      AnimatedSwitcher(
+                        duration: ResonanceMotion.durationOf(
+                          context,
+                          ResonanceMotion.quick,
+                        ),
+                        transitionBuilder: (child, animation) =>
+                            ScaleTransition(scale: animation, child: child),
+                        child: Icon(
+                          icon,
+                          key: ValueKey(selected),
+                          size: 20,
+                          color: selected
+                              ? Theme.of(context).colorScheme.primary
+                              : ResonanceColors.muted,
+                        ),
+                      ),
+                      const SizedBox(width: 11),
+                      Expanded(
+                        child: AnimatedDefaultTextStyle(
+                          duration: ResonanceMotion.durationOf(
+                            context,
+                            ResonanceMotion.quick,
+                          ),
+                          curve: ResonanceMotion.curve,
+                          style: TextStyle(
+                            fontFamily: 'Manrope',
+                            color: selected
+                                ? ResonanceColors.text
+                                : ResonanceColors.muted,
+                            fontSize: 13.5,
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                          ),
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

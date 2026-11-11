@@ -21,24 +21,27 @@ class OfflineModeBanner extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: ResonanceColors.surfaceRaised,
+          color: context.tokens.surfaceRaised,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: ResonanceColors.border),
+          border: Border.all(color: context.tokens.border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               Icons.cloud_off_rounded,
               size: 18,
-              color: ResonanceColors.primary,
+              color: context.tokens.accent,
             ),
             const SizedBox(width: 8),
             Flexible(
               child: Text(
                 'Только скачанное · нет сети · доступно $count',
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w700, color: ResonanceColors.text),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: ResonanceColors.text,
+                ),
               ),
             ),
           ],

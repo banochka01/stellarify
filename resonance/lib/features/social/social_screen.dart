@@ -10,6 +10,7 @@ import 'package:resonance/features/platform/feature_flags.dart';
 import 'package:resonance/features/platform/feature_playback.dart';
 import 'package:resonance/features/platform/feature_views.dart';
 import 'package:resonance/features/social/social_api.dart';
+import 'package:resonance/shared/russian_plural.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 
 class SocialScreen extends ConsumerWidget {
@@ -46,14 +47,14 @@ class SocialScreen extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'ДРУЗЬЯ',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 1.8,
-                          color: ResonanceColors.primary,
+                          color: context.tokens.accent,
                         ),
                       ),
                     ),
@@ -171,7 +172,10 @@ class FeedItemTile extends ConsumerWidget {
                   children: [
                     Text(
                       item.friend.displayName,
-                      style: const TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: ResonanceColors.text,
+                      ),
                     ),
                     if (playing != null)
                       Text(
@@ -190,10 +194,10 @@ class FeedItemTile extends ConsumerWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.groups_rounded,
                   size: 18,
-                  color: ResonanceColors.primary,
+                  color: context.tokens.accent,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -201,7 +205,7 @@ class FeedItemTile extends ConsumerWidget {
                     [
                       'В комнате',
                       if (room.participants > 0)
-                        '${room.participants} слушателей',
+                        '${room.participants} ${ruPlural(room.participants, 'слушатель', 'слушателя', 'слушателей')}',
                       if (room.track case final track?)
                         '${track.title} — ${track.artist}',
                     ].join(' · '),
@@ -235,7 +239,7 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => CircleAvatar(
-    backgroundColor: ResonanceColors.surfaceHigh,
+    backgroundColor: context.tokens.surfaceHigh,
     child: Text(
       name.trim().isEmpty ? '?' : name.trim().characters.first.toUpperCase(),
     ),
@@ -550,7 +554,10 @@ class _PersonTile extends StatelessWidget {
             children: [
               Text(
                 person.displayName,
-                style: const TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: ResonanceColors.text,
+                ),
               ),
               if (person.handle != null)
                 Text(
@@ -594,7 +601,7 @@ class _CompatibilitySheetState extends ConsumerState<CompatibilitySheet> {
         context,
         count == 0
             ? 'В Blend пока нет доступных треков'
-            : '${mix.title}: $count треков в очереди',
+            : '${mix.title}: ${tracksLabel(count)} в очереди',
       );
       unawaited(Navigator.of(context).maybePop());
     } on Object catch (error) {
@@ -629,10 +636,10 @@ class _CompatibilitySheetState extends ConsumerState<CompatibilitySheet> {
                 children: [
                   Text(
                     value.enoughData ? '${value.percent}%' : '—',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 48,
                       fontWeight: FontWeight.w900,
-                      color: ResonanceColors.primary,
+                      color: context.tokens.accent,
                     ),
                   ),
                   Text(

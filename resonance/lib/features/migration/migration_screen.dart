@@ -191,7 +191,7 @@ class _MigrationScreenState extends ConsumerState<MigrationScreen> {
     final picked = await showModalBottomSheet<MigrationTrack>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: ResonanceColors.surface,
+      backgroundColor: context.tokens.surface,
       showDragHandle: true,
       builder: (_) => _ManualSearchSheet(api: _api, job: job, item: item),
     );
@@ -261,7 +261,7 @@ class _MigrationScreenState extends ConsumerState<MigrationScreen> {
       );
     }
     return Scaffold(
-      backgroundColor: ResonanceColors.background,
+      backgroundColor: context.tokens.background,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         title: const Text('Переезд'),
@@ -317,10 +317,10 @@ class _SignInPrompt extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.luggage_rounded,
                 size: 40,
-                color: ResonanceColors.primary,
+                color: context.tokens.accent,
               ),
               const SizedBox(height: 14),
               Text(
@@ -601,7 +601,7 @@ class _ReportView extends StatelessWidget {
               Text(
                 '${report.percent.toStringAsFixed(report.percent % 1 == 0 ? 0 : 1)}%',
                 style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                  color: ResonanceColors.primary,
+                  color: context.tokens.accent,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -635,7 +635,7 @@ class _ReportView extends StatelessWidget {
           runSpacing: 8,
           children: [
             _Stat('Точно', report.exact, ResonanceColors.success),
-            _Stat('Уверенно', report.high, ResonanceColors.primary),
+            _Stat('Уверенно', report.high, context.tokens.accent),
             _Stat('Проверить', report.low, ResonanceColors.yandex),
             _Stat('Не найдено', report.none, ResonanceColors.youtube),
             if (report.manual > 0)
@@ -740,16 +740,19 @@ class _ItemTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
       decoration: BoxDecoration(
-        color: ResonanceColors.surface,
+        color: context.tokens.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: ResonanceColors.border),
+        border: Border.all(color: context.tokens.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             '${item.source.artist} — ${item.source.title}',
-            style: const TextStyle(fontWeight: FontWeight.w700, color: ResonanceColors.text),
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: ResonanceColors.text,
+            ),
           ),
           const SizedBox(height: 2),
           Text(
@@ -942,7 +945,7 @@ class _ConfidenceBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, color) = switch (confidence) {
       MigrationConfidence.exact => ('точно', ResonanceColors.success),
-      MigrationConfidence.high => ('похоже', ResonanceColors.primary),
+      MigrationConfidence.high => ('похоже', context.tokens.accent),
       MigrationConfidence.low => ('сомнительно', ResonanceColors.yandex),
       MigrationConfidence.none => ('другое', ResonanceColors.muted),
     };
@@ -971,7 +974,10 @@ class _Route extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           migrationProviderTitle(provider),
-          style: const TextStyle(fontWeight: FontWeight.w700, color: ResonanceColors.text),
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            color: ResonanceColors.text,
+          ),
         ),
       ],
     );
@@ -1000,9 +1006,9 @@ class _Stat extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: ResonanceColors.surface,
+        color: context.tokens.surface,
         borderRadius: BorderRadius.circular(99),
-        border: Border.all(color: ResonanceColors.border),
+        border: Border.all(color: context.tokens.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1030,9 +1036,9 @@ class _Card extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: ResonanceColors.surface,
+        color: context.tokens.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: ResonanceColors.border),
+        border: Border.all(color: context.tokens.border),
       ),
       child: child,
     );

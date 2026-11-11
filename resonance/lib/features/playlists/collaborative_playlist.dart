@@ -10,6 +10,7 @@ import 'package:resonance/features/platform/feature_flags.dart';
 import 'package:resonance/features/platform/feature_playback.dart';
 import 'package:resonance/features/platform/feature_views.dart';
 import 'package:resonance/features/social/social_api.dart';
+import 'package:resonance/shared/russian_plural.dart';
 
 /// Wire contract for /api/v1/collab-playlists (docs/API-5.0.md §5).
 abstract final class CollabPaths {
@@ -319,7 +320,7 @@ class CollaborativePlaylistsScreen extends ConsumerWidget {
                       leading: const Icon(Icons.queue_music_rounded),
                       title: Text(item.name),
                       subtitle: Text(
-                        '${item.trackCount} треков · ${item.memberCount} участников · ${item.role.label}',
+                        '${tracksLabel(item.trackCount)} · ${item.memberCount} ${ruPlural(item.memberCount, 'участник', 'участника', 'участников')} · ${item.role.label}',
                       ),
                       trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () => context.push('/collab/${item.id}'),

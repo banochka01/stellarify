@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/features/library/library_controller.dart';
+import 'package:resonance/shared/russian_plural.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 
 class LibraryTransferDialog extends ConsumerStatefulWidget {
@@ -104,7 +105,7 @@ class _LibraryTransferDialogState extends ConsumerState<LibraryTransferDialog> {
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 680;
     return Dialog.fullscreen(
-      backgroundColor: ResonanceColors.background,
+      backgroundColor: context.tokens.background,
       child: Stack(
         children: [
           const Positioned.fill(child: _TransferBackdrop()),
@@ -306,7 +307,7 @@ class _ProviderChoice extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = _providerColor(provider);
     return Material(
-      color: selected ? color.withValues(alpha: .12) : ResonanceColors.surface,
+      color: selected ? color.withValues(alpha: .12) : context.tokens.surface,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         onTap: onTap,
@@ -317,7 +318,7 @@ class _ProviderChoice extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: selected ? color : ResonanceColors.border,
+              color: selected ? color : context.tokens.border,
               width: selected ? 1.5 : 1,
             ),
           ),
@@ -407,7 +408,7 @@ class _ProgressStage extends StatelessWidget {
                 child: CircularProgressIndicator(
                   value: progress.clamp(0, .88),
                   strokeWidth: 3,
-                  backgroundColor: ResonanceColors.border,
+                  backgroundColor: context.tokens.border,
                   color: _providerColor(provider),
                 ),
               ),
@@ -448,7 +449,7 @@ class _ProgressStage extends StatelessWidget {
                       : Icons.radio_button_unchecked_rounded,
                   size: 18,
                   color: index <= phase
-                      ? ResonanceColors.primary
+                      ? context.tokens.accent
                       : ResonanceColors.muted,
                 ),
                 const SizedBox(width: 12),
@@ -481,8 +482,8 @@ class _ResultStage extends StatelessWidget {
         Container(
           width: 72,
           height: 72,
-          decoration: const BoxDecoration(
-            color: ResonanceColors.primary,
+          decoration: BoxDecoration(
+            color: context.tokens.accent,
             shape: BoxShape.circle,
           ),
           child: const Icon(Icons.check_rounded, size: 38, color: Colors.black),
@@ -506,10 +507,23 @@ class _ResultStage extends StatelessWidget {
           children: [
             _ResultMetric(
               value: '${result.tracks}',
-              label: 'уникальных треков',
+              label: ruPlural(
+                result.tracks,
+                'уникальный трек',
+                'уникальных трека',
+                'уникальных треков',
+              ),
             ),
             _ResultMetric(value: '${result.favorites}', label: 'в избранном'),
-            _ResultMetric(value: '${result.playlists}', label: 'плейлистов'),
+            _ResultMetric(
+              value: '${result.playlists}',
+              label: ruPlural(
+                result.playlists,
+                'плейлист',
+                'плейлиста',
+                'плейлистов',
+              ),
+            ),
           ],
         ),
         if (result.truncated) ...[
@@ -540,9 +554,9 @@ class _ResultMetric extends StatelessWidget {
     width: 190,
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
-      color: ResonanceColors.surface,
+      color: context.tokens.surface,
       borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: ResonanceColors.border),
+      border: Border.all(color: context.tokens.border),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -570,11 +584,11 @@ class _TransferBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => DecoratedBox(
-    decoration: const BoxDecoration(
+    decoration: BoxDecoration(
       gradient: RadialGradient(
         center: Alignment(1.1, -.9),
         radius: 1.25,
-        colors: [Color(0x3322134B), ResonanceColors.background],
+        colors: [Color(0x3322134B), context.tokens.background],
       ),
     ),
   );

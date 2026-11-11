@@ -215,7 +215,7 @@ class _RoomChatPanelState extends ConsumerState<RoomChatPanel> {
                                   fontWeight: FontWeight.w800,
                                   color: mine
                                       ? ResonanceColors.live
-                                      : ResonanceColors.primary,
+                                      : context.tokens.accent,
                                 ),
                               ),
                               TextSpan(text: message.text),
@@ -433,9 +433,9 @@ class _Section extends StatelessWidget {
     constraints: const BoxConstraints(maxWidth: 680),
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
-      color: ResonanceColors.surface,
+      color: context.tokens.surface,
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: ResonanceColors.border),
+      border: Border.all(color: context.tokens.border),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,

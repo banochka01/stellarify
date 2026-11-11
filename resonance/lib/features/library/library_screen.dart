@@ -18,6 +18,7 @@ import 'package:resonance/features/offline/offline_controller.dart';
 import 'package:resonance/features/offline/offline_widgets.dart';
 import 'package:resonance/features/player/track_action.dart';
 import 'package:resonance/features/wave/wave_track_actions.dart';
+import 'package:resonance/shared/russian_plural.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/offline_download_button.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
@@ -226,7 +227,7 @@ class LibraryScreen extends ConsumerWidget {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          '«${result.name}»: перенесено ${result.trackCount} треков',
+          '«${result.name}»: перенесено ${tracksLabel(result.trackCount)}',
         ),
       ),
     );
@@ -398,7 +399,7 @@ class _LibraryHero extends ConsumerWidget {
         Text(
           state.tracks.isEmpty
               ? 'Здесь поселится твоя музыка'
-              : '${state.tracks.length} треков в одной коллекции',
+              : '${tracksLabel(state.tracks.length)} в одной коллекции',
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 8),
@@ -443,12 +444,22 @@ class _LibraryHero extends ConsumerWidget {
               _HeroMetric(
                 icon: Icons.favorite_rounded,
                 value: '${state.favorites.length}',
-                label: 'любимых',
+                label: ruPlural(
+                  state.favorites.length,
+                  'любимый',
+                  'любимых',
+                  'любимых',
+                ),
               ),
               _HeroMetric(
                 icon: Icons.queue_music_rounded,
                 value: '${state.playlists.length}',
-                label: 'плейлистов',
+                label: ruPlural(
+                  state.playlists.length,
+                  'плейлист',
+                  'плейлиста',
+                  'плейлистов',
+                ),
               ),
               if (state.tracks.isNotEmpty)
                 IconButton.filled(
@@ -492,7 +503,7 @@ class _HeroMetric extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: ResonanceColors.primary),
+        Icon(icon, size: 18, color: context.tokens.accent),
         const SizedBox(height: 14),
         Text(
           value,
@@ -538,7 +549,10 @@ class _TrackShelf extends ConsumerWidget {
                       track.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: ResonanceColors.text,
+                      ),
                     ),
                     const SizedBox(height: 3),
                     Text(
@@ -569,8 +583,8 @@ class _FavoriteTrack extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: ResonanceColors.border)),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: context.tokens.border)),
       ),
       child: ListTile(
         minTileHeight: 72,
@@ -580,7 +594,10 @@ class _FavoriteTrack extends ConsumerWidget {
           track.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w700, color: ResonanceColors.text),
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            color: ResonanceColors.text,
+          ),
         ),
         subtitle: Text(
           track.artist,
@@ -605,10 +622,7 @@ class _FavoriteTrack extends ConsumerWidget {
                     .read(libraryControllerProvider.notifier)
                     .toggleFavorite(track),
               ),
-              icon: const Icon(
-                Icons.favorite_rounded,
-                color: ResonanceColors.primary,
-              ),
+              icon: Icon(Icons.favorite_rounded, color: context.tokens.accent),
             ),
             IconButton(
               tooltip: 'Воспроизвести',
@@ -632,10 +646,10 @@ class _PlaylistCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return ResonancePressable(
       child: Material(
-        color: ResonanceColors.surface,
+        color: context.tokens.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: ResonanceColors.border),
+          side: BorderSide(color: context.tokens.border),
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
@@ -644,10 +658,10 @@ class _PlaylistCard extends ConsumerWidget {
             padding: const EdgeInsets.all(18),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.queue_music_rounded,
                   size: 32,
-                  color: ResonanceColors.primary,
+                  color: context.tokens.accent,
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -658,11 +672,14 @@ class _PlaylistCard extends ConsumerWidget {
                         playlist.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: ResonanceColors.text,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${playlist.trackCount} треков',
+                        tracksLabel(playlist.trackCount),
                         style: const TextStyle(
                           color: ResonanceColors.muted,
                           fontSize: 12,
@@ -818,7 +835,7 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 19, color: ResonanceColors.primary),
+        Icon(icon, size: 19, color: context.tokens.accent),
         const SizedBox(width: 9),
         Text(
           title,

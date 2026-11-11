@@ -10,6 +10,7 @@ import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/artist/artist_screen.dart';
 import 'package:resonance/features/recap/card_export.dart';
 import 'package:resonance/features/recap/listening_recap.dart';
+import 'package:resonance/shared/russian_plural.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/ambient.dart';
 import 'package:resonance/shared/widgets/aurora_backdrop.dart';
@@ -69,20 +70,20 @@ class _RecapScreenState extends ConsumerState<RecapScreen> {
     final hero = value?.topTracks.firstOrNull?.track;
     final compact = MediaQuery.sizeOf(context).width < 760;
     return Material(
-      color: ResonanceColors.background,
+      color: context.tokens.background,
       child: Stack(
         fit: StackFit.expand,
         children: [
           if (hero != null)
             AuroraBackdrop(track: hero, intensity: .9, animate: false)
           else
-            const ColoredBox(color: ResonanceColors.background),
-          const DecoratedBox(
+            ColoredBox(color: context.tokens.background),
+          DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Color(0x330E0B14), ResonanceColors.background],
+                colors: [Color(0x330E0B14), context.tokens.background],
                 stops: [0, .8],
               ),
             ),
@@ -155,31 +156,33 @@ class _RecapScreenState extends ConsumerState<RecapScreen> {
                                 child: WrappedTeaser(),
                               )
                             : recap.when(
-                          loading: () => const Padding(
-                            padding: EdgeInsets.all(80),
-                            child: Center(child: CircularProgressIndicator()),
-                          ),
-                          error: (_, _) => const _RecapEmpty(
-                            text: 'Не получилось прочитать историю.',
-                          ),
-                          data: (recap) => recap.empty
-                              ? _RecapEmpty(
-                                  text:
-                                      'Итоги ${recap.period.phrase} появятся, когда '
-                                      'вы послушаете что-нибудь хотя бы 30 секунд.',
-                                )
-                              : ResonanceEntrance(
-                                  key: ValueKey(recap.period),
-                                  child: _RecapBody(
-                                    recap: recap,
-                                    cardKey: _cardKey,
-                                    compact: compact,
-                                    saving: _saving,
-                                    onSave: () => _saveImage(recap),
-                                    onPlayTop: () => _playTop(recap),
+                                loading: () => const Padding(
+                                  padding: EdgeInsets.all(80),
+                                  child: Center(
+                                    child: CircularProgressIndicator(),
                                   ),
                                 ),
-                        ),
+                                error: (_, _) => const _RecapEmpty(
+                                  text: 'Не получилось прочитать историю.',
+                                ),
+                                data: (recap) => recap.empty
+                                    ? _RecapEmpty(
+                                        text:
+                                            'Итоги ${recap.period.phrase} появятся, когда '
+                                            'вы послушаете что-нибудь хотя бы 30 секунд.',
+                                      )
+                                    : ResonanceEntrance(
+                                        key: ValueKey(recap.period),
+                                        child: _RecapBody(
+                                          recap: recap,
+                                          cardKey: _cardKey,
+                                          compact: compact,
+                                          saving: _saving,
+                                          onSave: () => _saveImage(recap),
+                                          onPlayTop: () => _playTop(recap),
+                                        ),
+                                      ),
+                              ),
                       ),
                     ),
                   ),
@@ -296,8 +299,8 @@ class RecapCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final hero = recap.topTracks.firstOrNull?.track;
     final palette = hero == null ? null : watchTrackPalette(ref, hero);
-    final accent = palette?.accent ?? ResonanceColors.primary;
-    final glow = palette?.glow ?? ResonanceColors.primary;
+    final accent = palette?.accent ?? context.tokens.accent;
+    final glow = palette?.glow ?? context.tokens.accent;
     final artist = recap.topArtists.firstOrNull;
     return SizedBox(
       width: width,
@@ -481,10 +484,23 @@ class RecapCard extends ConsumerWidget {
                 ),
                 Row(
                   children: [
-                    _CardStat(value: '${recap.plays}', label: 'прослушиваний'),
+                    _CardStat(
+                      value: '${recap.plays}',
+                      label: ruPlural(
+                        recap.plays,
+                        'прослушивание',
+                        'прослушивания',
+                        'прослушиваний',
+                      ),
+                    ),
                     _CardStat(
                       value: '${recap.uniqueArtists}',
-                      label: 'артистов',
+                      label: ruPlural(
+                        recap.uniqueArtists,
+                        'артист',
+                        'артиста',
+                        'артистов',
+                      ),
                     ),
                     _CardStat(
                       value: '${recap.longestStreak}',
@@ -693,7 +709,7 @@ class _StatTile extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20, color: ResonanceColors.primary),
+        Icon(icon, size: 20, color: context.tokens.accent),
         const SizedBox(height: 10),
         Text(
           value,
@@ -718,10 +734,10 @@ class WrappedTeaser extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 64, horizontal: 8),
       child: Column(
         children: [
-          const Icon(
+          Icon(
             Icons.auto_awesome_rounded,
             size: 56,
-            color: ResonanceColors.primary,
+            color: context.tokens.accent,
           ),
           const SizedBox(height: 20),
           Text(

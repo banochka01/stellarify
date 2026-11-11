@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart' as audio_service;
 import 'package:resonance/core/database/app_database.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
+import 'package:resonance/shared/russian_plural.dart';
 
 /// Data needed by car/watch media browsers (Android Auto, CarPlay bridge).
 abstract interface class MediaBrowseSource {
@@ -45,16 +46,8 @@ final class MediaBrowseCatalog {
             title: 'Плейлисты',
             playable: false,
           ),
-          audio_service.MediaItem(
-            id: waveId,
-            title: 'Волна',
-            playable: true,
-          ),
-          audio_service.MediaItem(
-            id: mixesId,
-            title: 'Миксы',
-            playable: false,
-          ),
+          audio_service.MediaItem(id: waveId, title: 'Волна', playable: true),
+          audio_service.MediaItem(id: mixesId, title: 'Миксы', playable: false),
         ];
       case audio_service.AudioService.recentRootId:
       case recentId:
@@ -66,7 +59,7 @@ final class MediaBrowseCatalog {
             audio_service.MediaItem(
               id: '$_playlistPrefix${playlist.id}',
               title: playlist.name,
-              album: '${playlist.trackCount} треков',
+              album: tracksLabel(playlist.trackCount),
               playable: false,
             ),
         ];

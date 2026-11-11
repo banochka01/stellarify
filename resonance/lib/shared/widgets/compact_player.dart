@@ -31,7 +31,7 @@ class CompactPlayer extends ConsumerWidget {
     void run(QuickAction action) => unawaited(actions.run(action));
     final textTheme = Theme.of(context).textTheme;
     return Material(
-      color: ResonanceColors.background,
+      color: context.tokens.background,
       child: DragToMoveArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -44,7 +44,7 @@ class CompactPlayer extends ConsumerWidget {
                   width: 72,
                   height: 72,
                   decoration: BoxDecoration(
-                    color: ResonanceColors.surfaceHigh,
+                    color: context.tokens.surfaceHigh,
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: const Icon(
@@ -103,7 +103,7 @@ class CompactPlayer extends ConsumerWidget {
                           icon: liked
                               ? Icons.favorite_rounded
                               : Icons.favorite_border_rounded,
-                          color: liked ? ResonanceColors.primary : null,
+                          color: liked ? context.tokens.accent : null,
                           onPressed: track == null
                               ? null
                               : () => run(QuickAction.like),

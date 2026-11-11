@@ -70,8 +70,8 @@ class _SectionTitle extends StatelessWidget {
             ),
             child: Text(
               '$badge новых',
-              style: const TextStyle(
-                color: ResonanceColors.background,
+              style: TextStyle(
+                color: context.tokens.background,
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
               ),
@@ -157,7 +157,7 @@ class _MixCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tint = _tints[mix.kind] ?? ResonanceColors.primary;
+    final tint = _tints[mix.kind] ?? context.tokens.accent;
     return SizedBox(
       width: size,
       child: InkWell(
@@ -297,20 +297,20 @@ class _FreshWeekCard extends ConsumerWidget {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [ResonanceColors.live, ResonanceColors.primary],
+                colors: [ResonanceColors.live, context.tokens.accent],
               ),
             ),
             alignment: Alignment.bottomLeft,
-            child: const Text(
+            child: Text(
               'Свежее\nза неделю',
               style: TextStyle(
                 fontFamily: ResonanceFonts.display,
                 fontSize: 17,
                 fontWeight: FontWeight.w700,
-                color: ResonanceColors.background,
+                color: context.tokens.background,
               ),
             ),
           ),
@@ -353,7 +353,7 @@ class _ReleaseCard extends ConsumerWidget {
                   ? Container(
                       width: size,
                       height: size,
-                      color: ResonanceColors.surfaceRaised,
+                      color: context.tokens.surfaceRaised,
                       child: const Icon(Icons.album_rounded, size: 40),
                     )
                   : Image.network(
@@ -367,7 +367,7 @@ class _ReleaseCard extends ConsumerWidget {
                       errorBuilder: (_, _, _) => Container(
                         width: size,
                         height: size,
-                        color: ResonanceColors.surfaceRaised,
+                        color: context.tokens.surfaceRaised,
                       ),
                     ),
             ),
@@ -376,7 +376,10 @@ class _ReleaseCard extends ConsumerWidget {
               release.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w700, color: ResonanceColors.text),
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                color: ResonanceColors.text,
+              ),
             ),
             Text(
               '${release.kindLabel} · ${release.artist}',

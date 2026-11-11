@@ -12,6 +12,7 @@ import 'package:resonance/features/platform/feature_flags.dart';
 import 'package:resonance/features/platform/feature_playback.dart';
 import 'package:resonance/features/platform/feature_views.dart';
 import 'package:resonance/features/player/track_action.dart';
+import 'package:resonance/shared/russian_plural.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 
 /// Node cap: weak Android phones get a smaller canvas budget.
@@ -226,7 +227,7 @@ class _MusicGraphCanvasState extends ConsumerState<MusicGraphCanvas> {
             child: SizedBox(
               height: 360,
               child: ColoredBox(
-                color: ResonanceColors.background,
+                color: context.tokens.background,
                 child: InteractiveViewer(
                   constrained: false,
                   minScale: .3,
@@ -245,6 +246,7 @@ class _MusicGraphCanvasState extends ConsumerState<MusicGraphCanvas> {
                           selected: _selected,
                           personalLayer: _personalLayer,
                           revision: _revision,
+                          accent: context.tokens.accent,
                           onNodeTap: (id) => unawaited(selectNode(id)),
                         ),
                       ),
@@ -288,13 +290,16 @@ class _MusicGraphCanvasState extends ConsumerState<MusicGraphCanvas> {
                   selected.kind == GraphNodeKind.track
                       ? Icons.music_note_rounded
                       : Icons.person_rounded,
-                  color: ResonanceColors.primary,
+                  color: context.tokens.accent,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     selected.label,
-                    style: const TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: ResonanceColors.text,
+                    ),
                   ),
                 ),
                 if (selected.track != null)
@@ -332,10 +337,14 @@ class _GraphPainter extends CustomPainter {
     required this.selected,
     required this.personalLayer,
     required this.revision,
+    required this.accent,
     required this.onNodeTap,
   });
 
   final GraphViewport viewport;
+
+  /// Theme accent: marks nodes from the listener's own library.
+  final Color accent;
   final String? selected;
   final bool personalLayer;
   final int revision;
@@ -408,7 +417,7 @@ class _GraphPainter extends CustomPainter {
           : 8.0 + data.degreeOf(id).clamp(0, 12).toDouble();
       fill.color =
           (node.personal && personalLayer
-                  ? ResonanceColors.primary
+                  ? accent
                   : node.kind == GraphNodeKind.track
                   ? ResonanceColors.secondary
                   : ResonanceColors.vk)
@@ -446,6 +455,7 @@ class _GraphPainter extends CustomPainter {
   bool shouldRepaint(_GraphPainter oldDelegate) =>
       oldDelegate.revision != revision ||
       oldDelegate.selected != selected ||
+      oldDelegate.accent != accent ||
       oldDelegate.personalLayer != personalLayer;
 }
 
@@ -488,7 +498,7 @@ class _GraphPathRadioPanelState extends ConsumerState<GraphPathRadioPanel> {
             ? 'Прямого пути нет — играем ближайшее'
             : count == 0
             ? 'По пути не нашлось доступных треков'
-            : 'Радио по пути: $count треков',
+            : 'Радио по пути: ${tracksLabel(count)}',
       );
     } on Object catch (error) {
       if (mounted) showFeatureSnack(context, featureErrorText(error));
@@ -504,7 +514,10 @@ class _GraphPathRadioPanelState extends ConsumerState<GraphPathRadioPanel> {
       children: [
         const Text(
           'Радио по пути A → B',
-          style: TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text),
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: ResonanceColors.text,
+          ),
         ),
         const SizedBox(height: 4),
         const Text(
@@ -563,7 +576,10 @@ class BlindSpotsPanel extends ConsumerWidget {
         children: [
           const Text(
             'Белые пятна',
-            style: TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text),
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: ResonanceColors.text,
+            ),
           ),
           const Text(
             'Рядом с вашей музыкой, но ещё не в медиатеке.',

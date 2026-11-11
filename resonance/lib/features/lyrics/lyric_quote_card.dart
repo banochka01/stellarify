@@ -21,7 +21,7 @@ Future<void> showLyricQuotePicker(
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
-    backgroundColor: ResonanceColors.surface,
+    backgroundColor: context.tokens.surface,
     builder: (context) => SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -110,7 +110,7 @@ class _QuoteDialogState extends State<_QuoteDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: ResonanceColors.surface,
+      backgroundColor: context.tokens.surface,
       insetPadding: const EdgeInsets.all(16),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 440),

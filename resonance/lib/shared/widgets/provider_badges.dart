@@ -59,7 +59,7 @@ class ProviderBadge extends StatelessWidget {
         height: dimension,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: ResonanceColors.surfaceRaised.withValues(alpha: .9),
+          color: context.tokens.surfaceRaised.withValues(alpha: .9),
           shape: BoxShape.circle,
         ),
         child: ProviderLogo(provider: provider, size: compact ? 15 : 19),

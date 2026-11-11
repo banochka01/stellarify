@@ -10,6 +10,7 @@ import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/music_graph/music_graph.dart';
 import 'package:resonance/features/music_graph/music_graph_map_view.dart';
 import 'package:resonance/features/player/track_action.dart';
+import 'package:resonance/shared/russian_plural.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/provider_badges.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
@@ -50,10 +51,10 @@ class _MusicGraphScreenState extends ConsumerState<MusicGraphScreen> {
           ),
           sliver: SliverList.list(
             children: [
-              const Text(
+              Text(
                 'MUSIC GRAPH',
                 style: TextStyle(
-                  color: ResonanceColors.primary,
+                  color: context.tokens.accent,
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.8,
@@ -227,12 +228,41 @@ class _GraphContent extends StatelessWidget {
           spacing: 10,
           runSpacing: 10,
           children: [
-            _Metric(value: '${graph.nodes.length}', label: 'композиций'),
-            _Metric(value: '${graph.sourceCount}', label: 'источников'),
-            _Metric(value: '${graph.artistCount}', label: 'артистов'),
+            _Metric(
+              value: '${graph.nodes.length}',
+              label: ruPlural(
+                graph.nodes.length,
+                'композиция',
+                'композиции',
+                'композиций',
+              ),
+            ),
+            _Metric(
+              value: '${graph.sourceCount}',
+              label: ruPlural(
+                graph.sourceCount,
+                'источник',
+                'источника',
+                'источников',
+              ),
+            ),
+            _Metric(
+              value: '${graph.artistCount}',
+              label: ruPlural(
+                graph.artistCount,
+                'артист',
+                'артиста',
+                'артистов',
+              ),
+            ),
             _Metric(
               value: '${graph.duplicateCount}',
-              label: 'совпадений',
+              label: ruPlural(
+                graph.duplicateCount,
+                'совпадение',
+                'совпадения',
+                'совпадений',
+              ),
               accent: graph.duplicateCount > 0,
             ),
           ],
@@ -311,13 +341,13 @@ class _GraphExplorer extends StatelessWidget {
       height: 500,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: ResonanceColors.surface,
+        color: context.tokens.surface,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: ResonanceColors.border),
-        gradient: const RadialGradient(
+        border: Border.all(color: context.tokens.border),
+        gradient: RadialGradient(
           center: Alignment(.05, -.1),
           radius: 1.1,
-          colors: [Color(0x223EFFA2), ResonanceColors.surface],
+          colors: [Color(0x223EFFA2), context.tokens.surface],
         ),
       ),
       child: LayoutBuilder(
@@ -342,7 +372,11 @@ class _GraphExplorer extends StatelessWidget {
             children: [
               Positioned.fill(
                 child: CustomPaint(
-                  painter: _GraphLines(center: center, points: positions),
+                  painter: _GraphLines(
+                    center: center,
+                    points: positions,
+                    color: context.tokens.accent,
+                  ),
                 ),
               ),
               _NodeBubble(
@@ -367,15 +401,20 @@ class _GraphExplorer extends StatelessWidget {
 }
 
 class _GraphLines extends CustomPainter {
-  const _GraphLines({required this.center, required this.points});
+  const _GraphLines({
+    required this.center,
+    required this.points,
+    required this.color,
+  });
 
   final Offset center;
   final List<Offset> points;
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = ResonanceColors.primary.withValues(alpha: .26)
+      ..color = color.withValues(alpha: .26)
       ..strokeWidth = 1.2;
     for (final point in points) {
       canvas.drawLine(center, point, paint);
@@ -385,7 +424,9 @@ class _GraphLines extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _GraphLines oldDelegate) =>
-      oldDelegate.center != center || oldDelegate.points != points;
+      oldDelegate.center != center ||
+      oldDelegate.points != points ||
+      oldDelegate.color != color;
 }
 
 class _NodeBubble extends StatelessWidget {
@@ -419,18 +460,16 @@ class _NodeBubble extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: selected
-                  ? ResonanceColors.primary.withValues(alpha: .18)
-                  : ResonanceColors.surfaceHigh,
+                  ? context.tokens.accent.withValues(alpha: .18)
+                  : context.tokens.surfaceHigh,
               border: Border.all(
-                color: selected
-                    ? ResonanceColors.primary
-                    : ResonanceColors.border,
+                color: selected ? context.tokens.accent : context.tokens.border,
                 width: selected ? 2 : 1,
               ),
               boxShadow: selected
                   ? [
                       BoxShadow(
-                        color: ResonanceColors.primary.withValues(alpha: .18),
+                        color: context.tokens.accent.withValues(alpha: .18),
                         blurRadius: 28,
                       ),
                     ]
@@ -444,7 +483,7 @@ class _NodeBubble extends StatelessWidget {
                       ? Icons.hub_rounded
                       : Icons.music_note_rounded,
                   color: selected
-                      ? ResonanceColors.primary
+                      ? context.tokens.accent
                       : ResonanceColors.muted,
                   size: selected ? 30 : 22,
                 ),
@@ -487,9 +526,9 @@ class _NodeDetails extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(22),
     decoration: BoxDecoration(
-      color: ResonanceColors.surface,
+      color: context.tokens.surface,
       borderRadius: BorderRadius.circular(24),
-      border: Border.all(color: ResonanceColors.border),
+      border: Border.all(color: context.tokens.border),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -538,8 +577,8 @@ class _NodeDetails extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             '${node.duplicateCount + 1} записи распознаны как одна композиция.',
-            style: const TextStyle(
-              color: ResonanceColors.primary,
+            style: TextStyle(
+              color: context.tokens.accent,
               fontSize: 12,
               height: 1.4,
             ),
@@ -576,11 +615,11 @@ class _Metric extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     decoration: BoxDecoration(
       color: accent
-          ? ResonanceColors.primary.withValues(alpha: .1)
-          : ResonanceColors.surface,
+          ? context.tokens.accent.withValues(alpha: .1)
+          : context.tokens.surface,
       borderRadius: BorderRadius.circular(16),
       border: Border.all(
-        color: accent ? ResonanceColors.primary : ResonanceColors.border,
+        color: accent ? context.tokens.accent : context.tokens.border,
       ),
     ),
     child: Column(
@@ -622,7 +661,13 @@ class _GraphMessage extends StatelessWidget {
         children: [
           Icon(icon, size: 52, color: ResonanceColors.muted),
           const SizedBox(height: 16),
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w900, color: ResonanceColors.text)),
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              color: ResonanceColors.text,
+            ),
+          ),
           const SizedBox(height: 7),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),

@@ -1393,7 +1393,7 @@ class _DiscordPresenceCardState extends ConsumerState<_DiscordPresenceCard> {
     final statusColor = state.connected
         ? ResonanceColors.success
         : state.connecting || state.enabled
-        ? ResonanceColors.primary
+        ? context.tokens.accent
         : ResonanceColors.muted;
 
     return Card(
@@ -1736,7 +1736,7 @@ class _ConnectionCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: connected || serverConnected
                         ? ResonanceColors.success.withValues(alpha: 0.12)
-                        : ResonanceColors.surfaceHigh,
+                        : context.tokens.surfaceHigh,
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(

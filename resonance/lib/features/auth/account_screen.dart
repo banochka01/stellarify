@@ -234,10 +234,7 @@ class _AccountForm extends StatelessWidget {
               ],
               if (message != null) ...[
                 const SizedBox(height: 12),
-                Text(
-                  message!,
-                  style: const TextStyle(color: ResonanceColors.primary),
-                ),
+                Text(message!, style: TextStyle(color: context.tokens.accent)),
               ],
               const SizedBox(height: 18),
               FilledButton.icon(
@@ -305,7 +302,7 @@ class _ConnectedAccount extends ConsumerWidget {
             if (!user.emailVerified) ...[
               const SizedBox(height: 16),
               Material(
-                color: ResonanceColors.primary.withValues(alpha: 0.1),
+                color: context.tokens.accent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(14),
                 child: ListTile(
                   key: const ValueKey('account-verify'),

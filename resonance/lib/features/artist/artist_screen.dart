@@ -13,6 +13,7 @@ import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/music_graph/music_graph.dart';
 import 'package:resonance/features/player/track_action.dart';
 import 'package:resonance/features/wave/wave_controller.dart';
+import 'package:resonance/shared/russian_plural.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/ambient.dart';
 import 'package:resonance/shared/widgets/aurora_backdrop.dart';
@@ -97,7 +98,7 @@ class ArtistScreen extends ConsumerWidget {
     final liked = list.where((t) => favorites.contains(t.id)).length;
 
     return Material(
-      color: ResonanceColors.background,
+      color: context.tokens.background,
       child: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(
@@ -132,12 +133,12 @@ class ArtistScreen extends ConsumerWidget {
                         ),
                       ),
                     ),
-                  const DecoratedBox(
+                  DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [Color(0x00000000), ResonanceColors.background],
+                        colors: [Color(0x00000000), context.tokens.background],
                         stops: [.45, 1],
                       ),
                     ),
@@ -203,7 +204,7 @@ class ArtistScreen extends ConsumerWidget {
                                 Text(
                                   tracks.isLoading
                                       ? 'Собираем дискографию…'
-                                      : '${list.length} треков'
+                                      : '${tracksLabel(list.length)}'
                                             '${liked > 0 ? ' · $liked в любимых' : ''}',
                                   style: const TextStyle(
                                     color: Color(0xFFC9BFD3),
@@ -468,7 +469,7 @@ class _ArtistAvatar extends StatelessWidget {
       ),
       child: track == null
           ? CircleAvatar(
-              backgroundColor: ResonanceColors.surfaceRaised,
+              backgroundColor: context.tokens.surfaceRaised,
               child: Text(
                 name.characters.firstOrNull?.toUpperCase() ?? '?',
                 style: TextStyle(
@@ -547,9 +548,9 @@ class _ArtistTrackRow extends ConsumerWidget {
                 SizedBox(
                   width: 28,
                   child: active
-                      ? const Icon(
+                      ? Icon(
                           Icons.graphic_eq_rounded,
-                          color: ResonanceColors.primary,
+                          color: context.tokens.accent,
                           size: 18,
                         )
                       : Text(
@@ -578,7 +579,7 @@ class _ArtistTrackRow extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
-                          color: active ? ResonanceColors.primary : null,
+                          color: active ? context.tokens.accent : null,
                         ),
                       ),
                       const SizedBox(height: 3),
@@ -646,7 +647,10 @@ class _ArtistTrackCard extends ConsumerWidget {
                 track.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w700, color: ResonanceColors.text),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: ResonanceColors.text,
+                ),
               ),
             ],
           ),

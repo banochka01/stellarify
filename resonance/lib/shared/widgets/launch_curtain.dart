@@ -72,7 +72,7 @@ class _LaunchCurtainState extends State<LaunchCurtain>
     );
     final background =
         Theme.of(context).extension<ResonanceTokens>()?.background ??
-        ResonanceColors.background;
+        context.tokens.background;
     final accent = Theme.of(context).colorScheme.primary;
 
     return Stack(

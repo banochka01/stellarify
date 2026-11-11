@@ -45,11 +45,11 @@ class FeaturePage extends StatelessWidget {
             Expanded(
               child: Text(
                 eyebrow,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.8,
-                  color: ResonanceColors.primary,
+                  color: context.tokens.accent,
                 ),
               ),
             ),
@@ -109,13 +109,13 @@ class FeatureCard extends StatelessWidget {
     padding: const EdgeInsets.only(bottom: 12),
     // Material (not a decorated box) so nested ListTiles keep ink effects.
     child: Material(
-      color: ResonanceColors.surface,
+      color: context.tokens.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
         side: BorderSide(
           color: highlight
-              ? ResonanceColors.primary.withValues(alpha: .4)
-              : ResonanceColors.border,
+              ? context.tokens.accent.withValues(alpha: .4)
+              : context.tokens.border,
         ),
       ),
       child: Padding(
@@ -156,7 +156,13 @@ class FeatureUnavailableView extends StatelessWidget {
             color: ResonanceColors.muted,
           ),
           const SizedBox(height: 10),
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text)),
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              color: ResonanceColors.text,
+            ),
+          ),
           const SizedBox(height: 4),
           const Text(
             'Остальные функции продолжают работать.',
@@ -207,7 +213,7 @@ class FeatureCover extends StatelessWidget {
     final placeholder = Container(
       width: size,
       height: size,
-      color: ResonanceColors.surfaceHigh,
+      color: context.tokens.surfaceHigh,
       child: const Icon(Icons.album_rounded, color: ResonanceColors.muted),
     );
     final source = url;

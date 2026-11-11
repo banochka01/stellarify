@@ -168,7 +168,7 @@ class NewReleasesBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
     decoration: BoxDecoration(
-      color: ResonanceColors.primary,
+      color: context.tokens.accent,
       borderRadius: BorderRadius.circular(99),
     ),
     child: Text(
@@ -206,7 +206,10 @@ class _ReleaseTile extends StatelessWidget {
                 release.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: ResonanceColors.text,
+                ),
               ),
               Text(
                 [
@@ -262,7 +265,7 @@ class _ConcertTile extends StatelessWidget {
   Widget build(BuildContext context) => FeatureCard(
     child: Row(
       children: [
-        const Icon(Icons.event_rounded, color: ResonanceColors.primary),
+        Icon(Icons.event_rounded, color: context.tokens.accent),
         const SizedBox(width: 14),
         Expanded(
           child: Column(
@@ -270,7 +273,10 @@ class _ConcertTile extends StatelessWidget {
             children: [
               Text(
                 concert.place,
-                style: const TextStyle(fontWeight: FontWeight.w700, color: ResonanceColors.text),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: ResonanceColors.text,
+                ),
               ),
               Text(
                 formatShortDate(concert.date),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/features/platform/feature_flags.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/features/rooms/room_dj_panel.dart';
@@ -11,6 +12,7 @@ import 'package:resonance/features/rooms/room_live_widgets.dart';
 import 'package:resonance/features/rooms/room_queue_panel.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
+import 'package:resonance/shared/widgets/resonance_states.dart';
 
 class RoomsScreen extends ConsumerStatefulWidget {
   const RoomsScreen({this.initialLink, super.key});
@@ -36,9 +38,32 @@ class _RoomsScreenState extends ConsumerState<RoomsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 650;
+    // Комнаты живут на сервере: без адреса API контроллер не создать, поэтому
+    // вместо падения экрана показываем, что нужно сделать.
+    if (BackendEndpoint.displayValue.isEmpty) {
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Padding(
+            padding: EdgeInsets.all(compact ? 18 : 34),
+            child: ResonanceEmptyState(
+              icon: Icons.cloud_off_rounded,
+              title: 'Комнаты недоступны',
+              message:
+                  'Сервер Resonance не настроен. Укажите адрес сервера '
+                  'в настройках, чтобы слушать вместе.',
+              action: FilledButton(
+                onPressed: () => context.go('/settings'),
+                child: const Text('Открыть настройки'),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     final room = ref.watch(roomControllerProvider);
     final controller = ref.read(roomControllerProvider.notifier);
-    final compact = MediaQuery.sizeOf(context).width < 650;
     return ListView(
       padding: EdgeInsets.fromLTRB(
         compact ? 18 : 34,
@@ -49,14 +74,14 @@ class _RoomsScreenState extends ConsumerState<RoomsScreen> {
       children: [
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
                 'СЛУШАТЬ ВМЕСТЕ',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.8,
-                  color: ResonanceColors.primary,
+                  color: context.tokens.accent,
                 ),
               ),
             ),
@@ -136,10 +161,7 @@ class _RoomsScreenState extends ConsumerState<RoomsScreen> {
         ),
         if (room.error != null) ...[
           const SizedBox(height: 16),
-          Text(
-            room.error!,
-            style: const TextStyle(color: ResonanceColors.primary),
-          ),
+          Text(room.error!, style: TextStyle(color: context.tokens.accent)),
         ],
       ],
     );
@@ -195,9 +217,9 @@ class _JoinPanel extends StatelessWidget {
     constraints: const BoxConstraints(maxWidth: 680),
     padding: const EdgeInsets.all(24),
     decoration: BoxDecoration(
-      color: ResonanceColors.surface,
+      color: context.tokens.surface,
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: ResonanceColors.border),
+      border: Border.all(color: context.tokens.border),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -292,19 +314,16 @@ class _ActiveRoom extends ConsumerWidget {
     constraints: const BoxConstraints(maxWidth: 680),
     padding: const EdgeInsets.all(24),
     decoration: BoxDecoration(
-      color: ResonanceColors.surface,
+      color: context.tokens.surface,
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: ResonanceColors.primary.withValues(alpha: .35)),
+      border: Border.all(color: context.tokens.accent.withValues(alpha: .35)),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            const Icon(
-              Icons.graphic_eq_rounded,
-              color: ResonanceColors.primary,
-            ),
+            Icon(Icons.graphic_eq_rounded, color: context.tokens.accent),
             const SizedBox(width: 10),
             Text(
               'КОМНАТА ${room.code}',
@@ -375,7 +394,7 @@ class _ActiveRoom extends ConsumerWidget {
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: CircleAvatar(
-              backgroundColor: ResonanceColors.surfaceHigh,
+              backgroundColor: context.tokens.surfaceHigh,
               child: Text(participant.name.characters.first.toUpperCase()),
             ),
             title: Text(participant.name),

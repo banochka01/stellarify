@@ -4,6 +4,12 @@ import 'package:resonance/shared/theme/resonance_tokens.dart';
 
 export 'package:resonance/shared/theme/resonance_tokens.dart';
 
+/// Fixed colours of the default «Эфир» preset plus brand colours.
+///
+/// Surfaces and the accent differ per theme preset: in widgets read them from
+/// `context.tokens` ([ResonanceTokens]). The constants below stay for
+/// preset-independent values (text, live, provider brands) and for places
+/// without a [BuildContext].
 abstract final class ResonanceColors {
   // «Эфир»: баклажанная ночь, сиреневый — действие, лайм — то, что live.
   static const background = Color(0xFF0E0B14);
@@ -94,7 +100,9 @@ abstract final class ResonanceTheme {
 
     final tokens = ResonanceTokens(
       background: palette.background,
+      chrome: Color.lerp(palette.background, Colors.black, .45)!,
       surface: palette.surface,
+      surfaceHigh: Color.lerp(palette.surface, palette.raised, .5)!,
       surfaceRaised: palette.raised,
       border: palette.border,
       accent: palette.primary,
@@ -169,7 +177,10 @@ abstract final class ResonanceTheme {
         titleMedium: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         titleSmall: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
         bodyLarge: TextStyle(height: 1.5),
-        bodyMedium: TextStyle(color: ResonanceColors.muted, height: 1.5),
+        // Стиль по умолчанию для любого Text: основной цвет. Второстепенный
+        // текст задаёт приглушённый цвет явно — иначе заголовки без цвета
+        // получались тусклее собственных подписей.
+        bodyMedium: TextStyle(color: ResonanceColors.text, height: 1.5),
         labelLarge: TextStyle(
           fontWeight: FontWeight.w700,
           color: ResonanceColors.text,
@@ -211,8 +222,8 @@ abstract final class ResonanceTheme {
           ),
         ),
       ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: ResonanceColors.background,
+      appBarTheme: AppBarTheme(
+        backgroundColor: palette.background,
         surfaceTintColor: Colors.transparent,
         centerTitle: true,
       ),
@@ -241,7 +252,7 @@ abstract final class ResonanceTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: palette.primary,
-          foregroundColor: ResonanceColors.background,
+          foregroundColor: palette.background,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(99),
           ),
@@ -270,12 +281,14 @@ abstract final class ResonanceTheme {
               ? palette.primary
               : palette.raised;
         }),
-        labelStyle: WidgetStateTextStyle.resolveWith(
-          (states) => TextStyle(
-            fontFamily: ResonanceFonts.body,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: states.contains(WidgetState.selected)
+        // Обычный TextStyle с цветом-состоянием: WidgetStateTextStyle чип
+        // сливает как пустой стиль, и подпись невыбранного чипа теряла шрифт.
+        labelStyle: TextStyle(
+          fontFamily: ResonanceFonts.body,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: WidgetStateColor.resolveWith(
+            (states) => states.contains(WidgetState.selected)
                 ? palette.background
                 : ResonanceColors.text,
           ),

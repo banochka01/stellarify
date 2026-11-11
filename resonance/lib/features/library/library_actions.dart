@@ -4,6 +4,7 @@ import 'package:resonance/domain/entities/unified_track.dart';
 import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/features/platform/feature_views.dart';
 import 'package:resonance/features/playlists/collaborative_playlist.dart';
+import 'package:resonance/shared/russian_plural.dart';
 
 Future<void> showAddToPlaylistDialog(
   BuildContext context,
@@ -25,7 +26,7 @@ Future<void> showAddToPlaylistDialog(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.playlist_play_rounded),
               title: Text(playlist.name),
-              subtitle: Text('${playlist.trackCount} треков'),
+              subtitle: Text(tracksLabel(playlist.trackCount)),
             ),
           ),
         for (final playlist in shared)
@@ -36,7 +37,9 @@ Future<void> showAddToPlaylistDialog(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.group_rounded),
               title: Text(playlist.name),
-              subtitle: Text('Совместный · ${playlist.trackCount} треков'),
+              subtitle: Text(
+                'Совместный · ${tracksLabel(playlist.trackCount)}',
+              ),
             ),
           ),
         SimpleDialogOption(

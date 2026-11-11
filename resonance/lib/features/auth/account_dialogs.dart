@@ -30,9 +30,9 @@ Widget _errorLine(String? message) => message == null
     ? const SizedBox.shrink()
     : Padding(
         padding: const EdgeInsets.only(top: 12),
-        child: Text(
-          message,
-          style: const TextStyle(color: ResonanceColors.primary),
+        child: Builder(
+          builder: (context) =>
+              Text(message, style: TextStyle(color: context.tokens.accent)),
         ),
       );
 

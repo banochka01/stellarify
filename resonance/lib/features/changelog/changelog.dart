@@ -189,10 +189,10 @@ class _EntryCard extends StatelessWidget {
           children: [
             Text(
               entry.version,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w900,
-                color: ResonanceColors.primary,
+                color: context.tokens.accent,
               ),
             ),
             const SizedBox(width: 10),
@@ -209,7 +209,10 @@ class _EntryCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             entry.title,
-            style: const TextStyle(fontWeight: FontWeight.w800, color: ResonanceColors.text),
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              color: ResonanceColors.text,
+            ),
           ),
         ],
         const SizedBox(height: 8),

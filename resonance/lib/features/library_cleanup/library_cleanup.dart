@@ -9,6 +9,7 @@ import 'package:resonance/features/music_graph/music_graph.dart';
 import 'package:resonance/features/platform/feature_api.dart';
 import 'package:resonance/features/platform/feature_flags.dart';
 import 'package:resonance/features/platform/feature_views.dart';
+import 'package:resonance/shared/russian_plural.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 
 enum CleanupKind { duplicate, replacement }
@@ -256,7 +257,7 @@ class _LibraryCleanupScreenState extends ConsumerState<LibraryCleanupScreen> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Применить чистку?'),
         content: Text(
-          'Будет заменено ${counts.tracks} треков в ${counts.places} местах (избранное и плейлисты). Сразу после применения действие можно отменить.',
+          'Будет заменено ${tracksLabel(counts.tracks)} в ${counts.places} ${ruPlural(counts.places, 'месте', 'местах', 'местах')} (избранное и плейлисты). Сразу после применения действие можно отменить.',
         ),
         actions: [
           TextButton(
@@ -441,7 +442,10 @@ class _LibraryCleanupScreenState extends ConsumerState<LibraryCleanupScreen> {
             : null,
         title: Text(
           item.keep.label,
-          style: const TextStyle(fontWeight: FontWeight.w700, color: ResonanceColors.text),
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            color: ResonanceColors.text,
+          ),
         ),
         subtitle: Text(
           [details, ?item.reason].join(' · '),

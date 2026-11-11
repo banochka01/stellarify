@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
+import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/playback_position.dart';
 import 'package:resonance/shared/widgets/resonance_motion.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
@@ -192,7 +193,7 @@ class RoundControl extends StatelessWidget {
     required this.onPressed,
     this.active = false,
     this.size = 52,
-    this.activeColor = const Color(0xFFB499FF),
+    this.activeColor,
     super.key,
   });
 
@@ -201,10 +202,13 @@ class RoundControl extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool active;
   final double size;
-  final Color activeColor;
+
+  /// Defaults to the theme accent.
+  final Color? activeColor;
 
   @override
   Widget build(BuildContext context) {
+    final activeColor = this.activeColor ?? context.tokens.accent;
     final duration = ResonanceMotion.durationOf(
       context,
       ResonanceMotion.standard,
@@ -372,7 +376,7 @@ class AmbientProgress extends StatefulWidget {
   const AmbientProgress({
     required this.duration,
     required this.onSeek,
-    this.accent = const Color(0xFFB499FF),
+    this.accent,
     this.showTimes = true,
     super.key,
   });
@@ -380,7 +384,9 @@ class AmbientProgress extends StatefulWidget {
   /// Длительность из метаданных трека, пока движок её не сообщил.
   final Duration duration;
   final ValueChanged<Duration> onSeek;
-  final Color accent;
+
+  /// Defaults to the theme accent.
+  final Color? accent;
   final bool showTimes;
 
   @override
@@ -471,6 +477,7 @@ class _AmbientProgressState extends State<AmbientProgress> {
           });
         }
 
+        final accent = widget.accent ?? context.tokens.accent;
         final thickness = active ? 5.0 : 3.0;
         return Semantics(
           slider: true,
@@ -520,11 +527,14 @@ class _AmbientProgressState extends State<AmbientProgress> {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(99),
                         gradient: LinearGradient(
-                          colors: [const Color(0xFFB499FF), widget.accent],
+                          colors: [
+                            Color.lerp(accent, Colors.white, .18)!,
+                            accent,
+                          ],
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: widget.accent.withValues(alpha: .35),
+                            color: accent.withValues(alpha: .35),
                             blurRadius: 10,
                           ),
                         ],
@@ -544,7 +554,7 @@ class _AmbientProgressState extends State<AmbientProgress> {
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: widget.accent.withValues(alpha: .55),
+                                color: accent.withValues(alpha: .55),
                                 blurRadius: 12,
                               ),
                             ],

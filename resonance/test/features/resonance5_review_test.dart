@@ -155,7 +155,7 @@ void main() {
         await tester.tap(find.byKey(const ValueKey('cleanup-apply')));
         await tester.pumpAndSettle();
         expect(
-          find.textContaining('Будет заменено 2 треков в 4 местах'),
+          find.textContaining('Будет заменено 2 трека в 4 местах'),
           findsOneWidget,
         );
         await tester.tap(find.byKey(const ValueKey('cleanup-confirm')));

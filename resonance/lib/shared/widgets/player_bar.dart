@@ -32,26 +32,22 @@ class PlayerBar extends ConsumerWidget {
     // поднятый до читаемого контраста и плавно перетекающий между треками.
     final accent = ResonanceContrast.ensure(
       watchTrackPalette(ref, track).accent,
-      ResonanceColors.background,
+      context.tokens.background,
     );
     final bar = TweenAnimationBuilder<Color?>(
       tween: ColorTween(end: accent),
       duration: ResonanceMotion.durationOf(context, ResonanceMotion.gentle),
       curve: ResonanceMotion.curve,
       builder: (context, animated, _) {
-        final accent = animated ?? ResonanceColors.primary;
+        final accent = animated ?? context.tokens.accent;
         return Material(
-          color: compact
-              ? ResonanceColors.surfaceRaised
-              : const Color(0xFF09070C),
+          color: compact ? context.tokens.surfaceRaised : context.tokens.chrome,
           child: Container(
             height: compact ? 70 : 88,
             decoration: BoxDecoration(
               border: compact
                   ? null
-                  : const Border(
-                      top: BorderSide(color: ResonanceColors.border),
-                    ),
+                  : Border(top: BorderSide(color: context.tokens.border)),
               // 5.0: мягкий отсвет обложки слева направо.
               gradient: LinearGradient(
                 colors: [

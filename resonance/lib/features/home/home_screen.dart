@@ -19,6 +19,7 @@ import 'package:resonance/features/recap/listening_recap.dart';
 import 'package:resonance/features/rooms/room_controller.dart';
 import 'package:resonance/features/wave/wave_controller.dart';
 import 'package:resonance/features/wave/wave_home_sections.dart';
+import 'package:resonance/shared/russian_plural.dart';
 import 'package:resonance/shared/theme/resonance_theme.dart';
 import 'package:resonance/shared/widgets/ambient.dart';
 import 'package:resonance/shared/widgets/aurora_backdrop.dart';
@@ -732,7 +733,7 @@ class _QuickTileState extends State<_QuickTile>
     return ResonancePressable(
       hoverScale: 1.012,
       child: Material(
-        color: ResonanceColors.surface,
+        color: context.tokens.surface,
         clipBehavior: Clip.antiAlias,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
@@ -885,7 +886,7 @@ class _TrackCardState extends ConsumerState<_TrackCard> {
                         boxShadow: [
                           BoxShadow(
                             color: lit
-                                ? const Color(0x55B69CFF)
+                                ? context.tokens.accent.withValues(alpha: .33)
                                 : const Color(0x40000000),
                             blurRadius: _hovered ? 26 : 14,
                             offset: const Offset(0, 10),
@@ -913,8 +914,8 @@ class _TrackCardState extends ConsumerState<_TrackCard> {
                           child: Container(
                             width: 40,
                             height: 40,
-                            decoration: const BoxDecoration(
-                              color: ResonanceColors.primary,
+                            decoration: BoxDecoration(
+                              color: context.tokens.accent,
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
@@ -1252,7 +1253,7 @@ class _WaveCommandCenterState extends ConsumerState<_WaveCommandCenter> {
         decoration: BoxDecoration(
           color: const Color(0xD90B090E),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: ResonanceColors.border),
+          border: Border.all(color: context.tokens.border),
           boxShadow: const [
             BoxShadow(
               color: Color(0x30000000),
@@ -1503,17 +1504,13 @@ class _WaveWeekStrip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
     decoration: BoxDecoration(
-      color: ResonanceColors.surfaceHigh,
+      color: context.tokens.surfaceHigh,
       borderRadius: BorderRadius.circular(13),
-      border: Border.all(color: ResonanceColors.border),
+      border: Border.all(color: context.tokens.border),
     ),
     child: Row(
       children: [
-        const Icon(
-          Icons.insights_rounded,
-          size: 18,
-          color: ResonanceColors.primary,
-        ),
+        Icon(Icons.insights_rounded, size: 18, color: context.tokens.accent),
         const SizedBox(width: 9),
         const Text(
           'НЕДЕЛЯ',
@@ -1531,7 +1528,7 @@ class _WaveWeekStrip extends StatelessWidget {
             child: Row(
               children: [
                 Text(
-                  '${profile.weekTracks} треков',
+                  tracksLabel(profile.weekTracks),
                   style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,

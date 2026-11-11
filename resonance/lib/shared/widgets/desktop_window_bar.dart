@@ -16,11 +16,14 @@ class DesktopWindowBar extends StatelessWidget {
     if (!supported) return const SizedBox.shrink();
     return Container(
       height: 46,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF0C0910), Color(0xFF08060B)],
+          colors: [
+            Color.lerp(context.tokens.background, context.tokens.chrome, .4)!,
+            context.tokens.chrome,
+          ],
         ),
-        border: Border(bottom: BorderSide(color: ResonanceColors.border)),
+        border: Border(bottom: BorderSide(color: context.tokens.border)),
       ),
       child: Row(
         children: [
@@ -99,11 +102,11 @@ class _LiveIndicator extends StatelessWidget {
   const _LiveIndicator();
 
   @override
-  Widget build(BuildContext context) => const DecoratedBox(
+  Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
-      color: Color(0xFF140F1A),
+      color: context.tokens.surface,
       borderRadius: BorderRadius.all(Radius.circular(99)),
-      border: Border.fromBorderSide(BorderSide(color: ResonanceColors.border)),
+      border: Border.fromBorderSide(BorderSide(color: context.tokens.border)),
     ),
     child: Padding(
       padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -159,7 +162,7 @@ class _WindowAction extends StatelessWidget {
           borderRadius: BorderRadius.circular(9),
           hoverColor: destructive
               ? const Color(0xCCB72A36)
-              : ResonanceColors.surfaceRaised,
+              : context.tokens.surfaceRaised,
           onTap: () => unawaited(onPressed()),
           child: SizedBox(
             width: 38,

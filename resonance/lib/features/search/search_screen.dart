@@ -297,7 +297,7 @@ class _TrackResult extends ConsumerWidget {
         child: ListTile(
           minTileHeight: 70,
           contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-          shape: const Border(top: BorderSide(color: ResonanceColors.border)),
+          shape: Border(top: BorderSide(color: context.tokens.border)),
           leading: TrackArtwork(track: track, size: 48, borderRadius: 3),
           title: Text(
             track.title,
@@ -363,7 +363,7 @@ class _TrackResult extends ConsumerWidget {
                         favorite
                             ? Icons.favorite_rounded
                             : Icons.favorite_border_rounded,
-                        color: favorite ? ResonanceColors.primary : null,
+                        color: favorite ? context.tokens.accent : null,
                       ),
                       title: Text(
                         favorite ? 'Убрать из избранного' : 'В избранное',
@@ -392,9 +392,9 @@ class _TrackResult extends ConsumerWidget {
               IconButton(
                 tooltip: 'Воспроизвести',
                 onPressed: () => unawaited(playTrackOrOpenOfficial(ref, track)),
-                icon: const Icon(
+                icon: Icon(
                   Icons.play_arrow_rounded,
-                  color: ResonanceColors.primary,
+                  color: context.tokens.accent,
                 ),
               ),
             ],
@@ -446,7 +446,7 @@ class _SearchMessage extends StatelessWidget {
     hasQuery ? 'Ничего не найдено' : 'Начните с любимого трека',
     hasQuery
         ? 'Попробуйте другой запрос или источник.'
-        : 'Результаты Яндекса и SoundCloud появятся здесь.',
+        : 'Результаты из всех подключённых источников появятся здесь.',
   );
 
   factory _SearchMessage.error(String error) =>

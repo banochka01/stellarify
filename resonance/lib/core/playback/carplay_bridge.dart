@@ -38,7 +38,9 @@ abstract final class CarPlayBridge {
       case 'children':
         final parent = args['parentId'] as String? ?? 'root';
         final items = await catalog.children(
-          parent == 'root' ? audio_service.AudioService.browsableRootId : parent,
+          parent == 'root'
+              ? audio_service.AudioService.browsableRootId
+              : parent,
         );
         return [
           for (final item in items)

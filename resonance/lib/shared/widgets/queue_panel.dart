@@ -17,16 +17,16 @@ class QueuePanel extends ConsumerWidget {
     return Container(
       width: 286,
       padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: ResonanceColors.surface,
-        border: Border(left: BorderSide(color: ResonanceColors.border)),
+      decoration: BoxDecoration(
+        color: context.tokens.surface,
+        border: Border(left: BorderSide(color: context.tokens.border)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.queue_music_rounded, color: ResonanceColors.primary),
+              Icon(Icons.queue_music_rounded, color: context.tokens.accent),
               SizedBox(width: 10),
               Text(
                 'Очередь',
@@ -66,7 +66,7 @@ class QueuePanel extends ConsumerWidget {
                     curve: ResonanceMotion.curve,
                     decoration: BoxDecoration(
                       color: isCurrent
-                          ? ResonanceColors.primary.withValues(alpha: .08)
+                          ? context.tokens.accent.withValues(alpha: .08)
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -133,12 +133,12 @@ class _QueueSourceStatus extends StatelessWidget {
         dimension: 14,
         child: CircularProgressIndicator(strokeWidth: 1.5),
       ),
-      'ready' => const Tooltip(
+      'ready' => Tooltip(
         message: 'Следующий источник готов',
         child: Icon(
           Icons.offline_bolt_rounded,
           size: 16,
-          color: ResonanceColors.primary,
+          color: context.tokens.accent,
         ),
       ),
       'unavailable' => const Tooltip(
@@ -184,7 +184,7 @@ class _QueueMarker extends StatelessWidget {
           Positioned(
             top: 0,
             bottom: 24,
-            child: Container(width: 2, color: _lineColor()),
+            child: Container(width: 2, color: _lineColor(context)),
           ),
         if (index + 1 < count)
           Positioned(
@@ -193,8 +193,8 @@ class _QueueMarker extends StatelessWidget {
             child: Container(
               width: 2,
               color: current || played
-                  ? ResonanceColors.primary.withValues(alpha: .45)
-                  : ResonanceColors.border,
+                  ? context.tokens.accent.withValues(alpha: .45)
+                  : context.tokens.border,
             ),
           ),
         AnimatedContainer(
@@ -204,11 +204,11 @@ class _QueueMarker extends StatelessWidget {
           height: current ? 24 : 10,
           decoration: BoxDecoration(
             color: current || played
-                ? ResonanceColors.primary
-                : ResonanceColors.surfaceHigh,
+                ? context.tokens.accent
+                : context.tokens.surfaceHigh,
             shape: BoxShape.circle,
             border: Border.all(
-              color: current ? ResonanceColors.text : ResonanceColors.border,
+              color: current ? ResonanceColors.text : context.tokens.border,
               width: current ? 2 : 1,
             ),
           ),
@@ -224,7 +224,7 @@ class _QueueMarker extends StatelessWidget {
     ),
   );
 
-  Color _lineColor() => played || current
-      ? ResonanceColors.primary.withValues(alpha: .45)
-      : ResonanceColors.border;
+  Color _lineColor(BuildContext context) => played || current
+      ? context.tokens.accent.withValues(alpha: .45)
+      : context.tokens.border;
 }
