@@ -18,7 +18,7 @@ import {
   UserPlus,
   Waves
 } from "lucide-react";
-import { DownloadGrid, DownloadMenu } from "./components/DownloadMenu";
+import { ChannelSwitch, DownloadGrid, DownloadMenu } from "./components/DownloadMenu";
 import { GraphHero } from "./components/GraphHero";
 import { detectOs, formatDate, useRelease, type ChangelogEntry, type VisitorOs } from "./release";
 
@@ -507,6 +507,10 @@ function App() {
               <h2 id="download-title">Твои сервисы. <em>Один Resonance.</em></h2>
             </div>
             <p>Ссылки всегда ведут на актуальный релиз. Сборка для iOS не подписана — её нужно подписать своим сертификатом.</p>
+          </div>
+          <div className="channel-row">
+            <ChannelSwitch />
+            <p>Alpha — Resonance α: новый интерфейс с нуля. Отдельное приложение, ставится рядом со стабильным.</p>
           </div>
           <DownloadGrid os={os} release={release} />
         </section>

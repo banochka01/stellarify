@@ -171,6 +171,20 @@ a.dl-item:hover, a.dl-item:focus-visible { background: color-mix(in srgb, var(--
 .dl-item-meta { color: var(--text-2); font-size: 12px; line-height: 1.45; }
 .dl-yours { color: var(--accent-ink); font-size: 12px; font-weight: 500; }
 .dl-soon { opacity: .6; }
+.dl-menu-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 2px 4px 6px 0; }
+.dl-menu-top .dl-menu-head { margin: 4px 8px; }
+.dl-menu-note { margin: 0 8px 8px; color: var(--text-2); font-size: 12px; line-height: 1.45; }
+
+/* Stable / Alpha lever */
+.channel { display: inline-flex; padding: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.channel-option { padding: 8px 16px; border: 0; border-radius: 999px; background: transparent; color: var(--text-2); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: background-color .2s var(--ease), color .2s var(--ease); }
+.channel-option:hover { color: var(--text); }
+.channel-option:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.channel-active, .channel-active:hover { background: var(--text); color: var(--bg); }
+.channel-compact .channel-option { padding: 5px 11px; font-size: 12px; }
+.channel-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-bottom: 24px; }
+.channel-row p { margin: 0; color: var(--text-2); font-size: 14px; max-width: 520px; }
+.alpha-badge { padding: 2px 9px; border: 1px solid var(--line-strong); border-radius: 999px; color: var(--text-2); font-size: 11px; font-weight: 600; }
 
 /* ---------- Hero ---------- */
 .hero { position: relative; min-height: min(100svh, 940px); padding: calc(var(--header-h) + 48px) var(--gutter) 72px; display: grid; grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr); align-items: center; gap: 48px; }

@@ -13,8 +13,15 @@ export type ChangelogEntry = {
 export type ReleaseInfo = {
   version: string | null;
   sizes: Partial<Record<DownloadKey, number>>;
+  /** Sizes of the Resonance α builds; empty until they are published. */
+  alphaSizes: Partial<Record<DownloadKey, number>>;
   changelog: ChangelogEntry[];
 };
+
+export type Channel = "stable" | "alpha";
+
+/** Version of the experimental Resonance α client. */
+export const alphaVersion = "0.1.0";
 
 export const downloads: Record<DownloadKey, string> = {
   windows: "/downloads/windows",
@@ -22,6 +29,51 @@ export const downloads: Record<DownloadKey, string> = {
   android: "/downloads/android",
   ios: "/downloads/ios"
 };
+
+/** Resonance α ships only these builds so far. */
+export const alphaDownloads: Partial<Record<DownloadKey, string>> = {
+  windowsPortable: "/downloads/alpha/windows",
+  ios: "/downloads/alpha/ios"
+};
+
+export function downloadsFor(channel: Channel): Partial<Record<DownloadKey, string>> {
+  return channel === "alpha" ? alphaDownloads : downloads;
+}
+
+const channelKey = "resonance.download-channel";
+const channelEvent = "resonance:channel";
+
+function readChannel(): Channel {
+  try {
+    return localStorage.getItem(channelKey) === "alpha" ? "alpha" : "stable";
+  } catch {
+    return "stable";
+  }
+}
+
+/** Stable/alpha choice shared by every download control on the page. */
+export function useChannel(): [Channel, (channel: Channel) => void] {
+  const [channel, setChannel] = useState<Channel>(readChannel);
+  useEffect(() => {
+    const sync = () => setChannel(readChannel());
+    window.addEventListener(channelEvent, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(channelEvent, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+  const update = (next: Channel) => {
+    try {
+      localStorage.setItem(channelKey, next);
+    } catch {
+      // Private mode: the choice simply lasts for this page.
+    }
+    setChannel(next);
+    window.dispatchEvent(new Event(channelEvent));
+  };
+  return [channel, update];
+}
 
 export function detectOs(): VisitorOs {
   const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
@@ -70,16 +122,21 @@ let cached: Promise<ReleaseInfo> | null = null;
 function loadRelease(): Promise<ReleaseInfo> {
   cached ??= (async () => {
     const keys = Object.keys(downloads) as DownloadKey[];
-    const [version, log, ...lengths] = await Promise.all([
+    const alphaKeys = Object.keys(alphaDownloads) as DownloadKey[];
+    const [version, log, alphaLengths, ...lengths] = await Promise.all([
       json<{ version?: string }>("/api/client-version"),
       json<{ entries?: ChangelogEntry[] }>("/api/v1/changelog?channel=stable&limit=8"),
+      Promise.all(alphaKeys.map((key) => size(alphaDownloads[key]!))),
       ...keys.map((key) => size(downloads[key]))
     ]);
     const sizes: ReleaseInfo["sizes"] = {};
     keys.forEach((key, index) => { if (lengths[index]) sizes[key] = lengths[index]; });
+    const alphaSizes: ReleaseInfo["alphaSizes"] = {};
+    alphaKeys.forEach((key, index) => { if (alphaLengths[index]) alphaSizes[key] = alphaLengths[index]; });
     return {
       version: version?.version ?? null,
       sizes,
+      alphaSizes,
       changelog: Array.isArray(log?.entries) ? log.entries : []
     };
   })();
@@ -88,7 +145,7 @@ function loadRelease(): Promise<ReleaseInfo> {
 
 /** Live release data; the page renders fine with the empty default if the API is unreachable. */
 export function useRelease(): ReleaseInfo {
-  const [info, setInfo] = useState<ReleaseInfo>({ version: null, sizes: {}, changelog: [] });
+  const [info, setInfo] = useState<ReleaseInfo>({ version: null, sizes: {}, alphaSizes: {}, changelog: [] });
   useEffect(() => {
     let alive = true;
     void loadRelease().then((value) => { if (alive) setInfo(value); });
