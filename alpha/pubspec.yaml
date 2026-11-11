@@ -1,0 +1,43 @@
+name: resonance_alpha
+description: "Resonance α — experimental client with a new interface on the Resonance core."
+publish_to: "none"
+
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # The whole Resonance core (playback, providers, account, library, Wave)
+  # is reused as-is; this app only replaces the interface.
+  resonance:
+    path: ../resonance
+  flutter_riverpod: ^2.6.1
+  media_kit: ^1.2.6
+  window_manager: ^0.5.2
+  cached_network_image: ^3.4.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+dependency_overrides:
+  # Same patched copy the main client uses (see resonance/pubspec.yaml).
+  flutter_inappwebview_android:
+    path: ../resonance/third_party/flutter_inappwebview_android
+
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: Unbounded
+      fonts:
+        - asset: assets/fonts/Unbounded.ttf
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope.ttf
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono.ttf
