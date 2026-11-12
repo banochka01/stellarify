@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Resonance α</title>
+  <meta name="description" content="Resonance α — экспериментальный клиент Resonance: чёрная сцена, цвет с обложки и форма, которая слышит музыку. Windows и iOS.">
+  <meta name="theme-color" content="#050505">
+  <meta property="og:title" content="Resonance α">
+  <meta property="og:description" content="Экспериментальный клиент Resonance: чёрная сцена, цвет с обложки и форма, которая слышит музыку.">
+  <meta property="og:url" content="https://music.webcordes.ru/alpha-main">
+  <link rel="icon" href="/alpha-main/assets/mark.svg" type="image/svg+xml">
+  <link rel="preload" href="/alpha-main/assets/fonts/Unbounded.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/alpha-main/assets/fonts/Manrope.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/alpha-main/assets/app.css">
+  <script src="/alpha-main/assets/app.js" defer></script>
+</head>
+<body>
+  <header class="bar">
+    <a class="mark" href="/alpha-main" aria-label="Resonance α">
+      <span>Resonance</span><span class="alpha">α</span>
+    </a>
+    <nav class="bar-nav" aria-label="Разделы">
+      <a href="#colour">Цвет</a>
+      <a href="#inside">Внутри</a>
+      <a href="#get" class="pill pill-small">Скачать</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="stage">
+        <canvas id="blob" aria-hidden="true"></canvas>
+        <button class="stage-hit" id="stage-hit" type="button" aria-pressed="false">
+          <span class="sr">Включить демонстрацию потока</span>
+        </button>
+        <p class="mono stage-tag" id="flow-tag">ПОТОК · МИКС</p>
+        <p class="mono stage-hint" id="flow-hint">НАЖМИ НА ФОРМУ</p>
+        <p class="stage-artist" id="flow-artist" aria-live="polite"></p>
+      </div>
+
+      <div class="tuner" role="group" aria-label="Настройка потока">
+        <div class="chips" data-group="mood">
+          <button type="button" class="chip is-on" data-value="any">Любое</button>
+          <button type="button" class="chip" data-value="active">Бодрое</button>
+          <button type="button" class="chip" data-value="fun">Весёлое</button>
+          <button type="button" class="chip" data-value="calm">Спокойное</button>
+        </div>
+        <div class="chips" data-group="novelty">
+          <button type="button" class="chip" data-value="familiar">Знакомое</button>
+          <button type="button" class="chip is-on" data-value="mixed">Микс</button>
+          <button type="button" class="chip" data-value="fresh">Незнакомое</button>
+        </div>
+      </div>
+
+      <div class="hero-copy">
+        <p class="mono kicker">ЭКСПЕРИМЕНТАЛЬНЫЙ КЛИЕНТ · <span data-version>0.2.0</span></p>
+        <h1 id="hero-title" class="display">Чёрная сцена, один цвет и&nbsp;форма, которая слышит музыку</h1>
+        <p class="lead">Resonance α — новый интерфейс Resonance, который собирается на ходу. Внутри тот же поиск по SoundCloud, Яндекс Музыке, Spotify и VK и тот же аккаунт. Снаружи — ничего лишнего.</p>
+        <div class="actions">
+          <a class="pill pill-accent" href="/downloads/alpha/windows">Windows<span class="pill-meta" data-size="windows">ZIP</span></a>
+          <a class="pill" href="/downloads/alpha/ios">iOS<span class="pill-meta" data-size="ios">IPA</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="colour" aria-labelledby="colour-title">
+      <div class="block-head">
+        <p class="mono">01</p>
+        <h2 id="colour-title" class="title">Цвет приходит с&nbsp;обложки</h2>
+        <p class="body">Всё, что светится в α, окрашено в главный цвет играющей обложки — приглушённый, чтобы не кричать на чёрном. Нажми на трек.</p>
+      </div>
+      <ol class="tracks" id="tracks"></ol>
+      <div class="swatches-row">
+        <p class="body muted">Или один цвет навсегда:</p>
+        <div class="swatches" id="swatches"></div>
+      </div>
+    </section>
+
+    <section class="block" id="inside" aria-labelledby="inside-title">
+      <div class="block-head">
+        <p class="mono">02</p>
+        <h2 id="inside-title" class="title">Что внутри</h2>
+      </div>
+      <ol class="rows">
+        <li class="row">
+          <span class="mono row-index">01</span>
+          <h3 class="row-title">Поток</h3>
+          <p class="row-body">Бесконечная волна по твоим лайкам. Настроение — от спокойного до бодрого, новизна — от знакомого до совсем неизвестного. «Не то» — и следующий трек уже другой.</p>
+        </li>
+        <li class="row">
+          <span class="mono row-index">02</span>
+          <h3 class="row-title">Один поиск</h3>
+          <p class="row-body">SoundCloud, Яндекс Музыка, Spotify и VK в одной выдаче. Подключаешь свои аккаунты — их каталоги появляются в поиске и коллекции.</p>
+        </li>
+        <li class="row">
+          <span class="mono row-index">03</span>
+          <h3 class="row-title">Форма слышит звук</h3>
+          <p class="row-body">Блоб раздувается по громкости и вздрагивает на ударах. На Windows уровень берётся из системного микшера, на iOS — прямо из плеера.</p>
+        </li>
+        <li class="row">
+          <span class="mono row-index">04</span>
+          <h3 class="row-title">Ошибки по-человечески</h3>
+          <p class="row-body">Если трек не включился, α говорит почему и предлагает выход: «Ещё раз», «Другой каталог» — тот же трек из другого сервиса — или «Дальше».</p>
+        </li>
+        <li class="row">
+          <span class="mono row-index">05</span>
+          <h3 class="row-title">Обновляется сама</h3>
+          <p class="row-body">α проверяет свежую сборку при запуске и раз в несколько часов. Вышла новая — сверху появится полоска со ссылкой.</p>
+        </li>
+      </ol>
+    </section>
+
+    <section class="block" id="get" aria-labelledby="get-title">
+      <div class="block-head">
+        <p class="mono">03</p>
+        <h2 id="get-title" class="title">Скачать α <span class="title-ver" data-version>0.2.0</span></h2>
+        <p class="body" id="notes" hidden></p>
+      </div>
+      <div class="cards">
+        <a class="card card-accent" href="/downloads/alpha/windows">
+          <span class="mono card-tag">WINDOWS 10/11 · X64</span>
+          <span class="card-title">Windows</span>
+          <span class="card-body">ZIP без установщика: распакуй в любую папку и запусти Resonance α.</span>
+          <span class="card-foot"><span>Скачать</span><span class="mono" data-size="windows"></span></span>
+        </a>
+        <a class="card" href="/downloads/alpha/ios">
+          <span class="mono card-tag">IOS · БЕЗ ПОДПИСИ</span>
+          <span class="card-title">iPhone</span>
+          <span class="card-body">IPA ставится через AltStore или Sideloadly со своим Apple ID. С бесплатным Apple ID приложение нужно переподписывать раз в 7 дней.</span>
+          <span class="card-foot"><span>Скачать</span><span class="mono" data-size="ios"></span></span>
+        </a>
+      </div>
+      <p class="body muted fineprint">α — эксперимент: что-то может сломаться или исчезнуть между сборками. Нужна надёжность — <a href="/">стабильный Resonance</a> для Windows, Android и iOS.</p>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p class="mono">RESONANCE α · <span data-version>0.2.0</span></p>
+    <p class="mono muted">Шрифты Unbounded, Manrope, JetBrains Mono — OFL</p>
+  </footer>
+</body>
+</html>

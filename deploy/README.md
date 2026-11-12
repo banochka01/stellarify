@@ -76,3 +76,12 @@ auth database (override with `CLIENT_REPORTS_PATH`); the file rotates to
 The private Telegram watchdog (`resonance-monitor` systemd unit on the host) is
 described in `deploy/monitor/README.md`. After a deploy, check
 `systemctl status resonance-monitor`.
+
+## Resonance α landing
+
+`apps/landing-alpha` is a static page with no build step, served at `/alpha-main`. To deploy it:
+
+1. Upload it to `/opt/resonance/landing-alpha-<timestamp>`.
+2. Repoint the `/opt/resonance/landing-alpha` symlink to that folder.
+
+Its nginx routes are in `music.webcordes.ru.nginx.conf`. The build number and notes are read live from `/downloads/alpha/latest.json`.
