@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:resonance_alpha/audio/level.dart';
 import 'package:resonance_alpha/design/accent.dart';
 import 'package:resonance_alpha/design/tokens.dart';
 
@@ -14,6 +15,7 @@ class LivingBlob extends StatefulWidget {
     required this.energy,
     this.label,
     this.labelSize = 64,
+    this.sampler,
     super.key,
   });
 
@@ -23,6 +25,10 @@ class LivingBlob extends StatefulWidget {
   final double energy;
   final String? label;
   final double labelSize;
+
+  /// Live loudness of the music. When present the mass swells with the
+  /// level and kicks on transients, instead of breathing on a formula.
+  final LevelSampler? sampler;
 
   @override
   State<LivingBlob> createState() => _LivingBlobState();
@@ -34,6 +40,11 @@ class _LivingBlobState extends State<LivingBlob>
   final _time = ValueNotifier<double>(0);
   double _energy = 0;
   Duration _last = Duration.zero;
+
+  // Live sound: a smoothed envelope plus a short kick on each transient.
+  final _sound = _Sound();
+  bool _sampling = false;
+  double _sinceSample = 0;
 
   @override
   void initState() {
@@ -47,7 +58,19 @@ class _LivingBlobState extends State<LivingBlob>
     _last = elapsed;
     // Energy eases towards the target so play/pause morphs, never snaps.
     _energy += (widget.energy - _energy) * math.min(1, dt * 2.4);
-    _time.value += dt * (.35 + _energy * .9);
+    _sound.decay(dt);
+    _sinceSample += dt;
+    final sampler = widget.sampler;
+    if (sampler != null && widget.energy > .5 && !_sampling &&
+        _sinceSample >= 1 / 30) {
+      _sinceSample = 0;
+      _sampling = true;
+      sampler().then((value) {
+        if (value != null) _sound.feed(value);
+      }).whenComplete(() => _sampling = false);
+    }
+    if (widget.energy <= .5) _sound.feed(0);
+    _time.value += dt * (.35 + _energy * .9 + _sound.kick * .8);
   }
 
   @override
@@ -65,6 +88,7 @@ class _LivingBlobState extends State<LivingBlob>
           time: _time,
           color: widget.color,
           energy: () => _energy,
+          sound: _sound,
           label: widget.label,
           labelSize: widget.labelSize,
         ),
@@ -79,6 +103,7 @@ class _BlobPainter extends CustomPainter {
     required this.time,
     required this.color,
     required this.energy,
+    required this.sound,
     required this.label,
     required this.labelSize,
   }) : super(repaint: time);
@@ -86,6 +111,7 @@ class _BlobPainter extends CustomPainter {
   final ValueNotifier<double> time;
   final Color color;
   final double Function() energy;
+  final _Sound sound;
   final String? label;
   final double labelSize;
 
@@ -94,14 +120,17 @@ class _BlobPainter extends CustomPainter {
     final t = time.value;
     final e = energy();
     final center = size.center(Offset.zero);
-    final radius = math.min(size.width, size.height) * .34;
+    final live = sound.active;
+    final swell = live ? sound.envelope * .07 + sound.kick * .09 : 0.0;
+    final radius = math.min(size.width, size.height) * .34 * (1 + swell);
+    final jolt = live ? sound.kick * .14 : 0.0;
 
     // Halo: a wide, blurred copy of the shape.
     final halo = _shape(center, radius * 1.18, t * .7, .1 + e * .08);
     canvas.drawPath(
       halo,
       Paint()
-        ..color = color.withValues(alpha: .08 + e * .08)
+        ..color = color.withValues(alpha: .08 + e * .08 + swell * .9)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60),
     );
 
@@ -109,7 +138,7 @@ class _BlobPainter extends CustomPainter {
     for (var i = 3; i >= 1; i--) {
       final ring = _shape(
         center,
-        radius * (1 + i * .07),
+        radius * (1 + i * (.07 + jolt * .25)),
         t - i * .22,
         .12 + e * .1,
       );
@@ -122,7 +151,7 @@ class _BlobPainter extends CustomPainter {
       );
     }
 
-    final body = _shape(center, radius, t, .09 + e * .13);
+    final body = _shape(center, radius, t, .09 + e * .13 + jolt);
     final bounds = body.getBounds();
     canvas.drawPath(
       body,
@@ -192,4 +221,32 @@ class _BlobPainter extends CustomPainter {
   @override
   bool shouldRepaint(_BlobPainter old) =>
       old.color != color || old.label != label || old.labelSize != labelSize;
+}
+
+/// Envelope follower over sampled peaks: fast attack, slow release, and a
+/// kick that fires when the level jumps above its recent average.
+final class _Sound {
+  double envelope = 0;
+  double kick = 0;
+  double _average = 0;
+  double _quietFor = 10;
+
+  bool get active => _quietFor < 1.5;
+
+  void feed(double level) {
+    // Peaks are linear amplitude; the ear is logarithmic.
+    final value = level <= 0
+        ? 0.0
+        : ((20 * math.log(level) / math.ln10 + 42) / 42).clamp(0.0, 1.0);
+    if (value > .02) _quietFor = 0;
+    envelope += (value - envelope) * (value > envelope ? .55 : .12);
+    final rise = value - _average;
+    if (rise > .08) kick = math.max(kick, (rise * 3.2).clamp(0.0, 1.0));
+    _average += (value - _average) * .08;
+  }
+
+  void decay(double dt) {
+    kick *= math.pow(.002, dt).toDouble();
+    _quietFor += dt;
+  }
 }

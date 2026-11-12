@@ -9,6 +9,7 @@ export const clientReportSchema = z.object({
   stack: z.string().max(4_000).optional(),
   appVersion: z.string().trim().max(32).optional(),
   platform: z.string().trim().max(32).optional(),
+  channel: z.enum(["stable", "alpha"]).optional(),
   provider: z.string().trim().max(32).optional(),
   context: z
     .record(z.string().max(64), z.union([z.string().max(200), z.number(), z.boolean()]))

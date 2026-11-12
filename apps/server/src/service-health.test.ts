@@ -47,6 +47,8 @@ test("rate limiter allows a fixed number of hits per window", () => {
 test("validates and stores client reports as JSON lines", async () => {
   assert.equal(clientReportSchema.safeParse({ kind: "crash", message: "" }).success, false);
   assert.equal(clientReportSchema.safeParse({ kind: "other", message: "x" }).success, false);
+  assert.equal(clientReportSchema.parse({ kind: "crash", message: "x", channel: "alpha" }).channel, "alpha");
+  assert.equal(clientReportSchema.safeParse({ kind: "crash", message: "x", channel: "beta" }).success, false);
   const report = clientReportSchema.parse({ kind: "playback", message: "boom", provider: "yandex", context: { code: 3 } });
   const path = join(await mkdtemp(join(tmpdir(), "reports-")), "r.jsonl");
   const store = new ClientReportStore(path);

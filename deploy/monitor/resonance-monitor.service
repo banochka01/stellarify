@@ -1,0 +1,20 @@
+[Unit]
+Description=Resonance watchdog (private Telegram alerts)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -I /opt/resonance/monitor/resonance_monitor.py
+WorkingDirectory=/opt/resonance/monitor
+Restart=always
+RestartSec=20
+Environment=PYTHONUNBUFFERED=1
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target

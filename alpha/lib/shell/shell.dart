@@ -10,6 +10,7 @@ import 'package:resonance_alpha/screens/collection_screen.dart';
 import 'package:resonance_alpha/screens/flow_screen.dart';
 import 'package:resonance_alpha/screens/search_screen.dart';
 import 'package:resonance_alpha/screens/settings_screen.dart';
+import 'package:resonance_alpha/shell/notices.dart';
 import 'package:resonance_alpha/shell/player_dock.dart';
 import 'package:resonance_alpha/state.dart';
 import 'package:window_manager/window_manager.dart';
@@ -99,6 +100,7 @@ class _AlphaShellState extends ConsumerState<AlphaShell> {
             body: Column(
               children: [
                 if (Platform.isWindows) const _WindowBar(),
+                const UpdateBanner(),
                 Expanded(
                   child: Row(
                     children: [
@@ -106,6 +108,13 @@ class _AlphaShellState extends ConsumerState<AlphaShell> {
                       const VerticalDivider(width: 1, color: Pal.line),
                       Expanded(child: pages),
                     ],
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: SizedBox(width: 560, child: PlaybackIssueBar()),
                   ),
                 ),
                 AnimatedSize(
@@ -128,7 +137,17 @@ class _AlphaShellState extends ConsumerState<AlphaShell> {
         backgroundColor: Pal.stage,
         body: Stack(
           children: [
-            Positioned.fill(child: SafeArea(bottom: false, child: pages)),
+            Positioned.fill(
+              child: SafeArea(
+                bottom: false,
+                child: Column(
+                  children: [
+                    const UpdateBanner(),
+                    Expanded(child: pages),
+                  ],
+                ),
+              ),
+            ),
             Positioned(
               left: 12,
               right: 12,
@@ -139,6 +158,7 @@ class _AlphaShellState extends ConsumerState<AlphaShell> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    const PlaybackIssueBar(),
                     const PlayerDock(wide: false),
                     if (hasTrack) const SizedBox(height: 8),
                     _TabBar(selected: section, onSelect: _select),
@@ -177,16 +197,24 @@ class _Rail extends ConsumerWidget {
                 onTap: () => onSelect(section),
                 tooltip: '${section.label} · Ctrl+${section.index + 1}',
                 child: Center(
-                  child: RotatedBox(
-                    quarterTurns: 3,
-                    child: AnimatedDefaultTextStyle(
-                      duration: Motion.base,
-                      curve: Motion.curve,
-                      style: Txt.display(
-                        section == selected ? 30 : 22,
-                        color: section == selected ? accent : Pal.faint,
+                  // A short window must shrink the word, never break it.
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: RotatedBox(
+                      quarterTurns: 3,
+                      child: AnimatedDefaultTextStyle(
+                        duration: Motion.base,
+                        curve: Motion.curve,
+                        style: Txt.display(
+                          section == selected ? 30 : 22,
+                          color: section == selected ? accent : Pal.faint,
+                        ),
+                        child: Text(
+                          section.label.toUpperCase(),
+                          maxLines: 1,
+                          softWrap: false,
+                        ),
                       ),
-                      child: Text(section.label.toUpperCase()),
                     ),
                   ),
                 ),

@@ -11,8 +11,8 @@ import 'package:resonance_alpha/design/tokens.dart';
 import 'package:resonance_alpha/design/widgets.dart';
 import 'package:resonance_alpha/screens/account_sheet.dart';
 import 'package:resonance_alpha/state.dart';
+import 'package:resonance_alpha/update.dart';
 
-const alphaVersion = '0.1.0';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -238,6 +238,8 @@ class SettingsScreen extends ConsumerWidget {
                       'работать не так — это нормально.',
                 ),
                 const _Divider(),
+                const _UpdateRow(),
+                const _Divider(),
                 _Row(
                   title: 'Сервер',
                   subtitle: BackendEndpoint.displayValue.isEmpty
@@ -387,4 +389,34 @@ class _Divider extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       const Divider(height: 1, color: Pal.line);
+}
+
+class _UpdateRow extends ConsumerWidget {
+  const _UpdateRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final update = ref.watch(alphaUpdateProvider);
+    final latest = update.valueOrNull;
+    final subtitle = switch (update) {
+      AsyncLoading() => 'Проверяю…',
+      AsyncError() => 'Не получилось проверить',
+      _ when latest == null => 'Сервер не ответил',
+      _ when latest.isNewer => 'Доступна ${latest.version}',
+      _ => 'У вас последняя версия',
+    };
+    return _Row(
+      title: 'Обновления',
+      subtitle: subtitle,
+      trailing: latest != null && latest.isNewer
+          ? Pill(
+              label: 'Скачать',
+              onTap: () => run(context, () => openUpdate(latest)),
+            )
+          : Pill(
+              label: 'Проверить',
+              onTap: () => ref.invalidate(alphaUpdateProvider),
+            ),
+    );
+  }
 }

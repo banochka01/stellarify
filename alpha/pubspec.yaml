@@ -2,7 +2,7 @@ name: resonance_alpha
 description: "Resonance α — experimental client with a new interface on the Resonance core."
 publish_to: "none"
 
-version: 0.1.0+1
+version: 0.2.0+2
 
 environment:
   sdk: ^3.12.2
@@ -18,6 +18,8 @@ dependencies:
   media_kit: ^1.2.6
   window_manager: ^0.5.2
   cached_network_image: ^3.4.1
+  dio: ^5.11.0
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

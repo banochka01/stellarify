@@ -34,6 +34,10 @@ final class ClientErrorReporter {
 
   static final instance = ClientErrorReporter();
 
+  /// Release channel the reports are tagged with (`stable` or `alpha`), so
+  /// experimental builds never blur the picture of the stable app.
+  static String channel = 'stable';
+
   final Dio _dio;
   final Uri? Function() _endpoint;
   final DateTime Function() _now;
@@ -102,6 +106,7 @@ final class ClientErrorReporter {
           if (stack != null) 'stack': sanitize(stack.toString(), 4000),
           'appVersion': _version,
           'platform': _platformName(),
+          'channel': channel,
           'provider': ?provider,
           if (context.isNotEmpty)
             'context': {

@@ -8,6 +8,7 @@ import 'package:resonance/core/diagnostics/client_error_reporter.dart';
 import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:resonance/core/platform/device_form.dart';
 import 'package:resonance/core/platform/image_cache_budget.dart';
+import 'package:resonance/core/playback/playback_engine.dart';
 import 'package:resonance/core/playback/windows_media_controls.dart';
 import 'package:resonance/features/auth/account_controller.dart';
 import 'package:resonance/features/recap/listening_recorder.dart';
@@ -18,7 +19,11 @@ import 'package:window_manager/window_manager.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  ClientErrorReporter.channel = 'alpha';
   ClientErrorReporter.instance.installGlobalHandlers();
+  // iOS: live level for the blob comes from libmpv's astats filter.
+  // Windows reads the system session meter instead (see runner).
+  MediaKitPlaybackEngine.levelMeter = Platform.isIOS;
   MediaKit.ensureInitialized();
   await Future.wait<Object?>([
     BackendEndpoint.initialize(),

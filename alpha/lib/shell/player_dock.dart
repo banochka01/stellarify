@@ -25,11 +25,10 @@ class PlayerDock extends ConsumerWidget {
       playbackStateProvider.select((s) => s.valueOrNull?.playing ?? false),
     );
     final liked = ref.watch(favoriteIdsProvider).contains(track.id);
-    // A failed source must be visible, not a silent dead play button.
+    // Failures get their own card (PlaybackIssueBar); the dock only carries
+    // short notices such as a source switch.
     final error = ref.watch(
-      playbackStateProvider.select(
-        (s) => s.valueOrNull?.errorMessage ?? s.valueOrNull?.sourceShiftMessage,
-      ),
+      playbackStateProvider.select((s) => s.valueOrNull?.sourceShiftMessage),
     );
     void open() => Navigator.of(context).push(NowPlayingScreen.route());
     Future<void> next() async {

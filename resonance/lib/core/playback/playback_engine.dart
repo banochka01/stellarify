@@ -334,6 +334,31 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
 
   bool _normalize = false;
 
+  /// Включает измеритель живого уровня (`astats`) в цепочке фильтров.
+  /// Нужен только клиентам с визуализацией звука; выставляется до создания
+  /// плеера.
+  static bool levelMeter = false;
+  bool _levelApplied = false;
+
+  /// Уровень того, что сейчас звучит, 0…1; `null`, если сборка libmpv
+  /// не умеет его мерить.
+  Future<double?> outputLevel() async {
+    if (!levelMeter) return null;
+    try {
+      final support = await audioFilterSupport();
+      if (!support.astats) return null;
+      if (!_levelApplied) await _applyFilters();
+      final dynamic platform = player.platform;
+      final db = parseAstatsPeakDb(
+        await platform.getProperty('af-metadata/level'),
+      );
+      if (db == null) return null;
+      return ((db + 48) / 48).clamp(0.0, 1.0);
+    } on Object {
+      return null;
+    }
+  }
+
   /// Динамический фильтр нужен, только пока нет статического гейна.
   bool _dynamicNormalize = true;
   List<double>? _equalizer;
@@ -373,6 +398,7 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
         loudnorm: await probe('loudnorm'),
         dynaudnorm: await probe('dynaudnorm'),
         ebur128: await probe('ebur128'),
+        astats: levelMeter && await probe('astats'),
       );
     } on Object {
       return AudioFilterSupport.none;
@@ -390,8 +416,10 @@ final class MediaKitPlaybackEngine implements PlaybackEngine {
           equalizerGains: _equalizer,
           normalize: _normalize && _dynamicNormalize,
           measure: _normalize,
+          level: levelMeter,
         ),
       );
+      _levelApplied = true;
     } on Object {
       // Some media backends do not expose libmpv audio filters. Flow must fail open.
     }

@@ -117,6 +117,7 @@ final class AudioFilterSupport {
     this.loudnorm = false,
     this.dynaudnorm = false,
     this.ebur128 = false,
+    this.astats = false,
   });
 
   static const none = AudioFilterSupport();
@@ -127,6 +128,10 @@ final class AudioFilterSupport {
 
   /// Измеритель громкости EBU R128: лёгкий онлайн-анализ уровня трека.
   final bool ebur128;
+
+  /// Покадровая статистика сигнала: из неё берётся живой уровень звука
+  /// для визуализаций.
+  final bool astats;
 
   bool get normalization => loudnorm || dynaudnorm;
 }
@@ -150,6 +155,7 @@ String buildAudioFilterChain({
   List<double>? equalizerGains,
   bool normalize = false,
   bool measure = false,
+  bool level = false,
 }) {
   final filters = <String>[
     // Измеритель стоит первым: он видит исходный уровень трека, до
@@ -184,7 +190,24 @@ String buildAudioFilterChain({
       filters.add('@norm:dynaudnorm=f=250:g=15:p=0.9');
     }
   }
+  // Уровень меряем последним — по тому, что реально звучит.
+  if (level && support.astats) {
+    filters.add('@level:astats=metadata=1:reset=1');
+  }
   return filters.join(',');
+}
+
+/// Пиковый уровень последнего кадра из `af-metadata/level`, дБFS.
+double? parseAstatsPeakDb(Object? metadata) {
+  if (metadata == null) return null;
+  final match = RegExp(
+    r'lavfi\.astats\.Overall\.(?:Peak|RMS)_level"?\s*[:=]\s*"?(-?(?:\d+(?:\.\d+)?|inf))',
+  ).firstMatch(metadata.toString());
+  final raw = match?.group(1);
+  if (raw == null) return null;
+  if (raw == '-inf') return -120;
+  final value = double.tryParse(raw);
+  return value != null && value.isFinite ? value : null;
 }
 
 final class AudioEffectsState {

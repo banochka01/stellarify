@@ -7,6 +7,7 @@ import 'package:resonance/features/wave/context_mixes.dart';
 import 'package:resonance/features/wave/daily_mixes.dart';
 import 'package:resonance/features/wave/wave_controller.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
+import 'package:resonance_alpha/audio/level.dart';
 import 'package:resonance_alpha/design/accent.dart';
 import 'package:resonance_alpha/design/blob.dart';
 import 'package:resonance_alpha/design/tokens.dart';
@@ -106,6 +107,7 @@ class _FlowScreenState extends ConsumerState<FlowScreen> {
                 energy: playing ? 1 : (wave.loading ? .6 : .15),
                 label: wave.loading ? 'Ищу…' : label,
                 labelSize: _labelSize(label, wide),
+                sampler: ref.watch(levelSamplerProvider),
               ),
             ),
           ),
