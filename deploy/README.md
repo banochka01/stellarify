@@ -72,3 +72,7 @@ Client crash/playback reports (`POST /api/v1/client-reports`, 30 per IP per
 10 minutes) are appended as JSON lines to `client-reports.jsonl` next to the
 auth database (override with `CLIENT_REPORTS_PATH`); the file rotates to
 `.1` above 5 MB.
+
+The private Telegram watchdog (`resonance-monitor` systemd unit on the host) is
+described in `deploy/monitor/README.md`. After a deploy, check
+`systemctl status resonance-monitor`.
