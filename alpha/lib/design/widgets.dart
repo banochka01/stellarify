@@ -221,6 +221,94 @@ class Hollow extends StatelessWidget {
   }
 }
 
+/// The one page transition in α: a short fade with a slight slide.
+Route<T> alphaRoute<T>(Widget page) => PageRouteBuilder<T>(
+  transitionDuration: Motion.base,
+  reverseTransitionDuration: Motion.base,
+  pageBuilder: (_, _, _) => page,
+  transitionsBuilder: (_, animation, _, child) {
+    final curved = CurvedAnimation(parent: animation, curve: Motion.curve);
+    return FadeTransition(
+      opacity: curved,
+      child: SlideTransition(
+        position: Tween(
+          begin: const Offset(.06, 0),
+          end: Offset.zero,
+        ).animate(curved),
+        child: child,
+      ),
+    );
+  },
+);
+
+/// Small text-field dialog in α's palette. Returns the trimmed text or null.
+Future<String?> askText(
+  BuildContext context, {
+  required String title,
+  required String action,
+  String initial = '',
+}) async {
+  final controller = TextEditingController(text: initial);
+  final value = await showDialog<String>(
+    useRootNavigator: true,
+    context: context,
+    builder: (dialog) => AlertDialog(
+      backgroundColor: Pal.raised,
+      title: Text(title, style: Txt.title(20)),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        style: Txt.body(16),
+        onSubmitted: (value) => Navigator.of(dialog).pop(value),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialog).pop(),
+          child: const Text('Отмена'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(dialog).pop(controller.text),
+          child: Text(action),
+        ),
+      ],
+    ),
+  );
+  controller.dispose();
+  final trimmed = value?.trim() ?? '';
+  return trimmed.isEmpty ? null : trimmed;
+}
+
+/// Yes/no question; true only on an explicit yes.
+Future<bool> confirm(
+  BuildContext context, {
+  required String title,
+  required String action,
+  String? body,
+}) async {
+  final answer = await showDialog<bool>(
+    useRootNavigator: true,
+    context: context,
+    builder: (dialog) => AlertDialog(
+      backgroundColor: Pal.raised,
+      title: Text(title, style: Txt.title(20)),
+      content: body == null
+          ? null
+          : Text(body, style: Txt.body(15, color: Pal.muted)),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialog).pop(false),
+          child: const Text('Отмена'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(dialog).pop(true),
+          child: Text(action),
+        ),
+      ],
+    ),
+  );
+  return answer ?? false;
+}
+
 String clock(Duration value) {
   final minutes = value.inMinutes;
   final seconds = value.inSeconds % 60;

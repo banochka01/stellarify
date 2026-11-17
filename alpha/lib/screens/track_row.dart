@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/playback/playback_service.dart';
@@ -9,6 +10,7 @@ import 'package:resonance/shared/widgets/track_artwork.dart';
 import 'package:resonance_alpha/design/accent.dart';
 import 'package:resonance_alpha/design/tokens.dart';
 import 'package:resonance_alpha/design/widgets.dart';
+import 'package:resonance_alpha/screens/artist_screen.dart';
 import 'package:resonance_alpha/state.dart';
 
 /// One line of a list: index in mono, cover, title and artist. The playing
@@ -18,12 +20,16 @@ class TrackRow extends ConsumerWidget {
     required this.track,
     required this.index,
     required this.onTap,
+    this.playlistId,
     super.key,
   });
 
   final UnifiedTrack track;
   final int index;
   final VoidCallback onTap;
+
+  /// Set inside a playlist: the menu then offers to remove the track.
+  final String? playlistId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -34,7 +40,8 @@ class TrackRow extends ConsumerWidget {
     final sub = Pal.muted;
     return Press(
       onTap: onTap,
-      onLongPress: () => showTrackMenu(context, ref, track),
+      onLongPress: () =>
+          showTrackMenu(context, ref, track, playlistId: playlistId),
       scale: .98,
       child: AnimatedContainer(
         duration: Motion.base,
@@ -69,11 +76,18 @@ class TrackRow extends ConsumerWidget {
                     style: Txt.body(16, color: ink, weight: 700),
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    track.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Txt.body(13.5, color: sub),
+                  Row(
+                    children: [
+                      _OfflineMarkIcon(trackId: track.id, color: sub),
+                      Flexible(
+                        child: Text(
+                          track.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Txt.body(13.5, color: sub),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -98,7 +112,8 @@ class TrackRow extends ConsumerWidget {
               ),
             ),
             Press(
-              onTap: () => showTrackMenu(context, ref, track),
+              onTap: () =>
+                  showTrackMenu(context, ref, track, playlistId: playlistId),
               tooltip: 'Ещё',
               child: Padding(
                 padding: const EdgeInsets.all(8),
@@ -115,8 +130,11 @@ class TrackRow extends ConsumerWidget {
 Future<void> showTrackMenu(
   BuildContext context,
   WidgetRef ref,
-  UnifiedTrack track,
-) {
+  UnifiedTrack track, {
+  String? playlistId,
+}) {
+  final artists = artistNames(track.artist).take(3).toList();
+  final mark = ref.read(offlineMarkProvider(track.id));
   return showModalBottomSheet<void>(
     useRootNavigator: true,
     context: context,
@@ -206,6 +224,62 @@ Future<void> showTrackMenu(
                   showPlaylistPicker(context, ref, track);
                 },
               ),
+              for (final artist in artists)
+                _MenuLine(
+                  icon: Icons.person_rounded,
+                  label: artists.length == 1
+                      ? 'К артисту'
+                      : 'К артисту: $artist',
+                  onTap: () {
+                    Navigator.of(sheet).pop();
+                    Navigator.of(
+                      context,
+                    ).push(alphaRoute<void>(ArtistScreen(artist: artist)));
+                  },
+                ),
+              switch (mark) {
+                OfflineMark.saved => _MenuLine(
+                  icon: Icons.delete_outline_rounded,
+                  label: 'Убрать с устройства',
+                  onTap: () => act(
+                    () => ref.read(offlineDownloadsProvider).remove(track.id),
+                    'Удалено с устройства',
+                  ),
+                ),
+                OfflineMark.downloading => const _MenuLine(
+                  icon: Icons.downloading_rounded,
+                  label: 'Скачивается…',
+                  onTap: null,
+                ),
+                OfflineMark.none => _MenuLine(
+                  icon: Icons.download_rounded,
+                  label: 'Скачать',
+                  onTap: () => act(
+                    () => ref.read(offlineDownloadsProvider).download(track),
+                    'Сохранено на устройстве',
+                  ),
+                ),
+              },
+              _MenuLine(
+                icon: Icons.ios_share_rounded,
+                label: 'Скопировать ссылку',
+                onTap: () => act(
+                  () =>
+                      Clipboard.setData(ClipboardData(text: shareText(track))),
+                  'Скопировано',
+                ),
+              ),
+              if (playlistId != null)
+                _MenuLine(
+                  icon: Icons.playlist_remove_rounded,
+                  label: 'Убрать из плейлиста',
+                  onTap: () => act(
+                    () => ref
+                        .read(libraryControllerProvider.notifier)
+                        .removeFromPlaylist(playlistId, track.id),
+                    'Убрано из плейлиста',
+                  ),
+                ),
             ],
           ),
         ),
@@ -303,7 +377,7 @@ class _MenuLine extends StatelessWidget {
 
   final IconData icon;
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -321,5 +395,33 @@ class _MenuLine extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// A tiny glyph before the artist when the track lives on this device.
+class _OfflineMarkIcon extends ConsumerWidget {
+  const _OfflineMarkIcon({required this.trackId, required this.color});
+
+  final String trackId;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mark = ref.watch(offlineMarkProvider(trackId));
+    return switch (mark) {
+      OfflineMark.none => const SizedBox.shrink(),
+      OfflineMark.downloading => Padding(
+        padding: const EdgeInsets.only(right: 6),
+        child: SizedBox(
+          width: 11,
+          height: 11,
+          child: CircularProgressIndicator(strokeWidth: 1.6, color: color),
+        ),
+      ),
+      OfflineMark.saved => Padding(
+        padding: const EdgeInsets.only(right: 5),
+        child: Icon(Icons.download_done_rounded, size: 14, color: color),
+      ),
+    };
   }
 }

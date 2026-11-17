@@ -679,10 +679,21 @@ def read_new_reports() -> None:
     save_state()
 
 
+def report_channel(report: dict) -> str:
+    channel = report.get("channel")
+    if channel in ("alpha", "stable"):
+        return channel
+    return "alpha" if str(report.get("appVersion", "")).startswith("0.") else "stable"
+
+
 def report_label(report: dict) -> str:
-    channel = report.get("channel") or ("alpha" if str(report.get("appVersion", "")).startswith("0.") else "stable")
-    channel = "α" if channel == "alpha" else "stable"
+    channel = "α" if report_channel(report) == "alpha" else "stable"
     return f"{channel} {report.get('appVersion', '?')} {report.get('platform', '?')}"
+
+
+def channel_split(batch: list[dict]) -> str:
+    counts = Counter(report_channel(report) for report in batch)
+    return f"stable {counts.get('stable', 0)} · α {counts.get('alpha', 0)}"
 
 
 def digest_reports(force: bool = False) -> None:
@@ -708,7 +719,7 @@ def digest_reports(force: bool = False) -> None:
         head = f"🚨 Всплеск ошибок звука: {playback} за ~{DIGEST_EVERY // 60} мин"
     elif crashes:
         head = "💥 Падения клиента"
-    lines = [f"{head} — {len(batch)} шт."]
+    lines = [f"{head} — {len(batch)} шт. ({channel_split(batch)})"]
     for (kind, label, provider, message), count in groups.most_common(8):
         prefix = {"crash": "💥", "playback": "🔇", "network": "📡"}.get(kind, "•")
         provider_text = f" [{provider}]" if provider else ""
@@ -719,11 +730,16 @@ def digest_reports(force: bool = False) -> None:
     notify("\n".join(lines))
 
 
-def reports_text(limit: int) -> str:
-    items = list(REPORTS.recent)[-limit:]
+def reports_text(limit: int, channel: str | None = None) -> str:
+    items = [
+        report
+        for report in REPORTS.recent
+        if channel is None or report_channel(report) == channel
+    ][-limit:]
     if not items:
-        return "Новых отчётов с момента запуска бота нет."
-    lines = [f"Последние отчёты ({len(items)}):"]
+        scope = {"alpha": " от α", "stable": " от stable"}.get(channel or "", "")
+        return f"Новых отчётов{scope} с момента запуска бота нет."
+    lines = [f"Последние отчёты ({len(items)}; {channel_split(items)}):"]
     for report in items:
         when = str(report.get("receivedAt", ""))[5:16].replace("T", " ")
         provider = f" [{report['provider']}]" if report.get("provider") else ""
@@ -778,8 +794,15 @@ def handle(message: dict) -> None:
         digest_reports(force=True)
         send(status_text())
     elif command == "/reports":
-        limit = int(argument) if argument.strip().isdigit() else 10
-        send(reports_text(max(1, min(limit, 30))))
+        channel, limit = None, 10
+        for word in argument.lower().split():
+            if word.isdigit():
+                limit = int(word)
+            elif word in ("alpha", "α", "альфа", "a"):
+                channel = "alpha"
+            elif word in ("stable", "стабильная", "s"):
+                channel = "stable"
+        send(reports_text(max(1, min(limit, 30)), channel))
     elif command == "/mute":
         try:
             hours = float(argument.replace(",", ".")) if argument.strip() else 2.0

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/app/providers.dart';
@@ -10,9 +12,9 @@ import 'package:resonance_alpha/design/accent.dart';
 import 'package:resonance_alpha/design/tokens.dart';
 import 'package:resonance_alpha/design/widgets.dart';
 import 'package:resonance_alpha/screens/account_sheet.dart';
+import 'package:resonance_alpha/shell/hotkeys.dart';
 import 'package:resonance_alpha/state.dart';
 import 'package:resonance_alpha/update.dart';
-
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -232,13 +234,25 @@ class SettingsScreen extends ConsumerWidget {
 
                 const SectionHead(index: '04', title: 'О приложении'),
                 _Row(
-                  title: 'Resonance α $alphaVersion',
+                  title: 'Resonance α $alphaVersion · сборка $alphaBuild',
                   subtitle:
                       'Альфа нового интерфейса. Что-то может '
                       'работать не так — это нормально.',
                 ),
                 const _Divider(),
                 const _UpdateRow(),
+                if (Platform.isWindows) ...[
+                  const _Divider(),
+                  _Row(
+                    title: 'Клавиши',
+                    subtitle:
+                        'Пробел, стрелки, L, Ctrl+F — шпаргалка по ? или F1',
+                    trailing: Pill(
+                      label: 'Показать',
+                      onTap: () => showHotkeys(context),
+                    ),
+                  ),
+                ],
                 const _Divider(),
                 _Row(
                   title: 'Сервер',

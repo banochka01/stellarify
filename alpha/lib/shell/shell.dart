@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:resonance/app/providers.dart';
 import 'package:resonance_alpha/design/accent.dart';
 import 'package:resonance_alpha/design/tokens.dart';
 import 'package:resonance_alpha/design/widgets.dart';
@@ -10,6 +11,7 @@ import 'package:resonance_alpha/screens/collection_screen.dart';
 import 'package:resonance_alpha/screens/flow_screen.dart';
 import 'package:resonance_alpha/screens/search_screen.dart';
 import 'package:resonance_alpha/screens/settings_screen.dart';
+import 'package:resonance_alpha/shell/hotkeys.dart';
 import 'package:resonance_alpha/shell/notices.dart';
 import 'package:resonance_alpha/shell/player_dock.dart';
 import 'package:resonance_alpha/state.dart';
@@ -75,9 +77,57 @@ class _AlphaShellState extends ConsumerState<AlphaShell> {
       ],
     );
 
+    Future<void> seekBy(Duration delta) async {
+      final service = await ref.read(playbackServiceProvider.future);
+      final state = service.state;
+      if (state.currentTrack == null) return;
+      var target = state.position + delta;
+      if (target < Duration.zero) target = Duration.zero;
+      final length = state.duration;
+      if (length > Duration.zero && target > length) {
+        target = length;
+      }
+      await service.seek(target);
+    }
+
+    Future<void> skip({required bool forward}) async {
+      final service = await ref.read(playbackServiceProvider.future);
+      await (forward ? service.next() : service.previous());
+    }
+
+    Future<void> likeCurrent() async {
+      final track = ref.read(currentTrackProvider);
+      if (track != null) await toggleFavorite(ref, track);
+    }
+
+    void focusSearch() {
+      _select(Section.search);
+      ref.read(searchFocusRequestProvider.notifier).state++;
+    }
+
+    // Plain keys are ignored while a text field has focus, so typing a
+    // space in search never pauses the music.
     final shortcuts = <ShortcutActivator, VoidCallback>{
+      const SingleActivator(LogicalKeyboardKey.space): unlessTyping(
+        () => run(context, () => togglePlay(ref)),
+      ),
       const SingleActivator(LogicalKeyboardKey.space, control: true): () =>
           run(context, () => togglePlay(ref)),
+      const SingleActivator(LogicalKeyboardKey.arrowRight): unlessTyping(
+        () => run(context, () => seekBy(const Duration(seconds: 10))),
+      ),
+      const SingleActivator(LogicalKeyboardKey.arrowLeft): unlessTyping(
+        () => run(context, () => seekBy(const Duration(seconds: -10))),
+      ),
+      const SingleActivator(LogicalKeyboardKey.arrowRight, control: true): () =>
+          run(context, () => skip(forward: true)),
+      const SingleActivator(LogicalKeyboardKey.arrowLeft, control: true): () =>
+          run(context, () => skip(forward: false)),
+      const SingleActivator(LogicalKeyboardKey.keyL): unlessTyping(
+        () => run(context, likeCurrent),
+      ),
+      const SingleActivator(LogicalKeyboardKey.keyF, control: true):
+          focusSearch,
       const SingleActivator(LogicalKeyboardKey.digit1, control: true): () =>
           _select(Section.flow),
       const SingleActivator(LogicalKeyboardKey.digit2, control: true): () =>
@@ -88,6 +138,9 @@ class _AlphaShellState extends ConsumerState<AlphaShell> {
           Navigator.of(context).push(SettingsScreen.route()),
       const SingleActivator(LogicalKeyboardKey.mediaPlayPause): () =>
           run(context, () => togglePlay(ref)),
+      const SingleActivator(LogicalKeyboardKey.f1): () => showHotkeys(context),
+      const SingleActivator(LogicalKeyboardKey.slash, shift: true):
+          unlessTyping(() => showHotkeys(context)),
     };
 
     if (wide) {

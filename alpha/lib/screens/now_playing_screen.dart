@@ -6,12 +6,14 @@ import 'package:resonance/core/playback/playback_service.dart';
 import 'package:resonance/domain/entities/music_enums.dart';
 import 'package:resonance/domain/entities/playback_state.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
-import 'package:resonance/features/lyrics/lyrics_service.dart';
 import 'package:resonance/features/wave/wave_controller.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 import 'package:resonance_alpha/design/accent.dart';
 import 'package:resonance_alpha/design/tokens.dart';
 import 'package:resonance_alpha/design/widgets.dart';
+import 'package:resonance_alpha/screens/artist_screen.dart';
+import 'package:resonance_alpha/screens/lyrics_stage.dart';
+import 'package:resonance_alpha/screens/lyrics_view.dart';
 import 'package:resonance_alpha/screens/queue_sheet.dart';
 import 'package:resonance_alpha/screens/track_row.dart';
 import 'package:resonance_alpha/state.dart';
@@ -140,7 +142,7 @@ class NowPlayingScreen extends ConsumerWidget {
             Expanded(
               flex: 5,
               child: lyricsOpen
-                  ? _Lyrics(track: track, accent: accent, size: 44)
+                  ? LyricsView(track: track, accent: accent, size: 44)
                   : cover,
             ),
             const SizedBox(width: 56),
@@ -155,7 +157,7 @@ class NowPlayingScreen extends ConsumerWidget {
           children: [
             Expanded(
               child: lyricsOpen
-                  ? _Lyrics(track: track, accent: accent, size: 30)
+                  ? LyricsView(track: track, accent: accent, size: 30)
                   : cover,
             ),
             const SizedBox(height: 22),
@@ -261,11 +263,23 @@ class _Info extends ConsumerWidget {
         Row(
           children: [
             Expanded(
-              child: Text(
-                track.artist.toUpperCase(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Txt.body(wide ? 17 : 14, color: Pal.muted, weight: 700),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Press(
+                  scale: .98,
+                  tooltip: 'К артисту',
+                  onTap: () => openArtist(context, track.artist),
+                  child: Text(
+                    track.artist.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Txt.body(
+                      wide ? 17 : 14,
+                      color: Pal.muted,
+                      weight: 700,
+                    ),
+                  ),
+                ),
               ),
             ),
             Press(
@@ -291,7 +305,14 @@ class _Info extends ConsumerWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 6),
+            Press(
+              tooltip: 'Сцена — текст на весь экран',
+              onTap: () => Navigator.of(context).push(LyricsStage.route()),
+              child: const Padding(
+                padding: EdgeInsets.all(8),
+                child: Icon(Icons.fullscreen_rounded, color: Pal.paper),
+              ),
+            ),
             Press(
               tooltip: 'Ещё',
               onTap: () => showTrackMenu(context, ref, track),
@@ -524,134 +545,6 @@ class _Transport extends ConsumerWidget {
   }
 }
 
-/// Synced lyrics as a stage: the current line huge, neighbours whispering.
-class _Lyrics extends ConsumerWidget {
-  const _Lyrics({
-    required this.track,
-    required this.accent,
-    required this.size,
-  });
-
-  final UnifiedTrack track;
-  final Color accent;
-  final double size;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final lyrics = ref.watch(lyricsProvider(track));
-    return lyrics.when(
-      loading: () =>
-          const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      error: (_, _) =>
-          Center(child: Text('Текст не загрузился', style: Txt.title(20))),
-      data: (document) {
-        if (document == null || document.lines.isEmpty) {
-          return Center(
-            child: Text(
-              document?.instrumental == true ? 'Без слов' : 'Текста нет',
-              style: Txt.display(size),
-            ),
-          );
-        }
-        if (!document.synced) {
-          return ListView(
-            children: [
-              for (final line in document.lines)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Text(line.text, style: Txt.title(size * .55)),
-                ),
-            ],
-          );
-        }
-        return _SyncedLyrics(document: document, accent: accent, size: size);
-      },
-    );
-  }
-}
-
-class _SyncedLyrics extends ConsumerWidget {
-  const _SyncedLyrics({
-    required this.document,
-    required this.accent,
-    required this.size,
-  });
-
-  final LyricsDocument document;
-  final Color accent;
-  final double size;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final position = ref.watch(
-      playbackStateProvider.select(
-        (value) => value.valueOrNull?.position ?? Duration.zero,
-      ),
-    );
-    final lines = document.lines;
-    var current = -1;
-    for (var i = 0; i < lines.length; i++) {
-      final start = lines[i].start;
-      if (start != null && start <= position) current = i;
-    }
-    String at(int i) => i >= 0 && i < lines.length ? lines[i].text : '';
-
-    Future<void> jump(int i) async {
-      final start = i >= 0 && i < lines.length ? lines[i].start : null;
-      if (start == null) return;
-      final service = await ref.read(playbackServiceProvider.future);
-      await service.seek(start);
-    }
-
-    Widget line(int i, double scale, double alpha) => Press(
-      scale: .98,
-      onTap: () => run(context, () => jump(i)),
-      child: AnimatedDefaultTextStyle(
-        duration: Motion.base,
-        curve: Motion.curve,
-        style: Txt.display(
-          size * scale,
-          color: Pal.paper.withValues(alpha: alpha),
-        ),
-        child: Text(at(i), maxLines: 3, overflow: TextOverflow.ellipsis),
-      ),
-    );
-
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        line(current - 1, .5, .3),
-        const SizedBox(height: 18),
-        AnimatedSwitcher(
-          duration: Motion.base,
-          transitionBuilder: (child, animation) => FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: Tween(
-                begin: const Offset(0, .3),
-                end: Offset.zero,
-              ).animate(animation),
-              child: child,
-            ),
-          ),
-          child: KeyedSubtree(
-            key: ValueKey(current),
-            child: Text(
-              current < 0 ? '♪' : at(current),
-              style: Txt.display(size, color: accent),
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        line(current + 1, .5, .55),
-        const SizedBox(height: 10),
-        line(current + 2, .4, .3),
-      ],
-    );
-  }
-}
-
 class _MoreByArtist extends ConsumerWidget {
   const _MoreByArtist({required this.artist});
 
@@ -659,13 +552,22 @@ class _MoreByArtist extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tracks = ref.watch(artistTracksProvider(artist));
+    final name = artistNames(artist).firstOrNull ?? artist;
+    final tracks = ref.watch(artistTracksProvider(name));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: SectionHead(index: '→', title: 'Ещё: $artist'),
+          child: SectionHead(
+            index: '→',
+            title: 'Ещё: $name',
+            trailing: Pill(
+              label: 'Страница',
+              icon: Icons.arrow_outward_rounded,
+              onTap: () => openArtist(context, name),
+            ),
+          ),
         ),
         tracks.when(
           loading: () => const Padding(
@@ -673,17 +575,20 @@ class _MoreByArtist extends ConsumerWidget {
             child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
           ),
           error: (_, _) => const SizedBox.shrink(),
-          data: (list) => Column(
-            children: [
-              for (final (i, track) in list.indexed)
-                TrackRow(
-                  track: track,
-                  index: i,
-                  onTap: () =>
-                      run(context, () => playList(ref, list, index: i)),
-                ),
-            ],
-          ),
+          data: (all) {
+            final list = all.take(12).toList(growable: false);
+            return Column(
+              children: [
+                for (final (i, track) in list.indexed)
+                  TrackRow(
+                    track: track,
+                    index: i,
+                    onTap: () =>
+                        run(context, () => playList(ref, list, index: i)),
+                  ),
+              ],
+            );
+          },
         ),
       ],
     );

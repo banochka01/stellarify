@@ -12,6 +12,9 @@ import 'package:resonance_alpha/state.dart';
 final _queryProvider = StateProvider<String>((ref) => '');
 final _recentProvider = StateProvider<List<String>>((ref) => const []);
 
+/// Bumped by Ctrl+F: the search field takes focus and selects its text.
+final searchFocusRequestProvider = StateProvider<int>((ref) => 0);
+
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
 
@@ -64,6 +67,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(searchFocusRequestProvider, (_, _) {
+      _focus.requestFocus();
+      _controller.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _controller.text.length,
+      );
+    });
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final pad = wide ? 48.0 : 20.0;
     final query = ref.watch(_queryProvider);

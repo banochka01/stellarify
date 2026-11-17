@@ -76,6 +76,27 @@ void main() {
     },
   );
 
+  test('renames a playlist and removes single tracks from it', () async {
+    await database.createLocalPlaylist('p', 'Старое');
+    await database.addTrackToLocalPlaylist('p', _track('one'));
+    await database.addTrackToLocalPlaylist('p', _track('two'));
+
+    await database.renameLocalPlaylist('p', '  Новое ');
+    await database.removeTrackFromLocalPlaylist('p', 'one');
+
+    final summary = (await database.loadLocalPlaylistSummaries()).single;
+    expect(summary.name, 'Новое');
+    expect(summary.trackCount, 1);
+    expect(
+      (await database.loadLocalPlaylistTracks('p')).map((t) => t.id),
+      ['two'],
+    );
+    expect(
+      () => database.renameLocalPlaylist('p', '   '),
+      throwsArgumentError,
+    );
+  });
+
   test(
     'imports a complete playlist atomically without duplicate tracks',
     () async {

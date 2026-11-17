@@ -2,7 +2,7 @@ name: resonance_alpha
 description: "Resonance α — experimental client with a new interface on the Resonance core."
 publish_to: "none"
 
-version: 0.2.0+2
+version: 0.3.0+3
 
 environment:
   sdk: ^3.12.2

@@ -7,8 +7,8 @@ import 'package:resonance/app/providers.dart';
 import 'package:resonance/core/networking/backend_endpoint.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-const alphaVersion = '0.2.0';
-const alphaBuild = 2;
+const alphaVersion = '0.3.0';
+const alphaBuild = 3;
 
 /// What the server says is the newest α (`/downloads/alpha/latest.json`).
 final class AlphaRelease {
@@ -69,10 +69,11 @@ final alphaUpdateProvider = FutureProvider<AlphaRelease?>((ref) async {
 const _dismissedKey = 'alpha.update.dismissed_build';
 
 /// The build the user said "later" to; its banner stays hidden.
-final dismissedUpdateProvider =
-    StateNotifierProvider<DismissedUpdate, int>((ref) {
-      return DismissedUpdate(ref);
-    });
+final dismissedUpdateProvider = StateNotifierProvider<DismissedUpdate, int>((
+  ref,
+) {
+  return DismissedUpdate(ref);
+});
 
 final class DismissedUpdate extends StateNotifier<int> {
   DismissedUpdate(this._ref) : super(0) {
@@ -82,7 +83,9 @@ final class DismissedUpdate extends StateNotifier<int> {
   final Ref _ref;
 
   Future<void> _load() async {
-    final raw = await _ref.read(secureKeyValueStoreProvider).read(_dismissedKey);
+    final raw = await _ref
+        .read(secureKeyValueStoreProvider)
+        .read(_dismissedKey);
     if (mounted) state = int.tryParse(raw ?? '') ?? 0;
   }
 

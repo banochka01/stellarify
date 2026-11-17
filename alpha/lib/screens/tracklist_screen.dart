@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/domain/entities/unified_track.dart';
+import 'package:resonance/features/library/library_controller.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 import 'package:resonance_alpha/design/accent.dart';
 import 'package:resonance_alpha/design/tokens.dart';
@@ -15,6 +16,8 @@ class TracklistScreen extends ConsumerStatefulWidget {
     required this.title,
     required this.load,
     this.subtitle,
+    this.playlistId,
+    this.reloadOn,
     super.key,
   });
 
@@ -22,28 +25,26 @@ class TracklistScreen extends ConsumerStatefulWidget {
   final String? subtitle;
   final Future<List<UnifiedTrack>> Function() load;
 
+  /// A local playlist: adds rename / delete and per-track removal.
+  final String? playlistId;
+
+  /// Reloads the list whenever this provider changes (likes, downloads…).
+  final ProviderListenable<Object?>? reloadOn;
+
   static Route<void> route({
     required String title,
     required Future<List<UnifiedTrack>> Function() load,
     String? subtitle,
-  }) => PageRouteBuilder<void>(
-    transitionDuration: Motion.base,
-    reverseTransitionDuration: Motion.base,
-    pageBuilder: (_, _, _) =>
-        TracklistScreen(title: title, subtitle: subtitle, load: load),
-    transitionsBuilder: (_, animation, _, child) {
-      final curved = CurvedAnimation(parent: animation, curve: Motion.curve);
-      return FadeTransition(
-        opacity: curved,
-        child: SlideTransition(
-          position: Tween(
-            begin: const Offset(.06, 0),
-            end: Offset.zero,
-          ).animate(curved),
-          child: child,
-        ),
-      );
-    },
+    String? playlistId,
+    ProviderListenable<Object?>? reloadOn,
+  }) => alphaRoute(
+    TracklistScreen(
+      title: title,
+      subtitle: subtitle,
+      load: load,
+      playlistId: playlistId,
+      reloadOn: reloadOn,
+    ),
   );
 
   @override
@@ -52,9 +53,82 @@ class TracklistScreen extends ConsumerStatefulWidget {
 
 class _TracklistScreenState extends ConsumerState<TracklistScreen> {
   late Future<List<UnifiedTrack>> _tracks = widget.load();
+  List<UnifiedTrack> _last = const [];
+
+  void _reload() => setState(() => _tracks = widget.load());
+
+  Future<void> _rename(String id, String current) async {
+    final name = await askText(
+      context,
+      title: 'Переименовать',
+      action: 'Сохранить',
+      initial: current,
+    );
+    if (name == null || name == current || !mounted) return;
+    run(
+      context,
+      () =>
+          ref.read(libraryControllerProvider.notifier).renamePlaylist(id, name),
+    );
+  }
+
+  Future<void> _delete(String id, String name) async {
+    final yes = await confirm(
+      context,
+      title: 'Удалить «$name»?',
+      body: 'Треки останутся в каталоге и в «Мне нравится».',
+      action: 'Удалить',
+    );
+    if (!yes || !mounted) return;
+    final navigator = Navigator.of(context);
+    run(context, () async {
+      await ref.read(libraryControllerProvider.notifier).deletePlaylist(id);
+      await navigator.maybePop();
+    });
+  }
+
+  void _download(List<UnifiedTrack> tracks) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text('Скачиваю ${tracks.length} — можно слушать дальше'),
+      ),
+    );
+    run(context, () async {
+      final saved = await downloadAll(ref, tracks);
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            saved == tracks.length
+                ? 'Всё сохранено на устройстве'
+                : 'Сохранено $saved из ${tracks.length}',
+          ),
+        ),
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final playlistId = widget.playlistId;
+    if (widget.reloadOn case final source?) {
+      ref.listen(source, (_, _) => _reload());
+    }
+    if (playlistId != null) {
+      ref.listen(libraryControllerProvider, (_, next) {
+        if (next.hasValue) _reload();
+      });
+    }
+    final title = playlistId == null
+        ? widget.title
+        : ref
+                  .watch(libraryControllerProvider)
+                  .valueOrNull
+                  ?.playlists
+                  .where((p) => p.id == playlistId)
+                  .firstOrNull
+                  ?.name ??
+              widget.title;
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final pad = wide ? 48.0 : 20.0;
     return Scaffold(
@@ -62,7 +136,11 @@ class _TracklistScreenState extends ConsumerState<TracklistScreen> {
       body: FutureBuilder<List<UnifiedTrack>>(
         future: _tracks,
         builder: (context, snapshot) {
-          final tracks = snapshot.data ?? const <UnifiedTrack>[];
+          // Keep the old list on screen while a reload is in flight.
+          if (snapshot.hasData) _last = snapshot.data!;
+          final tracks = snapshot.data ?? _last;
+          final loading =
+              snapshot.connectionState != ConnectionState.done && _last.isEmpty;
           final cover = tracks.isEmpty ? null : tracks.first;
           final accent = cover == null
               ? Pal.acid
@@ -102,22 +180,46 @@ class _TracklistScreenState extends ConsumerState<TracklistScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Knob(
-                              icon: Icons.arrow_back_rounded,
-                              size: 44,
-                              tooltip: 'Назад',
-                              onTap: () => Navigator.of(context).maybePop(),
+                            Row(
+                              children: [
+                                Knob(
+                                  icon: Icons.arrow_back_rounded,
+                                  size: 44,
+                                  tooltip: 'Назад',
+                                  onTap: () => Navigator.of(context).maybePop(),
+                                ),
+                                const Spacer(),
+                                if (playlistId != null) ...[
+                                  Knob(
+                                    icon: Icons.edit_rounded,
+                                    size: 44,
+                                    tooltip: 'Переименовать',
+                                    onTap: () => _rename(playlistId, title),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Knob(
+                                    icon: Icons.delete_outline_rounded,
+                                    size: 44,
+                                    tooltip: 'Удалить плейлист',
+                                    onTap: () => _delete(playlistId, title),
+                                  ),
+                                ],
+                              ],
                             ),
                             SizedBox(height: wide ? 120 : 72),
                             Text(
-                              widget.title,
-                              style: Txt.display(wide ? 88 : 46),
+                              title,
+                              style: Txt.display(
+                                wide
+                                    ? (title.length > 18 ? 64 : 88)
+                                    : (title.length > 16 ? 34 : 46),
+                              ),
                             ),
                             const SizedBox(height: 14),
                             Text(
                               [
                                 ?widget.subtitle,
-                                if (snapshot.hasData)
+                                if (!loading)
                                   '${tracks.length} ${plural(tracks.length, 'трек', 'трека', 'треков')}',
                               ].join(' · '),
                               style: Txt.mono(13),
@@ -154,6 +256,14 @@ class _TracklistScreenState extends ConsumerState<TracklistScreen> {
                                           ),
                                         ),
                                 ),
+                                Pill(
+                                  large: true,
+                                  icon: Icons.download_rounded,
+                                  label: 'Скачать',
+                                  onTap: tracks.isEmpty
+                                      ? null
+                                      : () => _download(tracks),
+                                ),
                               ],
                             ),
                           ],
@@ -163,7 +273,7 @@ class _TracklistScreenState extends ConsumerState<TracklistScreen> {
                   ],
                 ),
               ),
-              if (snapshot.connectionState != ConnectionState.done)
+              if (loading)
                 const SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.all(48),
@@ -172,17 +282,14 @@ class _TracklistScreenState extends ConsumerState<TracklistScreen> {
                     ),
                   ),
                 )
-              else if (snapshot.hasError)
+              else if (snapshot.hasError && tracks.isEmpty)
                 SliverPadding(
                   padding: EdgeInsets.symmetric(horizontal: pad),
                   sliver: SliverToBoxAdapter(
                     child: Hollow(
                       title: 'Не загрузилось',
                       body: '${snapshot.error}',
-                      action: Pill(
-                        label: 'Ещё раз',
-                        onTap: () => setState(() => _tracks = widget.load()),
-                      ),
+                      action: Pill(label: 'Ещё раз', onTap: _reload),
                     ),
                   ),
                 )
@@ -201,6 +308,7 @@ class _TracklistScreenState extends ConsumerState<TracklistScreen> {
                     itemBuilder: (context, index) => TrackRow(
                       track: tracks[index],
                       index: index,
+                      playlistId: playlistId,
                       onTap: () => run(
                         context,
                         () => playList(ref, tracks, index: index),

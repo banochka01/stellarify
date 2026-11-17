@@ -534,6 +534,21 @@ final class AppDatabase extends _$AppDatabase {
         .go();
   }
 
+  Future<void> renameLocalPlaylist(String playlistId, String name) async {
+    final trimmedName = name.trim();
+    if (trimmedName.isEmpty) {
+      throw ArgumentError.value(name, 'name', 'Playlist name cannot be empty');
+    }
+    await (update(
+      localPlaylists,
+    )..where((table) => table.id.equals(playlistId))).write(
+      LocalPlaylistsCompanion(
+        name: Value(trimmedName),
+        updatedAt: Value(DateTime.now().toUtc()),
+      ),
+    );
+  }
+
   Future<void> deleteLocalPlaylist(String playlistId) async {
     await (delete(
       localPlaylists,

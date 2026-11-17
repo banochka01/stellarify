@@ -70,16 +70,55 @@ List<UnifiedTrack> interleave(List<List<UnifiedTrack>> lists) {
   return result;
 }
 
-/// More by the artist of a track, for the end of the player.
-final artistTracksProvider = FutureProvider.autoDispose
-    .family<List<UnifiedTrack>, String>((ref, artist) async {
-      final outcome = await ref.watch(searchProvider(artist).future);
-      final needle = artist.toLowerCase();
-      return outcome.tracks
-          .where((track) => track.artist.toLowerCase().contains(needle))
-          .take(12)
-          .toList(growable: false);
-    });
+/// Every manual download, newest first, rebuilt whenever downloads change.
+final downloadedTracksProvider = Provider<List<UnifiedTrack>>((ref) {
+  final downloads = ref.watch(offlineDownloadsProvider);
+  final entries = [...downloads.entries]
+    ..sort((a, b) => b.addedAt.compareTo(a.addedAt));
+  return [for (final entry in entries) entry.track];
+});
+
+/// Where a track stands on this device.
+enum OfflineMark { none, downloading, saved }
+
+final offlineMarkProvider = Provider.family<OfflineMark, String>((ref, id) {
+  final downloads = ref.watch(offlineDownloadsProvider);
+  if (downloads.isDownloading(id)) return OfflineMark.downloading;
+  if (downloads.isManual(id)) return OfflineMark.saved;
+  return OfflineMark.none;
+});
+
+/// Saves [tracks] for offline one by one; failures of single tracks do not
+/// stop the rest. Returns how many were saved.
+Future<int> downloadAll(WidgetRef ref, Iterable<UnifiedTrack> tracks) async {
+  final downloads = ref.read(offlineDownloadsProvider);
+  var saved = 0;
+  for (final track in tracks) {
+    try {
+      await downloads.download(track);
+      saved++;
+    } on Object {
+      // The track stays online-only; the rest keep going.
+    }
+  }
+  return saved;
+}
+
+/// Starts Поток seeded by an artist name.
+Future<void> artistFlow(WidgetRef ref, String artist) async {
+  final wave = ref.read(waveControllerProvider.notifier);
+  await wave.stop();
+  await wave.start(seedQueries: [artist], discovery: .3);
+}
+
+/// Plain text to share a track: «Артист — Название» and a link if known.
+String shareText(UnifiedTrack track) {
+  final link = track.sources.firstOrNull?.externalUrl.toString();
+  return [
+    '${track.artist} — ${track.title}',
+    if (link != null && link.isNotEmpty) link,
+  ].join('\n');
+}
 
 final favoriteIdsProvider = Provider<Set<String>>((ref) {
   return ref.watch(

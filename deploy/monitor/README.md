@@ -27,7 +27,7 @@ Commands, which answer the owner only (anyone else gets silence):
 
 - `/status`
 - `/check`
-- `/reports [N]`
+- `/reports [alpha|stable] [N]` — digest and list show the stable / α split
 - `/mute [hours]`
 - `/unmute`
 

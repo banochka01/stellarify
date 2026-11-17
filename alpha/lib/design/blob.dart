@@ -61,13 +61,17 @@ class _LivingBlobState extends State<LivingBlob>
     _sound.decay(dt);
     _sinceSample += dt;
     final sampler = widget.sampler;
-    if (sampler != null && widget.energy > .5 && !_sampling &&
+    if (sampler != null &&
+        widget.energy > .5 &&
+        !_sampling &&
         _sinceSample >= 1 / 30) {
       _sinceSample = 0;
       _sampling = true;
-      sampler().then((value) {
-        if (value != null) _sound.feed(value);
-      }).whenComplete(() => _sampling = false);
+      sampler()
+          .then((value) {
+            if (value != null) _sound.feed(value);
+          })
+          .whenComplete(() => _sampling = false);
     }
     if (widget.energy <= .5) _sound.feed(0);
     _time.value += dt * (.35 + _energy * .9 + _sound.kick * .8);

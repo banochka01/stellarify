@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resonance/features/auth/account_controller.dart';
 import 'package:resonance/features/library/library_controller.dart';
+import 'package:resonance/features/recap/listening_recap.dart';
 import 'package:resonance/shared/widgets/track_artwork.dart';
 import 'package:resonance_alpha/design/accent.dart';
 import 'package:resonance_alpha/design/tokens.dart';
 import 'package:resonance_alpha/design/widgets.dart';
 import 'package:resonance_alpha/screens/account_sheet.dart';
+import 'package:resonance_alpha/screens/recap_screen.dart';
 import 'package:resonance_alpha/screens/tracklist_screen.dart';
 import 'package:resonance_alpha/state.dart';
 
@@ -28,6 +30,7 @@ class CollectionScreen extends ConsumerWidget {
       onTap: () => Navigator.of(context).push(
         TracklistScreen.route(
           title: 'Мне нравится',
+          reloadOn: favoriteIdsProvider,
           load: () async =>
               (await ref.read(libraryControllerProvider.future)).favorites,
         ),
@@ -127,6 +130,8 @@ class CollectionScreen extends ConsumerWidget {
               ),
               SizedBox(height: wide ? 40 : 24),
               likes,
+              const SizedBox(height: 14),
+              const _Tiles(),
               const SizedBox(height: 56),
               SectionHead(
                 index: '01',
@@ -151,6 +156,7 @@ class CollectionScreen extends ConsumerWidget {
                     onTap: () => Navigator.of(context).push(
                       TracklistScreen.route(
                         title: playlist.name,
+                        playlistId: playlist.id,
                         load: () => ref
                             .read(libraryControllerProvider.notifier)
                             .loadPlaylistTracks(playlist.id),
@@ -201,38 +207,120 @@ class CollectionScreen extends ConsumerWidget {
   }
 
   Future<void> _create(BuildContext context, WidgetRef ref) async {
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
-      useRootNavigator: true,
-      context: context,
-      builder: (dialog) => AlertDialog(
-        backgroundColor: Pal.raised,
-        title: Text('Новый плейлист', style: Txt.title(20)),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: Txt.body(16),
-          onSubmitted: (value) => Navigator.of(dialog).pop(value),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialog).pop(),
-            child: const Text('Отмена'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialog).pop(controller.text),
-            child: const Text('Создать'),
-          ),
-        ],
-      ),
+    final name = await askText(
+      context,
+      title: 'Новый плейлист',
+      action: 'Создать',
     );
-    controller.dispose();
-    final trimmed = name?.trim() ?? '';
-    if (trimmed.isEmpty || !context.mounted) return;
+    if (name == null || !context.mounted) return;
     run(
       context,
-      () =>
-          ref.read(libraryControllerProvider.notifier).createPlaylist(trimmed),
+      () => ref.read(libraryControllerProvider.notifier).createPlaylist(name),
+    );
+  }
+}
+
+/// Two quieter cards under the likes: the week in numbers and what is
+/// saved on this device.
+class _Tiles extends ConsumerWidget {
+  const _Tiles();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+    final recap = ref.watch(listeningRecapProvider(RecapPeriod.week));
+    final minutes = recap.valueOrNull?.minutes;
+    final saved = ref.watch(downloadedTracksProvider);
+    final tiles = [
+      _Tile(
+        label: 'ИТОГИ НЕДЕЛИ',
+        value: minutes == null ? '—' : '$minutes',
+        unit: minutes == null
+            ? ''
+            : plural(minutes, 'минута', 'минуты', 'минут'),
+        icon: Icons.insights_rounded,
+        onTap: () => Navigator.of(context).push(RecapScreen.route()),
+      ),
+      _Tile(
+        label: 'НА УСТРОЙСТВЕ',
+        value: '${saved.length}',
+        unit: plural(saved.length, 'трек', 'трека', 'треков'),
+        icon: Icons.download_done_rounded,
+        onTap: () => Navigator.of(context).push(
+          TracklistScreen.route(
+            title: 'На устройстве',
+            subtitle: 'играет без сети',
+            reloadOn: downloadedTracksProvider,
+            load: () async => ref.read(downloadedTracksProvider),
+          ),
+        ),
+      ),
+    ];
+    return Row(
+      children: [
+        Expanded(child: tiles[0]),
+        SizedBox(width: wide ? 14 : 12),
+        Expanded(child: tiles[1]),
+      ],
+    );
+  }
+}
+
+class _Tile extends StatelessWidget {
+  const _Tile({
+    required this.label,
+    required this.value,
+    required this.unit,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final String unit;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+    return Press(
+      scale: .98,
+      onTap: onTap,
+      child: Container(
+        height: wide ? 150 : 132,
+        padding: EdgeInsets.all(wide ? 24 : 18),
+        decoration: BoxDecoration(
+          color: Pal.raised,
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: Pal.line),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Txt.mono(11),
+                  ),
+                ),
+                Icon(icon, size: 18, color: Pal.muted),
+              ],
+            ),
+            const Spacer(),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(value, style: Txt.display(wide ? 56 : 42)),
+            ),
+            Text(unit, style: Txt.body(13, color: Pal.muted)),
+          ],
+        ),
+      ),
     );
   }
 }

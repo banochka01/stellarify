@@ -166,6 +166,28 @@ final class LibraryController extends AsyncNotifier<LibraryState> {
     );
   }
 
+  Future<void> renamePlaylist(String playlistId, String name) async {
+    final sync = ref.read(librarySyncServiceProvider);
+    late LibraryState updated;
+    await sync.runLocalMutation(() async {
+      await _database.renameLocalPlaylist(playlistId, name);
+      updated = await _load();
+      await sync.recordPlaylistUpsert(
+        updated.playlists.firstWhere((playlist) => playlist.id == playlistId),
+      );
+    });
+    state = AsyncData(updated);
+  }
+
+  Future<void> removeFromPlaylist(String playlistId, String trackId) async {
+    final sync = ref.read(librarySyncServiceProvider);
+    await sync.runLocalMutation(() async {
+      await _database.removeTrackFromLocalPlaylist(playlistId, trackId);
+      await sync.recordPlaylistTrackDelete(playlistId, trackId);
+    });
+    state = AsyncData(await _load());
+  }
+
   Future<void> deletePlaylist(String playlistId) async {
     final sync = ref.read(librarySyncServiceProvider);
     await sync.runLocalMutation(() async {
