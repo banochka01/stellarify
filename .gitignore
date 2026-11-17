@@ -14,3 +14,5 @@ resonance/.qa/
 resonance/test/failures/
 apps/landing/vite.config.js
 apps/landing/vite.config.d.ts
+
+__pycache__/
